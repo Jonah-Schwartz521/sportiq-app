@@ -1,0 +1,41 @@
+openapi: 3.0.3
+info:
+  title: SportIQ API
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+  /predict/{sport}:
+    post:
+      summary: Return win probabilities for an event or matchup
+      parameters:
+        - in: path
+          name: sport
+          required: true
+          schema:
+            type: string
+            enum: [nba, ufc]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event_id:
+                  type: string
+                home_team:
+                  type: string
+                away_team:
+                  type: string
+                fighter_a:
+                  type: string
+                fighter_b:
+                  type: string
+      responses:
+        '200':
+          description: Probabilities
