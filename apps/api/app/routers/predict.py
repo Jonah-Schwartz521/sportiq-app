@@ -73,7 +73,12 @@ def _predict_ufc(_: PredictRequest) -> Dict[str, float]:
 @router.post("/{sport}", response_model=PredictResponse)
 def predict(sport: Literal["nba", "ufc"], payload: PredictRequest):
     if sport == "nba":
-        probs = _predict_nba(payload)
+        from apps.api.app.services.nba_model import predict_winprob
+        try: 
+            result = predict_winprob(payload.event_id or 1)
+            return result 
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"NBA prediction error: {e}")    
         mk = "nba-winprob-0.1.0"
     elif sport == "ufc":
         probs = _predict_ufc(payload)
