@@ -35,8 +35,9 @@ psql:
 	psql $(DB_URL)
 
 api:
-	@lsof -ti:$(API_PORT) | xargs kill -9 2>/dev/null || true
-	cd apps/api && uvicorn app.main:app --reload --port $(API_PORT)
+	@lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+	uvicorn apps.api.app.main:app --reload --port $(API_PORT)
+	
 
 lint:
 	python -m pip install ruff
@@ -44,3 +45,6 @@ lint:
 
 test:
 	python -m pytest -q
+
+train-nba:
+	python models/nba/train_baseline.py
