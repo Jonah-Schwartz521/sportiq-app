@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, Literal
+from pydantic import BaseModel, ConfigDict
 
 router = APIRouter()
 
