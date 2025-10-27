@@ -1,22 +1,33 @@
 # Python
-__pycache__/
+.venv/
+venv/
+env/
+**/__pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.sqlite
-*.db
+.pytest_cache/
+.ipynb_checkpoints/
+.coverage
 
-# Environment
-.env
-.venv/
-.env.*
-*.lock
-
-# macOS
+# OS / IDE
 .DS_Store
-
-# VS Code
+.idea/
 .vscode/
 
-# Docker
-pgdata/
+# Env & secrets
+.env
+.env.*
+*.env
+
+# Node (if any frontend)
+node_modules/
+
+# Artifacts / data (tweak as needed)
+models/*/artifacts/
+data/
+logs/  
+# Virtualenvs
+.venv*/
+venv*/
+env*/
