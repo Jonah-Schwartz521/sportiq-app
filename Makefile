@@ -22,8 +22,8 @@ psql:
 	psql postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)
 
 api:
-	cd apps/api && uvicorn app.main:app --reload --port $${API_PORT:-8000}
-
+	@lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+	cd apps/api && uvicorn app.main:app --reload --port ${API_PORT:-8000}
 lint:
 	python -m pip install ruff
 	ruff check apps/api

@@ -2,16 +2,35 @@ openapi: 3.0.3
 info:
   title: SportIQ API
   version: 0.1.0
+  description: |
+    SportIQ is a sports analytics API that provides win probabilities,
+    plain-English explanations, and insights for multiple sports (NBA, UFC, etc.).
+servers:
+  - url: http://127.0.0.1:8000
+    description: Local development server
+
 paths:
   /health:
     get:
+      tags: [system]
       summary: Health check
+      description: Verify that the API is running and connected to its dependencies.
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              example:
+                status: "ok"
+                timestamp: "2025-10-24T19:30:00Z"
+
   /predict/{sport}:
     post:
+      tags: [predict]
       summary: Return win probabilities for an event or matchup
+      description: >
+        Generate predicted win probabilities for an NBA game or UFC fight.
+        Requires basic matchup info in the request body.
       parameters:
         - in: path
           name: sport
@@ -27,15 +46,85 @@ paths:
               type: object
               properties:
                 event_id:
-                  type: string
+                  type: integer
+                  example: 101
                 home_team:
                   type: string
+                  example: "Denver Nuggets"
                 away_team:
                   type: string
+                  example: "Boston Celtics"
                 fighter_a:
                   type: string
+                  example: "Jon Jones"
                 fighter_b:
                   type: string
+                  example: "Tom Aspinall"
       responses:
         '200':
-          description: Probabilities
+          description: Probabilities returned
+          content:
+            application/json:
+              example:
+                event_id: 101
+                sport: "nba"
+                model_key: "nba-winprob-0.1.0"
+                win_probabilities:
+                  home: 0.62
+                  away: 0.38
+                generated_at: "2025-10-24T19:22:00Z"
+
+  /explain/{sport}:
+    get:
+      tags: [explain]
+      summary: Return Top-3 plain-English reasons for a prediction
+      description: >
+        Retrieve the most influential factors (features) driving a given prediction.
+        Useful for user-facing explainability.
+      parameters:
+        - in: path
+          name: sport
+          required: true
+          schema:
+            type: string
+            enum: [nba, ufc]
+        - in: query
+          name: event_id
+          required: true
+          schema:
+            type: integer
+            example: 101
+      responses:
+        '200':
+          description: Explanations returned
+          content:
+            application/json:
+              example:
+                event_id: 101
+                sport: "ufc"
+                model_key: "ufc-winprob-0.1.0"
+                generated_at: "2025-10-24T19:22:00Z"
+                top_reasons:
+                  - rank: 1
+                    feature_name: "Reach Advantage"
+                    direction: "pro-fighter_a"
+                    abs_impact: 0.06
+                    user_friendly: "Fighter A has a longer reach advantage."
+                  - rank: 2
+                    feature_name: "Age Delta"
+                    direction: "pro-fighter_a"
+                    abs_impact: 0.04
+                    user_friendly: "Fighter A is in prime fighting age."
+                  - rank: 3
+                    feature_name: "Recent Form (L3)"
+                    direction: "pro-fighter_b"
+                    abs_impact: 0.03
+                    user_friendly: "Fighter B’s last fights show strong momentum."
+
+tags:
+  - name: system
+    description: System-level health and diagnostics endpoints.
+  - name: predict
+    description: Generate win probabilities for upcoming sports events.
+  - name: explain
+    description: Retrieve human-readable explanations for model predictions.
