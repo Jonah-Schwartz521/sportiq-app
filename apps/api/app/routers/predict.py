@@ -2,11 +2,11 @@
 from fastapi import APIRouter, HTTPException
 from typing import Optional, Literal, Dict
 from pydantic import BaseModel, ConfigDict
-from pathlib import Path
 from datetime import datetime, timezone
+import psycopg
 
-# Optional ML deps; we'll import lazily inside the NBA branch
-# so the module can load even if sklearn/numpy aren't installed.
+from apps.api.app.core.config import POSTGRES_DSN
+from apps.api.app.services.nba_model import predict_winprob  # NBA service
 
 router = APIRouter(prefix="/predict", tags=["predict"])
 
@@ -19,75 +19,77 @@ class PredictRequest(BaseModel):
     fighter_b: Optional[str] = None
 
 class PredictResponse(BaseModel):
-    model_config = ConfigDict(protected_namespaces=())  # silence pydantic "model_*" warning
+    # allow "model_key" without pydantic protected namespace warnings
+    model_config = ConfigDict(protected_namespaces=())
     model_key: str
     win_probabilities: Dict[str, float]
     generated_at: str
 
 # ----- Helpers -----
-def _project_root() -> Path:
-    # This file lives at: <root>/apps/api/app/routers/predict.py
-    # parents[0]=routers, [1]=app, [2]=api, [3]=apps, [4]=<root>
-    p = Path(__file__).resolve()
-    return p.parents[4] if len(p.parents) >= 5 else p.parent.parent.parent.parent
-
-def _nba_artifacts_dir() -> Path:
-    return _project_root() / "models" / "nba" / "artifacts"
-
-def _predict_nba(_: PredictRequest) -> Dict[str, float]:
-    art = _nba_artifacts_dir()
-    model_path = art / "model.joblib"
-    meta_path = art / "feature_meta.json"
-
-    if not model_path.exists() or not meta_path.exists():
-        raise HTTPException(
-            status_code=500,
-            detail="NBA prediction error: NBA model artifact missing. Run `make train-nba` first."
-        )
-
-    # Lazy imports so the router loads even if ML deps aren’t installed for other routes
+def _persist_prediction(event_id: int, model_key: str, home_wp: float, away_wp: float) -> None:
+    """Best-effort insert to core.predictions; do nothing if exists."""
     try:
-        from joblib import load
-        import numpy as np
-        import json
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"NBA prediction error: {e}")
-
-    try:
-        model = load(model_path)
-        meta = json.loads(meta_path.read_text())
-        features = meta.get("features", [])
-        # Create a neutral feature vector (all zeros) for demo purposes.
-        # You can replace this with real features later.
-        X = np.zeros((1, len(features)), dtype=float)
-        proba_home = float(model.predict_proba(X)[0, 1])
-        return {"home": proba_home, "away": 1.0 - proba_home}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"NBA prediction error: {e}")
+        with psycopg.connect(POSTGRES_DSN) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO core.predictions (event_id, model_key, home_wp, away_wp)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT DO NOTHING;
+                """,
+                (event_id, model_key, home_wp, away_wp),
+            )
+            conn.commit()
+    except Exception:
+        # Keep API responsive; add logging if you want to trace failures.
+        pass
 
 def _predict_ufc(_: PredictRequest) -> Dict[str, float]:
-    # Simple placeholder
+    # Placeholder: return fighter-oriented keys for now
     return {"fighter_a": 0.55, "fighter_b": 0.45}
 
 # ----- Route -----
 @router.post("/{sport}", response_model=PredictResponse)
 def predict(sport: Literal["nba", "ufc"], payload: PredictRequest):
     if sport == "nba":
-        from apps.api.app.services.nba_model import predict_winprob
-        try: 
-            result = predict_winprob(payload.event_id or 1)
-            return result 
+        if payload.event_id is None:
+            raise HTTPException(status_code=400, detail="Missing event_id for NBA prediction.")
+        try:
+            result = predict_winprob(payload.event_id)
+            probs = result["win_probabilities"]
+            mk = result["model_key"]
+
+            # Persist (home/away) if event_id present
+            _persist_prediction(
+                payload.event_id,
+                mk,
+                float(probs.get("home", 0.0)),
+                float(probs.get("away", 0.0)),
+            )
+            return result
+        except HTTPException:
+            # bubble up nicely-formatted errors from service layer
+            raise
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"NBA prediction error: {e}")    
-        mk = "nba-winprob-0.1.0"
+            raise HTTPException(status_code=500, detail=f"NBA prediction error: {e}")
+
     elif sport == "ufc":
+        # Demo-only UFC placeholder
         probs = _predict_ufc(payload)
         mk = "ufc-winprob-0.1.0"
-    else:
-        raise HTTPException(status_code=400, detail="Unsupported sport")
 
-    return {
-        "model_key": mk,
-        "win_probabilities": probs,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-    }
+        # Try to persist if event_id is supplied; map fighter_a/b -> home/away
+        if payload.event_id is not None:
+            _persist_prediction(
+                payload.event_id, mk,
+                float(probs.get("fighter_a", 0.0)),
+                float(probs.get("fighter_b", 0.0)),
+            )
+
+        return {
+            "model_key": mk,
+            "win_probabilities": probs,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    # Literal guard should prevent this
+    raise HTTPException(status_code=400, detail="Unsupported sport")
