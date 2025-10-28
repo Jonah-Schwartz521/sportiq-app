@@ -8,6 +8,10 @@ import pandas as pd
 from joblib import load
 import psycopg
 from apps.api.app.core.config import POSTGRES_DSN
+from sqlalchemy import create_engine
+
+
+
 
 # Artifact locations (relative to project root)
 ART = Path("models/nba/artifacts")
@@ -50,10 +54,7 @@ def _load():
 
 
 def _raw_row_from_db(event_id: int) -> pd.DataFrame:
-    """
-    Pull raw inputs used by the model from Postgres (single event_id).
-    NOTE: column names must match the training FEATURES exactly.
-    """
+    """Pull raw inputs for features from Postgres (via SQLAlchemy engine)."""
     sql = """
         SELECT
             e.event_id,
@@ -68,12 +69,11 @@ def _raw_row_from_db(event_id: int) -> pd.DataFrame:
         FROM core.events e
         JOIN core.teams t_home ON e.home_team_id = t_home.team_id
         JOIN core.teams t_away ON e.away_team_id = t_away.team_id
-        WHERE e.event_id = %s;
+        WHERE e.event_id = %(event_id)s;
     """
-    with psycopg.connect(POSTGRES_DSN) as conn:
-        # pandas warns about non-SQLAlchemy connections; OK for now.
-        df = pd.read_sql(sql, conn, params=(event_id,))
-
+    engine = create_engine(POSTGRES_DSN)
+    with engine.connect() as conn:
+        df = pd.read_sql(sql, conn, params={"event_id": event_id})
     if df.empty:
         raise ValueError(f"No event found with id {event_id}")
     return df
