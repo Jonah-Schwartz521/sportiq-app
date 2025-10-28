@@ -1,12 +1,10 @@
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
-python-dotenv==1.0.1
-psycopg[binary]==3.2.10
-redis==5.0.8
+fastapi==0.115.5
+uvicorn[standard]==0.32.0
 pydantic==2.9.2
+psycopg[binary]==3.2.1
 numpy==1.26.4
-pandas==2.2.3
-scikit-learn==1.5.2
+scikit-learn==1.4.2
 joblib==1.4.2
-pyarrow==15.0.2     # works well on mac arm + py311
-shap==0.45.1        # has wheels for py311; good balance of stability/features
+python-dotenv==1.0.1
+pytest==8.3.3
+SQLAlchemy==2.0.44
