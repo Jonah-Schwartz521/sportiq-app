@@ -2,10 +2,11 @@ fastapi==0.115.5
 uvicorn[standard]==0.32.0
 pydantic==2.9.2
 psycopg[binary]==3.2.1
+SQLAlchemy==2.0.44
+pandas
 numpy==1.26.4
 scikit-learn==1.4.2
 joblib==1.4.2
 python-dotenv==1.0.1
 pytest==8.3.3
-SQLAlchemy==2.0.44
 httpx==0.27.2
