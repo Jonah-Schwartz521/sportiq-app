@@ -1,1 +1,14 @@
-{"features": ["home_flag", "prior_home_adv", "home_elo_proxy", "away_elo_proxy"], "target": "y_home_win"}
+{
+  "features": [
+    "home_elo_proxy",
+    "away_elo_proxy",
+    "home_rest_days",
+    "away_rest_days",
+    "home_3pa_rate",
+    "away_3pa_rate",
+    "home_reb_margin",
+    "away_reb_margin"
+  ],
+  "target": "y_home_win",
+  "version": "0.3.0"
+}
