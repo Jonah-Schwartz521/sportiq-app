@@ -19,7 +19,6 @@ class PredictRequest(BaseModel):
     fighter_b: Optional[str] = None
 
 class PredictResponse(BaseModel):
-    # allow "model_key" without pydantic protected namespace warnings
     model_config = ConfigDict(protected_namespaces=())
     model_key: str
     win_probabilities: Dict[str, float]
@@ -27,7 +26,7 @@ class PredictResponse(BaseModel):
 
 # ----- Helpers -----
 def _persist_prediction(event_id: int, model_key: str, home_wp: float, away_wp: float) -> None:
-    """Best-effort insert to core.predictions; do nothing if exists."""
+    """Insert prediction if not already in DB."""
     try:
         with psycopg.connect(POSTGRES_DSN) as conn, conn.cursor() as cur:
             cur.execute(
@@ -40,11 +39,10 @@ def _persist_prediction(event_id: int, model_key: str, home_wp: float, away_wp: 
             )
             conn.commit()
     except Exception:
-        # Keep API responsive; add logging if you want to trace failures.
-        pass
+        pass  # Keep API responsive; optional logging later
 
 def _predict_ufc(_: PredictRequest) -> Dict[str, float]:
-    # Placeholder: return fighter-oriented keys for now
+    # Placeholder example
     return {"fighter_a": 0.55, "fighter_b": 0.45}
 
 # ----- Route -----
@@ -57,8 +55,6 @@ def predict(sport: Literal["nba", "ufc"], payload: PredictRequest):
             result = predict_winprob(payload.event_id)
             probs = result["win_probabilities"]
             mk = result["model_key"]
-
-            # Persist (home/away) if event_id present
             _persist_prediction(
                 payload.event_id,
                 mk,
@@ -66,30 +62,22 @@ def predict(sport: Literal["nba", "ufc"], payload: PredictRequest):
                 float(probs.get("away", 0.0)),
             )
             return result
-        except HTTPException:
-            # bubble up nicely-formatted errors from service layer
-            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"NBA prediction error: {e}")
-
     elif sport == "ufc":
-        # Demo-only UFC placeholder
         probs = _predict_ufc(payload)
         mk = "ufc-winprob-0.1.0"
-
-        # Try to persist if event_id is supplied; map fighter_a/b -> home/away
         if payload.event_id is not None:
             _persist_prediction(
-                payload.event_id, mk,
+                payload.event_id,
+                mk,
                 float(probs.get("fighter_a", 0.0)),
                 float(probs.get("fighter_b", 0.0)),
             )
-
         return {
             "model_key": mk,
             "win_probabilities": probs,
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
-    # Literal guard should prevent this
     raise HTTPException(status_code=400, detail="Unsupported sport")
