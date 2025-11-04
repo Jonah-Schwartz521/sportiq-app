@@ -1,5 +1,15 @@
 # Purpose: list saved predictions with optional filtering & pagination
 
+# Why this router exists: 
+#   - Lets clients (web app, notebooks) browse recent predictions. 
+#   - Supports filtering (event_id, model_key) + pagination (limit, offset).
+#   - Returns a stable shape {items[], total_returned, limit, offset}.
+
+# Query assembly notes 
+#   - Build WHERE clauses incrementally to keep SQL readable 
+#   - Use positional params (%) to avoid SQL injection
+#   - Keep ORDER BY deterministic so pagination is stable 
+
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List, Dict, Any
 import psycopg
