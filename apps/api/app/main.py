@@ -10,6 +10,7 @@ from .routers.explain import router as explain_router
 from .routers.insights import router as insights_router
 from .routers.predictions import router as predictions_router
 from .routers.events import router as events_router
+from .routers.teams import router as teams_router
 
 app = FastAPI(
     title="SportIQ API",
@@ -36,6 +37,7 @@ app.include_router(explain_router)
 app.include_router(insights_router)
 app.include_router(predictions_router)
 app.include_router(events_router)
+app.include_router(teams_router)
 
 # Redirect root to Swagger UI
 @app.get("/", include_in_schema=False)
