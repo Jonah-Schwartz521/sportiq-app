@@ -8,5 +8,6 @@ numpy==1.26.4
 pandas==2.2.3
 scikit-learn==1.5.2
 joblib==1.4.2
-pyarrow==15.0.2     # works well on mac arm + py311
-shap==0.45.1        # has wheels for py311; good balance of stability/features
+pyarrow==15.0.2      
+shap==0.45.1       
+pytest   
