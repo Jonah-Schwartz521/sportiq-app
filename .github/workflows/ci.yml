@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [ main, dev, feature/** ]
+    branches: [ main, dev, "feature/**" ]
   pull_request:
   workflow_dispatch:
 
@@ -18,7 +18,7 @@ jobs:
           POSTGRES_PASSWORD: sportiq
           POSTGRES_DB: sportiq
         ports:
-          - 5432:5432
+          - "5432:5432"
         options: >-
           --health-cmd="pg_isready -U sportiq -d sportiq"
           --health-interval=5s
@@ -31,12 +31,14 @@ jobs:
       PGPASSWORD: sportiq
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repo
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"
+          cache: pip
 
       - name: Install OS deps (psql client)
         run: |
@@ -47,16 +49,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          # Ensure test deps present (FastAPI TestClient needs httpx)
-          pip install httpx==0.27.* pytest
+          pip install "httpx==0.27.*" pytest
 
       - name: Show env seen by runner
         run: |
           echo "POSTGRES_DSN=$POSTGRES_DSN"
-          python - <<'PY'
-import os
-print("PY POSTGRES_DSN:", os.getenv("POSTGRES_DSN"))
-PY
+          python --version
+          python -m pytest --version || true
 
       - name: Wait for Postgres
         run: |
@@ -68,12 +67,6 @@ PY
       - name: Load schema/seed
         run: |
           psql -h localhost -p 5432 -U sportiq -d sportiq -f db/migrations/20251104_fk_integrity.sql
-
-      - name: Sanity check
-        run: |
-          python --version
-          python -m pytest --version
-          psql -h localhost -p 5432 -U sportiq -d sportiq -c "SELECT 1;"
 
       - name: Run tests
         run: |
