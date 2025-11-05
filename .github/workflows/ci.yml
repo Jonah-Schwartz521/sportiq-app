@@ -1,10 +1,8 @@
-name: CI
+name: ci
 
 on:
   push:
-    branches: [ main ]
   pull_request:
-    branches: [ main ]
 
 jobs:
   test:
@@ -12,36 +10,53 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15
+        image: postgres:16
         env:
           POSTGRES_USER: sportiq
           POSTGRES_PASSWORD: sportiq
           POSTGRES_DB: sportiq
-        ports:
-          - 5433:5432
+        ports: ["5433:5432"]
         options: >-
           --health-cmd="pg_isready -U sportiq -d sportiq"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
+          --health-interval=5s --health-timeout=5s --health-retries=20
+
+    env:
+      POSTGRES_DSN: postgresql://sportiq:sportiq@localhost:5433/sportiq
+      PYTHONPATH: .
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install deps
+        run: python -m pip install -r requirements.txt
 
       - name: Wait for Postgres
         run: |
-          until pg_isready -h localhost -p 5433 -U sportiq; do sleep 1; done
+          for i in {1..60}; do
+            pg_isready -h localhost -p 5433 -d sportiq -U sportiq && break
+            sleep 1
+          done
+
+      - name: Load schema/seed
+        run: psql postgresql://sportiq:sportiq@localhost:5433/sportiq -f db/migrations/20251104_fk_integrity.sql
+
+      # ---- Debug steps (keep until green) ----
+      - name: Show pytest version
+        run: python -m pytest --version
+      - name: Show installed pytest
+        run: python - <<'PY'
+import pkgutil, sys
+print("pytest in sys.path?", any(m.name=="pytest" for m in pkgutil.iter_modules()))
+import subprocess; subprocess.run([sys.executable,"-m","pip","show","pytest"])
+PY
+      # ----------------------------------------
 
       - name: Run tests
-        env:
-          POSTGRES_DSN: postgresql://sportiq:sportiq@localhost:5433/sportiq
-        run: pytest -q apps/api/tests
+        run: python -m pytest -q apps/api/tests
