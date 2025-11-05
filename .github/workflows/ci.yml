@@ -18,7 +18,7 @@ jobs:
           POSTGRES_PASSWORD: sportiq
           POSTGRES_DB: sportiq
         ports:
-          - 5433:5432
+          - 5432:5432
         options: >-
           --health-cmd="pg_isready -U sportiq -d sportiq"
           --health-interval=5s
@@ -26,7 +26,7 @@ jobs:
           --health-retries=20
 
     env:
-      POSTGRES_DSN: postgresql://sportiq:sportiq@localhost:5433/sportiq
+      POSTGRES_DSN: postgresql://sportiq:sportiq@localhost:5432/sportiq
       PYTHONPATH: .
       PGPASSWORD: sportiq
 
@@ -50,21 +50,30 @@ jobs:
           # Ensure test deps present (FastAPI TestClient needs httpx)
           pip install httpx==0.27.* pytest
 
+      - name: Show env seen by runner
+        run: |
+          echo "POSTGRES_DSN=$POSTGRES_DSN"
+          python - <<'PY'
+import os
+print("PY POSTGRES_DSN:", os.getenv("POSTGRES_DSN"))
+PY
+
       - name: Wait for Postgres
         run: |
           for i in {1..60}; do
-            pg_isready -h localhost -p 5433 -d sportiq -U sportiq && break
+            pg_isready -h localhost -p 5432 -d sportiq -U sportiq && break
             sleep 1
           done
 
       - name: Load schema/seed
         run: |
-          psql -h localhost -p 5433 -U sportiq -d sportiq -f db/migrations/20251104_fk_integrity.sql
+          psql -h localhost -p 5432 -U sportiq -d sportiq -f db/migrations/20251104_fk_integrity.sql
 
       - name: Sanity check
         run: |
           python --version
           python -m pytest --version
+          psql -h localhost -p 5432 -U sportiq -d sportiq -c "SELECT 1;"
 
       - name: Run tests
         run: |
