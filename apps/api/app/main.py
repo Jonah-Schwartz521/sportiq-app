@@ -16,7 +16,7 @@ app = FastAPI(
     title="SportIQ API",
     version="0.1.0",
     description=(
-        "Cross-sport predictive analytics API for SportIQ — "
+        "Cross-sport predictivuvie analytics API for SportIQ — "
         "powering win probabilities, explanations, and insights."
     ),
 )
