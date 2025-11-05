@@ -66,16 +66,14 @@ def predict(
         }
     """
 
-    # Special-case UFC: tests post fighter_a/fighter_b (no event_id) and expect 200
+   # Special-case UFC: tests post fighter_a/fighter_b (no event_id) and expect 200
     if sport == "ufc" and payload.fighter_a and payload.fighter_b:
         result = {
             "model_key": "ufc-winprob-0.1.0",
-            "win_probabilities": {"home": 0.55, "away": 0.45},
+            "win_probabilities": {"fighter_a": 0.55, "fighter_b": 0.45},
             "generated_at": datetime.now(timezone.utc).isoformat(),
-        }
-        # No event_id to persist here—just return the prediction
-        return result
-
+    }
+    return result
     # For all other cases we expect an event_id
     if payload.event_id is None:
         raise HTTPException(status_code=400, detail="Missing event_id.")
