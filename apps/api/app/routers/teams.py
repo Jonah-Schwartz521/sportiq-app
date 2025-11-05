@@ -10,6 +10,7 @@ router = APIRouter(prefix="/teams", tags=["teams"])
 @router.get("", summary="List Teams")
 def list_teams(
     sport_id: Optional[int] = Query(None, description="Filter by sport_id"),
+    q: Optional[str] = Query(None, description="Case-insenitive search over team name"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
@@ -20,6 +21,10 @@ def list_teams(
         where.append("sport_id = %s")
         params.append(sport_id)
 
+    if q:
+        where.append("name ILIKE %s")
+        params.append(f"%{q}")
+        
     where_sql = f"WHERE {' AND '.join(where)}" if where else ""
 
     sql = f"""
