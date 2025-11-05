@@ -3,7 +3,6 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-# Routers (each router file already sets its own prefix/tags)
 from .routers.health import router as health_router
 from .routers.predict import router as predict_router
 from .routers.explain import router as explain_router
@@ -21,16 +20,14 @@ app = FastAPI(
     ),
 )
 
-# CORS (open for dev; tighten allow_origins in prod)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # e.g., ["http://localhost:3000"] in prod
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers WITHOUT extra prefixes (they already have them)
 app.include_router(health_router)
 app.include_router(predict_router)
 app.include_router(explain_router)
@@ -39,7 +36,6 @@ app.include_router(predictions_router)
 app.include_router(events_router)
 app.include_router(teams_router)
 
-# Redirect root to Swagger UI
 @app.get("/", include_in_schema=False)
 def root():
     return RedirectResponse(url="/docs")

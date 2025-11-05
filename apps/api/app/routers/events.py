@@ -1,3 +1,4 @@
+# apps/api/app/routers/events.py
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional, List, Dict, Any
 from datetime import date as _date
@@ -21,7 +22,7 @@ def list_events(
     sport_id: Optional[int] = Query(None, description="Filter by sport_id"),
     date_from: Optional[str] = Query(None, description="Inclusive start date (YYYY-MM-DD)"),
     date_to: Optional[str] = Query(None, description="Inclusive end date (YYYY-MM-DD)"),
-    status: Optional[str] = Query(None, description="Filter by status (scheduled|in_progress|final)"),
+    status: Optional[str] = Query(None, description="Filter by status (e.g., scheduled, in_progress, final)"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
@@ -52,8 +53,7 @@ def list_events(
     where_sql = f"WHERE {' AND '.join(where)}" if where else ""
 
     sql = f"""
-        SELECT event_id, sport_id, season, "date",
-               home_team_id, away_team_id, venue, status, start_time
+        SELECT event_id, sport_id, season, "date", home_team_id, away_team_id, venue, status, start_time
         FROM core.events
         {where_sql}
         ORDER BY "date" DESC, event_id DESC
@@ -78,6 +78,35 @@ def list_events(
             "away_team_id": away_id,
             "venue": venue,
             "status": st,
-            "start_time": start_time
+            "start_time": start_time,
         })
     return {"items": items, "total_returned": len(items), "limit": limit, "offset": offset}
+
+@router.get("/{event_id}", summary="Get single event")
+def get_event(event_id: int):
+    try:
+        with psycopg.connect(POSTGRES_DSN) as conn, conn.cursor() as cur:
+            cur.execute("""
+                SELECT event_id, sport_id, season, "date", home_team_id, away_team_id, venue, status, start_time
+                FROM core.events
+                WHERE event_id = %s
+            """, (event_id,))
+            row = cur.fetchone()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {e}")
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    (event_id, sp, season, dt, home_id, away_id, venue, st, start_time) = row
+    return {
+        "event_id": event_id,
+        "sport_id": sp,
+        "season": season,
+        "date": dt.isoformat() if hasattr(dt, "isoformat") else dt,
+        "home_team_id": home_id,
+        "away_team_id": away_id,
+        "venue": venue,
+        "status": st,
+        "start_time": start_time,
+    }
