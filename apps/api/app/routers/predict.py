@@ -68,7 +68,12 @@ def predict(
         raise HTTPException(status_code=400, detail=f"Unsupported sport: {sport}")
 
     try:
-        result = REGISTRY[sport](payload.event_id)
+        if sport == "nba":
+    # Use adapters.nba directly so monkeypatch works in tests
+            from apps.api.app.adapters import nba as nba_adapter
+            result = nba_adapter.predict_winprob(payload.event_id)
+        else:
+            result = REGISTRY[sport](payload.event_id)
     except HTTPException:
         raise
     except Exception as e:
