@@ -1,10 +1,11 @@
 # apps/api/app/routers/events.py
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional, List, Dict, Any
-from datetime import date as _date
+from datetime import date as _date, datetime as _dt, time as _t
 import psycopg
 
 from apps.api.app.core.config import POSTGRES_DSN
+from apps.api.app.schemas.events import EventList, Event
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -17,7 +18,7 @@ def _parse_iso(s: Optional[str], field: str) -> Optional[_date]:
     except Exception:
         raise HTTPException(status_code=400, detail=f"Bad {field}: expected YYYY-MM-DD")
 
-@router.get("", summary="List Events")
+@router.get("", summary="List Events", response_model=EventList)
 def list_events(
     sport_id: Optional[int] = Query(None, description="Filter by sport_id"),
     date_from: Optional[str] = Query(None, description="Inclusive start date (YYYY-MM-DD)"),
@@ -38,7 +39,7 @@ def list_events(
         params.append(status)
 
     d_from = _parse_iso(date_from, "date_from")
-    d_to   = _parse_iso(date_to,   "date_to")
+    d_to = _parse_iso(date_to, "date_to")
 
     if d_from is not None and d_to is not None:
         where.append('"date" >= %s AND "date" <= %s')
@@ -68,29 +69,39 @@ def list_events(
         raise HTTPException(status_code=500, detail=f"DB error: {e}")
 
     items: List[Dict[str, Any]] = []
-    for (event_id, sp, season, dt, home_id, away_id, venue, st, start_time) in rows or []:
+    for (event_id, sp, season, dval, home_id, away_id, venue, st, start_time) in rows or []:
+        date_str = dval.isoformat() if hasattr(dval, "isoformat") else dval
+        start_time_str = (
+            start_time.isoformat()
+            if (isinstance(start_time, (_dt, _t)) or hasattr(start_time, "isoformat"))
+            else start_time
+        )
         items.append({
             "event_id": event_id,
             "sport_id": sp,
             "season": season,
-            "date": dt.isoformat() if hasattr(dt, "isoformat") else dt,
+            "date": date_str,
             "home_team_id": home_id,
             "away_team_id": away_id,
             "venue": venue,
             "status": st,
-            "start_time": start_time,
+            "start_time": start_time_str,
         })
+
     return {"items": items, "total_returned": len(items), "limit": limit, "offset": offset}
 
-@router.get("/{event_id}", summary="Get single event")
+@router.get("/{event_id}", summary="Get single event", response_model=Event)
 def get_event(event_id: int):
     try:
         with psycopg.connect(POSTGRES_DSN) as conn, conn.cursor() as cur:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT event_id, sport_id, season, "date", home_team_id, away_team_id, venue, status, start_time
                 FROM core.events
                 WHERE event_id = %s
-            """, (event_id,))
+                """,
+                (event_id,),
+            )
             row = cur.fetchone()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"DB error: {e}")
@@ -98,15 +109,22 @@ def get_event(event_id: int):
     if not row:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    (event_id, sp, season, dt, home_id, away_id, venue, st, start_time) = row
+    (event_id, sp, season, dval, home_id, away_id, venue, st, start_time) = row
+    date_str = dval.isoformat() if hasattr(dval, "isoformat") else dval
+    start_time_str = (
+        start_time.isoformat()
+        if (isinstance(start_time, (_dt, _t)) or hasattr(start_time, "isoformat"))
+        else start_time
+    )
+
     return {
         "event_id": event_id,
         "sport_id": sp,
         "season": season,
-        "date": dt.isoformat() if hasattr(dt, "isoformat") else dt,
+        "date": date_str,
         "home_team_id": home_id,
         "away_team_id": away_id,
         "venue": venue,
         "status": st,
-        "start_time": start_time,
+        "start_time": start_time_str,
     }
