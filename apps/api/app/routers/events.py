@@ -9,6 +9,7 @@ from apps.api.app.schemas.events import EventList, Event
 
 router = APIRouter(prefix="/events", tags=["events"])
 
+
 def _parse_iso(s: Optional[str], field: str) -> Optional[_date]:
     if not s:
         return None
@@ -17,6 +18,7 @@ def _parse_iso(s: Optional[str], field: str) -> Optional[_date]:
         return _date(y, m, d)
     except Exception:
         raise HTTPException(status_code=400, detail=f"Bad {field}: expected YYYY-MM-DD")
+
 
 @router.get("", summary="List Events", response_model=EventList)
 def list_events(
@@ -76,19 +78,22 @@ def list_events(
             if (isinstance(start_time, (_dt, _t)) or hasattr(start_time, "isoformat"))
             else start_time
         )
-        items.append({
-            "event_id": event_id,
-            "sport_id": sp,
-            "season": season,
-            "date": date_str,
-            "home_team_id": home_id,
-            "away_team_id": away_id,
-            "venue": venue,
-            "status": st,
-            "start_time": start_time_str,
-        })
+        items.append(
+            {
+                "event_id": event_id,
+                "sport_id": sp,
+                "season": season,
+                "date": date_str,
+                "home_team_id": home_id,
+                "away_team_id": away_id,
+                "venue": venue,
+                "status": st,
+                "start_time": start_time_str,
+            }
+        )
 
     return {"items": items, "total_returned": len(items), "limit": limit, "offset": offset}
+
 
 @router.get("/{event_id}", summary="Get single event", response_model=Event)
 def get_event(event_id: int):
