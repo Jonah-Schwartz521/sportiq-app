@@ -1,23 +1,17 @@
 # apps/api/app/routers/teams.py
-
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional, List, Dict, Any
 import psycopg
 
 from apps.api.app.core.config import POSTGRES_DSN
+from apps.api.app.schemas.teams import Team, TeamList
 
 router = APIRouter(prefix="/teams", tags=["teams"])
 
-
-@router.get("", summary="List Teams")
+@router.get("", summary="List Teams", response_model=TeamList)
 def list_teams(
-    sport_id: Optional[int] = Query(
-        None, description="Filter by sport_id"
-    ),
-    q: Optional[str] = Query(
-        None,
-        description="Case-insensitive name search (e.g., 'bull' -> 'Chicago Bulls')",
-    ),
+    sport_id: Optional[int] = Query(None, description="Filter by sport_id"),
+    q: Optional[str] = Query(None, description="Case-insensitive name search (e.g., 'bull' -> 'Chicago Bulls')"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
@@ -41,7 +35,6 @@ def list_teams(
         ORDER BY team_id DESC
         LIMIT %s OFFSET %s
     """
-
     try:
         with psycopg.connect(POSTGRES_DSN) as conn, conn.cursor() as cur:
             cur.execute(sql, [*params, limit, offset])
@@ -53,23 +46,16 @@ def list_teams(
         {"team_id": team_id, "sport_id": sp, "name": name}
         for (team_id, sp, name) in rows or []
     ]
-
-    return {
-        "items": items,
-        "total_returned": len(items),
-        "limit": limit,
-        "offset": offset,
-    }
+    return {"items": items, "total_returned": len(items), "limit": limit, "offset": offset}
 
 
-@router.get("/{team_id}", summary="Get Team by ID")
+@router.get("/{team_id}", summary="Get Team by ID", response_model=Team)
 def get_team(team_id: int):
     sql = """
         SELECT team_id, sport_id, name
         FROM core.teams
         WHERE team_id = %s
     """
-
     try:
         with psycopg.connect(POSTGRES_DSN) as conn, conn.cursor() as cur:
             cur.execute(sql, (team_id,))
@@ -81,8 +67,4 @@ def get_team(team_id: int):
         raise HTTPException(status_code=404, detail="Team not found")
 
     team_id, sport_id, name = row
-    return {
-        "team_id": team_id,
-        "sport_id": sport_id,
-        "name": name,
-    }
+    return {"team_id": team_id, "sport_id": sport_id, "name": name}
