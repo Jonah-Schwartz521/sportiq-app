@@ -1,51 +1,154 @@
+# apps/api/app/routers/insights.py
 from fastapi import APIRouter, HTTPException
-from typing import Literal
+from typing import Literal, List, Dict, Any
 from datetime import datetime, timezone
+import logging
+import psycopg
 
-from apps.api.app.schemas.insights import InsightsResponse
+from apps.api.app.core.config import POSTGRES_DSN
 
 router = APIRouter(prefix="/insights", tags=["insights"])
+logger = logging.getLogger(__name__)
 
-@router.get("/{sport}/{event_id}", response_model=InsightsResponse, summary="High-level game insights")
-def get_insights(
-    sport: Literal["nba", "mlb", "nfl", "nhl", "ufc"],
-    event_id: int,
-):
-    # For now: deterministic stubbed insights so frontend has a stable contract.
-    if event_id <= 0:
-        raise HTTPException(status_code=400, detail="Invalid event_id")
 
-    model_key = f"{sport}-winprob-0.1.0"
-
-    # Toy but plausible insights
-    base = [
+def _nba_insights(event_id: int) -> List[Dict[str, Any]]:
+    # Simple deterministic stub data, shape must be {type,label,detail}
+    return [
         {
-            "type": "angle",
-            "label": "Win probability context",
-            "detail": f"{sport.upper()} model {model_key} favors the home side, "
-                      f"but variance factors keep this matchup live.",
+            "type": "feature_importance",
+            "label": "Rest advantage",
+            "detail": "Home team has more rest days than the opponent.",
         },
         {
-            "type": "trend",
-            "label": "Recent form",
-            "detail": "Recent performance and schedule context suggest momentum on the favorite's side.",
+            "type": "feature_importance",
+            "label": "Offensive efficiency",
+            "detail": "Home team has a higher offensive rating over the last 10 games.",
         },
         {
-            "type": "key_stat",
-            "label": "Key stat to watch",
-            "detail": "Efficiency in late-game possessions is projected to drive most of the edge.",
+            "type": "context",
+            "label": "Market alignment",
+            "detail": "Model is slightly more bullish on the favorite than the market line.",
         },
     ]
 
-    # Make UFC a bit different
-    if sport == "ufc":
-        base[0]["detail"] = (
-            "Stylistic matchup and historical finishes shape the implied edge in this fight."
-        )
+
+def _ufc_insights(event_id: int) -> List[Dict[str, Any]]:
+    return [
+        {
+            "type": "feature_importance",
+            "label": "Reach advantage",
+            "detail": "Fighter A holds a meaningful reach advantage.",
+        },
+        {
+            "type": "feature_importance",
+            "label": "Grappling edge",
+            "detail": "Fighter B shows stronger recent grappling metrics.",
+        },
+        {
+            "type": "context",
+            "label": "Finishing threat",
+            "detail": "Both fighters have high finish rates, increasing volatility.",
+        },
+    ]
+
+
+def _best_effort_persist(sport: str, event_id: int, model_key: str, insights: List[Dict[str, Any]]) -> None:
+    """
+    Optional: write a stub prediction + insights to the DB.
+    This MUST NOT break the endpoint; all errors are swallowed after logging.
+    """
+    try:
+        with psycopg.connect(POSTGRES_DSN) as conn, conn.cursor() as cur:
+            # Ensure a prediction row exists
+            cur.execute(
+                """
+                INSERT INTO core.predictions (event_id, model_key, home_wp, away_wp)
+                VALUES (%s, %s, 0.55, 0.45)
+                ON CONFLICT DO NOTHING;
+                """,
+                (event_id, model_key),
+            )
+
+            # Remove previous explanations for this prediction
+            cur.execute(
+                """
+                DELETE FROM core.explanations
+                WHERE pred_id IN (
+                    SELECT pred_id
+                    FROM core.predictions
+                    WHERE event_id = %s AND model_key = %s
+                );
+                """,
+                (event_id, model_key),
+            )
+
+            # Insert each insight as an explanation row
+            for rank, ins in enumerate(insights, start=1):
+                cur.execute(
+                    """
+                    INSERT INTO core.explanations (pred_id, rank, feature_name, shap_value, contribution_text)
+                    SELECT p.pred_id, %s, %s, %s, %s
+                    FROM core.predictions p
+                    WHERE p.event_id = %s AND p.model_key = %s;
+                    """,
+                    (
+                        rank,
+                        ins.get("label", ""),
+                        0.0,
+                        ins.get("detail", ""),
+                        event_id,
+                        model_key,
+                    ),
+                )
+
+            conn.commit()
+    except Exception as e:
+        logger.warning("[insights] failed to persist insights for %s/%s: %s", sport, event_id, e)
+
+
+@router.get("/{sport}/{event_id}", summary="Get model insights for an event")
+def get_insights(
+    sport: Literal["nba", "ufc"],
+    event_id: int,
+):
+    """
+    Stable contract (used by tests):
+
+    200 OK:
+    {
+      "event_id": int,
+      "sport": "nba" | "ufc",
+      "model_key": "<sport>-winprob-<ver>",
+      "generated_at": "<ISO-8601>",
+      "insights": [
+        { "type": str, "label": str, "detail": str },
+        ...
+      ]
+    }
+
+    400 if event_id is obviously invalid (e.g. <= 0).
+    """
+
+    if event_id <= 0:
+        raise HTTPException(status_code=400, detail="Invalid event_id")
+
+    if sport == "nba":
+        model_key = "nba-winprob-0.1.0"
+        insights = _nba_insights(event_id)
+    elif sport == "ufc":
+        model_key = "ufc-winprob-0.1.0"
+        insights = _ufc_insights(event_id)
+    else:
+        # Should be unreachable because of Literal, but keep for safety
+        raise HTTPException(status_code=400, detail="Unsupported sport")
+
+    # Optional persistence; never breaks the response
+    _best_effort_persist(sport, event_id, model_key, insights)
 
     return {
         "event_id": event_id,
         "sport": sport,
         "model_key": model_key,
-        "insights": base,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "insights": insights,
     }
