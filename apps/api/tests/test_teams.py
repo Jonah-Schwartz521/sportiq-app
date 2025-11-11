@@ -1,17 +1,11 @@
 # apps/api/tests/test_teams.py
-
 import psycopg
+import pytest
 
 from apps.api.app.core.config import POSTGRES_DSN
 
 
 def _ensure_seed_teams():
-    """
-    Ensure known teams (7, 8) exist.
-
-    We only INSERT with ON CONFLICT DO NOTHING.
-    No deletes -> no FK issues with events.
-    """
     rows = [
         (7, 1, "Los Angeles Lakers"),
         (8, 1, "Boston Celtics"),
@@ -29,21 +23,18 @@ def _ensure_seed_teams():
         conn.commit()
 
 
+@pytest.fixture(scope="module", autouse=True)
+def seed_teams():
+    _ensure_seed_teams()
+    yield
+
+
 def test_team_by_id(client):
-    # make sure seed rows exist in the same DB the app uses
     _ensure_seed_teams()
 
-    # sanity: confirm directly from DB
-    with psycopg.connect(POSTGRES_DSN) as conn, conn.cursor() as cur:
-        cur.execute("SELECT team_id, sport_id, name FROM core.teams WHERE team_id = 7;")
-        row = cur.fetchone()
-        assert row is not None, "Expected team_id 7 to exist before hitting API"
-
-    # call API
     r = client.get("/teams/7")
     assert r.status_code == 200, f"Unexpected {r.status_code}, body={r.text}"
     body = r.json()
-
     assert body["team_id"] == 7
     assert body["sport_id"] == 1
     assert body["name"] == "Los Angeles Lakers"

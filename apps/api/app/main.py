@@ -3,6 +3,8 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+from .core.errors import register_error_handlers
+
 from .routers.health import router as health_router
 from .routers.predict import router as predict_router
 from .routers.explain import router as explain_router
@@ -19,6 +21,9 @@ app = FastAPI(
         "powering win probabilities, explanations, and insights."
     ),
 )
+
+
+register_error_handlers(app)
 
 app.add_middleware(
     CORSMiddleware,

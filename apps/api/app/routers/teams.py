@@ -11,7 +11,10 @@ router = APIRouter(prefix="/teams", tags=["teams"])
 @router.get("", summary="List Teams", response_model=TeamList)
 def list_teams(
     sport_id: Optional[int] = Query(None, description="Filter by sport_id"),
-    q: Optional[str] = Query(None, description="Case-insensitive name search (e.g., 'bull' -> 'Chicago Bulls')"),
+    q: Optional[str] = Query(
+        None,
+        description="Case-insensitive name search (e.g., 'bull' -> 'Chicago Bulls')",
+    ),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
@@ -35,6 +38,7 @@ def list_teams(
         ORDER BY team_id DESC
         LIMIT %s OFFSET %s
     """
+
     try:
         with psycopg.connect(POSTGRES_DSN) as conn, conn.cursor() as cur:
             cur.execute(sql, [*params, limit, offset])
@@ -44,9 +48,15 @@ def list_teams(
 
     items: List[Dict[str, Any]] = [
         {"team_id": team_id, "sport_id": sp, "name": name}
-        for (team_id, sp, name) in rows or []
+        for (team_id, sp, name) in (rows or [])
     ]
-    return {"items": items, "total_returned": len(items), "limit": limit, "offset": offset}
+
+    return {
+        "items": items,
+        "total_returned": len(items),
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @router.get("/{team_id}", summary="Get Team by ID", response_model=Team)
