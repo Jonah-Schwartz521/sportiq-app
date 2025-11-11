@@ -5,14 +5,7 @@ import pytest
 from apps.api.app.core.config import POSTGRES_DSN
 
 
-@pytest.fixture(scope="module", autouse=True)
-def seed_teams():
-    """
-    Ensure a small, known set of teams exist for tests.
-
-    We *only insert* deterministic rows (7, 8) using ON CONFLICT DO NOTHING
-    so we don't fight foreign key constraints from events.
-    """
+def _ensure_seed_teams():
     rows = [
         (7, 1, "Los Angeles Lakers"),
         (8, 1, "Boston Celtics"),
@@ -29,14 +22,18 @@ def seed_teams():
             cur.execute(insert_sql, (team_id, sport_id, name))
         conn.commit()
 
-    # No teardown: CI DB is ephemeral; leaving rows is safe and avoids FK issues.
+
+@pytest.fixture(scope="module", autouse=True)
+def seed_teams():
+    _ensure_seed_teams()
     yield
 
 
 def test_team_by_id(client):
-    # seeded via fixture above
+    _ensure_seed_teams()
+
     r = client.get("/teams/7")
-    assert r.status_code == 200
+    assert r.status_code == 200, f"Unexpected {r.status_code}, body={r.text}"
     body = r.json()
     assert body["team_id"] == 7
     assert body["sport_id"] == 1
@@ -44,6 +41,8 @@ def test_team_by_id(client):
 
 
 def test_teams_list_and_search(client):
+    _ensure_seed_teams()
+
     # basic list
     r = client.get("/teams", params={"limit": 5})
     assert r.status_code == 200

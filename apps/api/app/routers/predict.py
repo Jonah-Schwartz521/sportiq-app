@@ -1,4 +1,5 @@
 # apps/api/app/routers/predict.py
+
 from fastapi import APIRouter, HTTPException
 from typing import Optional, Literal, Dict
 from pydantic import BaseModel, ConfigDict
@@ -10,6 +11,7 @@ from apps.api.app.services.registry import REGISTRY  # 'nba'|'mlb'|'nfl'|'nhl'|'
 
 router = APIRouter(prefix="/predict", tags=["predict"])
 
+
 class PredictRequest(BaseModel):
     event_id: Optional[int] = None
     home_team: Optional[str] = None
@@ -17,13 +19,20 @@ class PredictRequest(BaseModel):
     fighter_a: Optional[str] = None
     fighter_b: Optional[str] = None
 
+
 class PredictResponse(BaseModel):
+    # allow "model_key" etc without pydantic complaining about protected names
     model_config = ConfigDict(protected_namespaces=())
     model_key: str
     win_probabilities: Dict[str, float]
     generated_at: str
 
+
 def _persist_prediction(event_id: int, model_key: str, home_wp: float, away_wp: float) -> None:
+    """
+    Best-effort persistence into core.predictions.
+    Safe to no-op on error so we don't break the API contract.
+    """
     try:
         with psycopg.connect(POSTGRES_DSN) as conn, conn.cursor() as cur:
             cur.execute(
@@ -36,58 +45,81 @@ def _persist_prediction(event_id: int, model_key: str, home_wp: float, away_wp: 
             )
             conn.commit()
     except Exception:
+        # Intentionally swallow: logging hook could go here later
         pass
 
-@router.post("/{sport}", response_model=PredictResponse, summary="Predict")
+
+@router.post("/{sport}", response_model=PredictResponse, summary="Predict win probabilities")
 def predict(
     sport: Literal["nba", "mlb", "nfl", "nhl", "ufc"],
     payload: PredictRequest,
 ):
     """
-    Contract with predictors returns:
-      {
-        "model_key": "xxx-winprob-<ver>",
-        "win_probabilities": {"home": 0.58, "away": 0.42},
-        "generated_at": "ISO-8601"
-      }
+    Contract for team sports:
+      Request:
+        { "event_id": int }
+
+      Response:
+        {
+          "model_key": "xxx-winprob-<ver>",
+          "win_probabilities": { "home": float, "away": float },
+          "generated_at": "ISO-8601"
+        }
+
+    Special-case UFC (for now):
+      - If fighter_a & fighter_b are provided, return a stub prediction
+        without requiring event_id.
     """
 
-    # Special-case UFC for test: accept fighter_a/fighter_b without event_id
+    # --- Special UFC path (no event_id required if fighters provided) ---
     if sport == "ufc" and payload.fighter_a and payload.fighter_b:
-        result = {
+        return {
             "model_key": "ufc-winprob-0.1.0",
-            "win_probabilities": {"fighter_a": 0.55, "fighter_b": 0.45},
+            "win_probabilities": {
+                "fighter_a": 0.55,
+                "fighter_b": 0.45,
+            },
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
-        return result  # <- inside the UFC branch
 
-    # For team sports (and generic UFC by event), event_id is required
+    # --- Common validation for registry-backed predictors ---
     if payload.event_id is None:
         raise HTTPException(status_code=400, detail="Missing event_id.")
+
     if sport not in REGISTRY:
         raise HTTPException(status_code=400, detail=f"Unsupported sport: {sport}")
 
+    # --- Call underlying predictor ---
     try:
         if sport == "nba":
-    # Use adapters.nba directly so monkeypatch works in tests
+            # Use adapters.nba directly so monkeypatch in tests can swap it cleanly
             from apps.api.app.adapters import nba as nba_adapter
+
             result = nba_adapter.predict_winprob(payload.event_id)
         else:
             result = REGISTRY[sport](payload.event_id)
     except HTTPException:
+        # Let explicit HTTP errors bubble up
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"{sport.upper()} prediction error: {e}")
 
-    # Best-effort persistence for team sports that return home/away
+    # --- Best-effort persistence for team sports with home/away probabilities ---
     try:
-        probs = result.get("win_probabilities", {})
+        probs = result.get("win_probabilities", {}) or {}
         home = float(probs.get("home", 0.0))
         away = float(probs.get("away", 0.0))
-        _persist_prediction(payload.event_id, result.get("model_key", f"{sport}-winprob-unknown"), home, away)
+        _persist_prediction(
+            payload.event_id,
+            result.get("model_key", f"{sport}-winprob-unknown"),
+            home,
+            away,
+        )
     except Exception:
+        # Don't break the response if persistence has issues
         pass
 
+    # --- Normalize/defend the response shape ---
     return {
         "model_key": result.get("model_key", f"{sport}-winprob-unknown"),
         "win_probabilities": result.get("win_probabilities", {}),

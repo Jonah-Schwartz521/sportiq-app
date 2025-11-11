@@ -3,6 +3,8 @@ from typing import Callable, Dict, Any
 
 from apps.api.app.adapters import nba, mlb, nfl, nhl, ufc
 
+PredictFn = Callable[[int], Dict[str, Any]]
+
 REGISTRY: Dict[str, Callable[[int], Dict[str, Any]]] = {
     "nba": nba.predict_winprob,
     "mlb": mlb.predict_winprob,

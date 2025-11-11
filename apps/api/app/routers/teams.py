@@ -4,15 +4,17 @@ from typing import Optional, List, Dict, Any
 import psycopg
 
 from apps.api.app.core.config import POSTGRES_DSN
-from apps.api.app.schemas.teams import Team, TeamList  # <= make sure this exists
+from apps.api.app.schemas.teams import Team, TeamList
 
 router = APIRouter(prefix="/teams", tags=["teams"])
-
 
 @router.get("", summary="List Teams", response_model=TeamList)
 def list_teams(
     sport_id: Optional[int] = Query(None, description="Filter by sport_id"),
-    q: Optional[str] = Query(None, description="Case-insensitive name search (e.g., 'bull' → 'Chicago Bulls')"),
+    q: Optional[str] = Query(
+        None,
+        description="Case-insensitive name search (e.g., 'bull' -> 'Chicago Bulls')",
+    ),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
