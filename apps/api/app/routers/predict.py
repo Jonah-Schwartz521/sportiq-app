@@ -1,27 +1,16 @@
-# apps/api/app/routers/predict.py
-
-from datetime import datetime, timezone
-from typing import Optional, Literal, Dict
-
-import psycopg
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from typing import Optional, Literal, Dict
+from pydantic import BaseModel, ConfigDict
+from datetime import datetime, timezone
+import psycopg
 
 from apps.api.app.core.config import POSTGRES_DSN
-from apps.api.app.services.registry import REGISTRY  # sport -> callable(event_id) -> dict
-from apps.api.app.schemas.predictions import PredictResponse
+from apps.api.app.services.registry import REGISTRY
 
 router = APIRouter(prefix="/predict", tags=["predict"])
 
 
 class PredictRequest(BaseModel):
-    """
-    Generic prediction request body.
-
-    For current contract:
-    - Team sports (nba/mlb/nfl/nhl/ufc by event): require event_id.
-    - UFC special-case: can use fighter_a/fighter_b without event_id.
-    """
     event_id: Optional[int] = None
     home_team: Optional[str] = None
     away_team: Optional[str] = None
@@ -29,12 +18,14 @@ class PredictRequest(BaseModel):
     fighter_b: Optional[str] = None
 
 
-def _persist_prediction(event_id: int, model_key: str, home_wp: float, away_wp: float) -> None:
-    """
-    Best-effort persistence into core.predictions.
+class PredictResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+    model_key: str
+    win_probabilities: Dict[str, float]
+    generated_at: str
 
-    Never raises: failures here must not break the API contract.
-    """
+
+def _persist_prediction(event_id: int, model_key: str, home_wp: float, away_wp: float) -> None:
     try:
         with psycopg.connect(POSTGRES_DSN) as conn, conn.cursor() as cur:
             cur.execute(
@@ -47,7 +38,7 @@ def _persist_prediction(event_id: int, model_key: str, home_wp: float, away_wp: 
             )
             conn.commit()
     except Exception:
-        # TODO: add logging later
+        # swallow; persistence is best-effort
         pass
 
 
@@ -56,26 +47,7 @@ def predict(
     sport: Literal["nba", "mlb", "nfl", "nhl", "ufc"],
     payload: PredictRequest,
 ):
-    """
-    Team sports contract:
-
-      Request:
-        { "event_id": int }
-
-      Response:
-        {
-          "model_key": "xxx-winprob-<ver>",
-          "win_probabilities": { "home": float, "away": float },
-          "generated_at": "ISO-8601"
-        }
-
-    UFC special-case (temporary):
-
-      If `fighter_a` and `fighter_b` are provided, we reply with a stub prediction
-      without requiring `event_id`. This is only for exercising the contract.
-    """
-
-    # --- UFC special-case: fighters only, no event_id required ---
+    # UFC special path: fighters only, no event_id
     if sport == "ufc" and payload.fighter_a and payload.fighter_b:
         return {
             "model_key": "ufc-winprob-0.1.0",
@@ -86,34 +58,28 @@ def predict(
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
-    # --- Common validation for registry-backed predictors ---
+    # All other paths require event_id
     if payload.event_id is None:
         raise HTTPException(status_code=400, detail="Missing event_id.")
 
     if sport not in REGISTRY:
         raise HTTPException(status_code=400, detail=f"Unsupported sport: {sport}")
 
-    # --- Call underlying predictor ---
+    # Call underlying predictor
     try:
         if sport == "nba":
-            # Use adapters.nba directly so tests can monkeypatch cleanly
             from apps.api.app.adapters import nba as nba_adapter
-
             result = nba_adapter.predict_winprob(payload.event_id)
         else:
             result = REGISTRY[sport](payload.event_id)
     except HTTPException:
-        # Allow explicit HTTP errors through
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"{sport.upper()} prediction error: {e}",
-        )
+        raise HTTPException(status_code=500, detail=f"{sport.upper()} prediction error: {e}")
 
-    # --- Best-effort persistence for home/away style predictions ---
+    # Best-effort persistence
     try:
-        probs: Dict[str, float] = result.get("win_probabilities") or {}
+        probs = result.get("win_probabilities", {}) or {}
         home = float(probs.get("home", 0.0))
         away = float(probs.get("away", 0.0))
         _persist_prediction(
@@ -123,10 +89,9 @@ def predict(
             away,
         )
     except Exception:
-        # Ignore persistence errors
         pass
 
-    # --- Normalize response shape ---
+    # Normalize response
     return {
         "model_key": result.get("model_key", f"{sport}-winprob-unknown"),
         "win_probabilities": result.get("win_probabilities", {}),
