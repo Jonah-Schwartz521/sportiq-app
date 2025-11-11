@@ -1,37 +1,51 @@
-# apps/api/app/routers/insights.py
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 from typing import Literal
-import psycopg
-from apps.api.app.core.config import POSTGRES_DSN
+from datetime import datetime, timezone
+
+from apps.api.app.schemas.insights import InsightsResponse
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 
-@router.get("/{sport}")
+@router.get("/{sport}/{event_id}", response_model=InsightsResponse, summary="High-level game insights")
 def get_insights(
-    sport: Literal["nba", "ufc"],
-    limit: int = Query(5, ge=1, le=25, description="Max number of insights to return")
+    sport: Literal["nba", "mlb", "nfl", "nhl", "ufc"],
+    event_id: int,
 ):
-    """Return latest insights for a sport."""
-    with psycopg.connect(POSTGRES_DSN) as conn, conn.cursor() as cur:
-        cur.execute("SELECT sport_id FROM core.sports WHERE key=%s", (sport,))
-        row = cur.fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="Unknown sport")
-        sport_id = row[0]
+    # For now: deterministic stubbed insights so frontend has a stable contract.
+    if event_id <= 0:
+        raise HTTPException(status_code=400, detail="Invalid event_id")
 
-        cur.execute("""
-            SELECT text, metric, sample_size, updated_at
-            FROM core.insights
-            WHERE sport_id=%s
-            ORDER BY updated_at DESC, insight_id DESC
-            LIMIT %s
-        """, (sport_id, limit))
-        rows = cur.fetchall()
+    model_key = f"{sport}-winprob-0.1.0"
+
+    # Toy but plausible insights
+    base = [
+        {
+            "type": "angle",
+            "label": "Win probability context",
+            "detail": f"{sport.upper()} model {model_key} favors the home side, "
+                      f"but variance factors keep this matchup live.",
+        },
+        {
+            "type": "trend",
+            "label": "Recent form",
+            "detail": "Recent performance and schedule context suggest momentum on the favorite's side.",
+        },
+        {
+            "type": "key_stat",
+            "label": "Key stat to watch",
+            "detail": "Efficiency in late-game possessions is projected to drive most of the edge.",
+        },
+    ]
+
+    # Make UFC a bit different
+    if sport == "ufc":
+        base[0]["detail"] = (
+            "Stylistic matchup and historical finishes shape the implied edge in this fight."
+        )
 
     return {
+        "event_id": event_id,
         "sport": sport,
-        "insights": [
-            {"text": t, "metric": m, "sample_size": n, "updated_at": str(u)}
-            for (t, m, n, u) in rows
-        ]
+        "model_key": model_key,
+        "insights": base,
     }
