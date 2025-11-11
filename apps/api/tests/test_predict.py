@@ -35,3 +35,24 @@ def test_predict_ufc_placeholder(client):
     body = r.json()
     assert body["model_key"].startswith("ufc-winprob-")
     assert set(body["win_probabilities"]) == {"fighter_a", "fighter_b"}
+
+def test_predict_missing_event_id_for_team_sport(client):
+    r = client.post("/predict/nba", json={})
+    assert r.status_code == 400
+    body = r.json()
+
+    # Support both default FastAPI and potential custom error envelope
+    message = body.get("detail") or body.get("error", {}).get("message", "")
+    assert "Missing event_id" in message
+
+def test_predict_unsupported_sport(client):
+    r = client.post("/predict/soccer", json={"event_id": 123})
+
+    # Unsupported sport should fail path param validation -> 422 via our global handler
+    assert r.status_code == 422
+
+    body = r.json()
+    # Matches our custom validation_exception_handler payload
+    assert "error" in body
+    assert body["error"]["code"] == "VALIDATION_ERROR"
+    assert body["error"]["type"] == "validation_error"
