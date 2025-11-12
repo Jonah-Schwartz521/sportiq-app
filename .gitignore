@@ -31,3 +31,8 @@ logs/
 .venv*/
 venv*/
 env*/
+
+# Web
+web/.next/
+web/node_modules/
+web/.env.local
