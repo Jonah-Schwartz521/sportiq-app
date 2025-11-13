@@ -21,9 +21,11 @@ export default function PredictionsPanel() {
       try {
         const data = await api.predictions();
         setRows(data.items || []);
-      } catch (err: any) {
+        } catch (err: unknown) {
         console.error(err);
-        setError(err.message || "Failed to load predictions");
+        const message =
+          err instanceof Error ? err.message : "Failed to load predictions";
+        setError(message);
       } finally {
         setLoading(false);
       }
