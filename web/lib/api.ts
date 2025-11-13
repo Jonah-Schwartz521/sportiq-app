@@ -32,10 +32,16 @@ export type PredictionSummary = {
   created_at: string;
 };
 
+export type Insight = {
+  type: string;
+  label: string;
+  detail: string;
+  value?: number | null;
+};
+
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    // avoid stale data in dev
-    cache: "no-store",
+    cache: "no-store", // ensures no stale cache in dev
   });
 
   if (!res.ok) {
@@ -67,10 +73,18 @@ export const api = {
 
   events: () => getJSON<{ items: Event[] }>("/events?limit=5"),
 
-  // Single, well-typed predict helper
   predict: (sport: string, eventId: number) =>
     postJSON<PredictResponse>(`/predict/${sport}`, { event_id: eventId }),
 
   predictions: () =>
     getJSON<{ items: PredictionSummary[] }>("/predictions?limit=5"),
+
+  insights: (sport: string, eventId: number) =>
+    getJSON<{
+      event_id: number;
+      sport: string;
+      model_key: string;
+      generated_at: string;
+      insights: Insight[];
+    }>(`/insights/${sport}/${eventId}`),
 };
