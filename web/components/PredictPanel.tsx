@@ -1,22 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { api, type PredictResponse } from "@/lib/api";
+import { useEffect, useState } from "react";
+import {
+  api,
+  type PredictResponse,
+  type EventForPicker,
+} from "@/lib/api";
 
 type Sport = "nba" | "mlb" | "nfl" | "nhl" | "ufc";
 
 export default function PredictPanel() {
   const [sport, setSport] = useState<Sport>("nba");
-  const [eventId, setEventId] = useState("");
+  const [eventId, setEventId] = useState<string>(""); // always string for the input
   const [result, setResult] = useState<PredictResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Event picker state
-  const [events, setEvents] = useState<{ event_id: number; date: string }[]>([]);
+  const [events, setEvents] = useState<EventForPicker[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
 
-  // Fetch events for dropdown
+  // Load events for dropdown on mount
   useEffect(() => {
     (async () => {
       try {
@@ -48,23 +51,35 @@ export default function PredictPanel() {
       setResult(data);
     } catch (err: unknown) {
       console.error(err);
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch prediction"
-      );
+      const message =
+        err instanceof Error ? err.message : "Failed to fetch prediction";
+      setError(message);
     } finally {
       setLoading(false);
     }
   }
 
+  function handleSelectChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const selected = e.target.value;
+    // value is the event_id as string
+    setEventId(selected);
+  }
+
   return (
-    <div className="w-full border rounded-lg p-4 bg-zinc-900 text-white space-y-4">
-      <h2 className="text-xl font-semibold">Predict Win Probability</h2>
+    <div className="w-full rounded-2xl border border-zinc-800 bg-zinc-950/60 px-5 py-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium text-zinc-200">
+          Predict Win Probability
+        </h2>
+        <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
+          POST /predict/&lt;sport&gt;
+        </span>
+      </div>
 
       {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        {/* Sport selector */}
+      <div className="flex flex-col gap-3 sm:flex-row">
         <select
-          className="bg-zinc-800 p-2 rounded"
+          className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm"
           value={sport}
           onChange={(e) => setSport(e.target.value as Sport)}
         >
@@ -75,62 +90,82 @@ export default function PredictPanel() {
           <option value="ufc">UFC</option>
         </select>
 
-        {/* Event picker */}
-        {loadingEvents ? (
-          // ✅ now controlled: always has value + onChange
-          <input
-            type="number"
-            placeholder="Loading events..."
-            className="p-2 bg-zinc-800 rounded flex-1 text-zinc-500"
-            value={eventId}
-            onChange={(e) => setEventId(e.target.value)}
-            disabled
-          />
-        ) : events.length > 0 ? (
-          <select
-            className="bg-zinc-800 p-2 rounded flex-1"
-            value={eventId}
-            onChange={(e) => setEventId(e.target.value)}
-          >
-            <option value="">Select event…</option>
-            {events.map((ev) => (
-              <option key={ev.event_id} value={ev.event_id}>
-                #{ev.event_id} · {ev.date}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <input
-            type="number"
-            placeholder="event_id"
-            className="p-2 bg-zinc-800 rounded flex-1"
-            value={eventId}
-            onChange={(e) => setEventId(e.target.value)}
-          />
-        )}
+        {/* Event dropdown */}
+        <select
+          className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm flex-1"
+          value={eventId} // keep it controlled
+          onChange={handleSelectChange}
+        >
+          <option value="">
+            {loadingEvents ? "Loading events…" : "Pick an event…"}
+          </option>
+          {events.map((ev) => (
+            <option key={ev.event_id} value={String(ev.event_id)}>
+              {`Event ${ev.event_id} • ${ev.date} • home ${ev.home_team_id ?? "-"} vs away ${ev.away_team_id ?? "-"}`}
+            </option>
+          ))}
+        </select>
+
+        {/* Manual input (always controlled) */}
+        <input
+          type="number"
+          placeholder="event_id"
+          className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm flex-1"
+          value={eventId}
+          onChange={(e) => setEventId(e.target.value)}
+        />
 
         <button
           onClick={handlePredict}
           disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 px-4 rounded"
+          className="bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 rounded px-4 py-2 text-sm font-medium"
         >
           {loading ? "Loading…" : "Predict"}
         </button>
       </div>
 
-      {/* Error */}
+      <p className="text-[11px] text-zinc-500">
+        Pick an event from the dropdown or enter an{" "}
+        <span className="font-mono">event_id</span> manually, then hit{" "}
+        <span className="font-mono">Predict</span>.
+      </p>
+
+      {/* Status / result */}
       {error && <p className="text-xs text-red-400">{error}</p>}
 
-      {/* Result */}
       {result && (
-        <pre className="text-sm bg-zinc-800 p-3 rounded overflow-x-auto">
-          {JSON.stringify(result, null, 2)}
-        </pre>
+        <div className="space-y-2">
+          {/* Friendly summary */}
+          <div className="text-sm text-zinc-200">
+            {typeof result.win_probabilities.home === "number" &&
+            typeof result.win_probabilities.away === "number" ? (
+              <>
+                Home:{" "}
+                <span className="font-mono">
+                  {(result.win_probabilities.home * 100).toFixed(1)}%
+                </span>{" "}
+                · Away:{" "}
+                <span className="font-mono">
+                  {(result.win_probabilities.away * 100).toFixed(1)}%
+                </span>
+              </>
+            ) : (
+              <span className="text-zinc-400">
+                Model returned non-standard probabilities.
+              </span>
+            )}
+          </div>
+
+          {/* Raw JSON for debugging */}
+          <pre className="text-xs bg-zinc-900/80 p-3 rounded overflow-x-auto">
+            {JSON.stringify(result, null, 2)}
+          </pre>
+        </div>
       )}
 
       {!loading && !error && !result && (
         <p className="text-xs text-zinc-500">
-          Select a sport + event and hit Predict.
+          No prediction yet. Choose an event and click Predict.
         </p>
       )}
     </div>

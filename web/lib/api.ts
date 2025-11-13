@@ -18,6 +18,14 @@ export type Event = {
   start_time?: string | null;
 };
 
+export type EventForPicker = {
+  event_id: number; 
+  sport_id: number; 
+  date: string; 
+  home_team_id: number | null; 
+  away_team_id: number | null; 
+};
+
 export type PredictResponse = {
   model_key: string;
   win_probabilities: Record<string, number>;
@@ -72,6 +80,9 @@ export const api = {
   teams: () => getJSON<{ items: Team[] }>("/teams?limit=5"),
 
   events: () => getJSON<{ items: Event[] }>("/events?limit=5"),
+
+  eventsForPicker: ()=>
+    getJSON<{ items: Event[] }>("/events?limit=50"),
 
   predict: (sport: string, eventId: number) =>
     postJSON<PredictResponse>(`/predict/${sport}`, { event_id: eventId }),
