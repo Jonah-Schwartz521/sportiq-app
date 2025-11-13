@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import PredictPanel from "@/components/PredictPanel";
 
 type Team = {
   team_id: number;
@@ -176,6 +177,11 @@ export default function Home() {
               </ul>
             )}
           </div>
+        </section>
+
+        {/* 🔥 Predict Panel */}
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-5 py-6">
+          <PredictPanel />
         </section>
       </div>
     </main>
