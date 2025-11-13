@@ -1,13 +1,13 @@
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
-type Team = {
+export type Team = {
   team_id: number;
   sport_id: number;
   name: string;
 };
 
-type Event = {
+export type Event = {
   event_id: number;
   sport_id: number;
   date: string;
@@ -18,16 +18,23 @@ type Event = {
   start_time?: string | null;
 };
 
-type PredictResponse = {
+export type PredictResponse = {
   model_key: string;
   win_probabilities: Record<string, number>;
   generated_at: string;
 };
 
+export type PredictionSummary = {
+  event_id: number;
+  model_key: string;
+  home_wp: number;
+  away_wp: number;
+  created_at: string;
+};
+
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    // ensures no stale cache in dev
-    cache: "no-store",
+    cache: "no-store", // ensures no stale cache in dev
   });
 
   if (!res.ok) {
@@ -55,12 +62,14 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
 export const api = {
   health: () => getJSON<{ status: string }>("/health"),
 
-  teams: () =>
-    getJSON<{ items: Team[] }>("/teams?limit=5"),
+  teams: () => getJSON<{ items: Team[] }>("/teams?limit=5"),
 
-  events: () =>
-    getJSON<{ items: Event[] }>("/events?limit=5"),
+  events: () => getJSON<{ items: Event[] }>("/events?limit=5"),
 
+  // single, well-typed predict
   predict: (sport: string, eventId: number) =>
     postJSON<PredictResponse>(`/predict/${sport}`, { event_id: eventId }),
+
+  predictions: () =>
+    getJSON<{ items: PredictionSummary[] }>("/predictions?limit=5"),
 };
