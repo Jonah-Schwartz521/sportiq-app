@@ -40,9 +40,11 @@ export default function Home() {
         setHealth(h.status);
         setTeams(t.items || []);
         setEvents(e.items || []);
-      } catch (err: any) {
+        } catch (err: unknown) {
         console.error(err);
-        setError(err.message || "Failed to load from API");
+        const message =
+          err instanceof Error ? err.message : "Failed to load from API";
+        setError(message);
       } finally {
         setLoading(false);
       }
