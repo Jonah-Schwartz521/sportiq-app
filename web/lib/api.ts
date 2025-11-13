@@ -34,7 +34,8 @@ export type PredictionSummary = {
 
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    cache: "no-store", // ensures no stale cache in dev
+    // avoid stale data in dev
+    cache: "no-store",
   });
 
   if (!res.ok) {
@@ -66,7 +67,7 @@ export const api = {
 
   events: () => getJSON<{ items: Event[] }>("/events?limit=5"),
 
-  // single, well-typed predict
+  // Single, well-typed predict helper
   predict: (sport: string, eventId: number) =>
     postJSON<PredictResponse>(`/predict/${sport}`, { event_id: eventId }),
 
