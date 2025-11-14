@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import PredictPanel from "@/components/PredictPanel";
 import PredictionsPanel from "@/components/Predictions_Panel";
+import InsightsPanel from "@/components/InsightsPanel";
 
 type Team = {
   team_id: number;
@@ -265,6 +266,10 @@ export default function Home() {
         {/* RECENT PREDICTIONS */}
         <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-5 py-6">
           <PredictionsPanel />
+        </section>
+
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-5 py-6">
+          <InsightsPanel />
         </section>
 
       </div>

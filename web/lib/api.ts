@@ -84,6 +84,9 @@ export const api = {
   eventsForPicker: ()=>
     getJSON<{ items: Event[] }>("/events?limit=50"),
 
+  eventById: (eventId: number) =>
+    getJSON<Event>(`/events/${eventId}`),
+
   predict: (sport: string, eventId: number) =>
     postJSON<PredictResponse>(`/predict/${sport}`, { event_id: eventId }),
 
