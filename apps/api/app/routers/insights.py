@@ -10,6 +10,8 @@ from apps.api.app.core.config import POSTGRES_DSN
 router = APIRouter(prefix="/insights", tags=["insights"])
 logger = logging.getLogger(__name__)
 
+SportLiteral = Literal["nba", "mlb", "nfl", "nhl", "ufc"]
+
 
 def _nba_insights(event_id: int) -> List[Dict[str, Any]]:
     # Simple deterministic stub data, shape must be {type,label,detail}
@@ -52,7 +54,55 @@ def _ufc_insights(event_id: int) -> List[Dict[str, Any]]:
     ]
 
 
-def _best_effort_persist(sport: str, event_id: int, model_key: str, insights: List[Dict[str, Any]]) -> None:
+def _generic_insights(sport: SportLiteral, event_id: int) -> List[Dict[str, Any]]:
+    """
+    Generic stub for MLB / NFL / NHL so /insights works for all sports.
+    Contract is the same: list of {type, label, detail}.
+    """
+    if sport == "mlb":
+        prefix = "Matchup context"
+    elif sport in ("nfl", "nhl"):
+        prefix = "Game context"
+    else:
+        prefix = "Context"
+
+    return [
+        {
+            "type": "feature_importance",
+            "label": "Recent form",
+            "detail": f"{prefix}: recent performance favors the home side.",
+        },
+        {
+            "type": "feature_importance",
+            "label": "Schedule and rest",
+            "detail": f"{prefix}: rest and travel slightly advantage the home side.",
+        },
+        {
+            "type": "context",
+            "label": "Matchup volatility",
+            "detail": f"{prefix}: matchup stats add some uncertainty to the projection.",
+        },
+    ]
+
+
+def _insights_for(sport: SportLiteral, event_id: int) -> List[Dict[str, Any]]:
+    """
+    Dispatch to sport-specific or generic insight generators.
+    """
+    if sport == "nba":
+        return _nba_insights(event_id)
+    if sport == "ufc":
+        return _ufc_insights(event_id)
+    # mlb / nfl / nhl
+    return _generic_insights(sport, event_id)
+
+
+def _best_effort_persist(
+    sport: str,
+    event_id: int,
+    model_key: str,
+    insights: List[Dict[str, Any]],
+) -> None:
     """
     Optional: write a stub prediction + insights to the DB.
     This MUST NOT break the endpoint; all errors are swallowed after logging.
@@ -86,7 +136,13 @@ def _best_effort_persist(sport: str, event_id: int, model_key: str, insights: Li
             for rank, ins in enumerate(insights, start=1):
                 cur.execute(
                     """
-                    INSERT INTO core.explanations (pred_id, rank, feature_name, shap_value, contribution_text)
+                    INSERT INTO core.explanations (
+                        pred_id,
+                        rank,
+                        feature_name,
+                        shap_value,
+                        contribution_text
+                    )
                     SELECT p.pred_id, %s, %s, %s, %s
                     FROM core.predictions p
                     WHERE p.event_id = %s AND p.model_key = %s;
@@ -103,12 +159,17 @@ def _best_effort_persist(sport: str, event_id: int, model_key: str, insights: Li
 
             conn.commit()
     except Exception as e:
-        logger.warning("[insights] failed to persist insights for %s/%s: %s", sport, event_id, e)
+        logger.warning(
+            "[insights] failed to persist insights for %s/%s: %s",
+            sport,
+            event_id,
+            e,
+        )
 
 
 @router.get("/{sport}/{event_id}", summary="Get model insights for an event")
 def get_insights(
-    sport: Literal["nba", "ufc"],
+    sport: SportLiteral,
     event_id: int,
 ):
     """
@@ -117,7 +178,7 @@ def get_insights(
     200 OK:
     {
       "event_id": int,
-      "sport": "nba" | "ufc",
+      "sport": "nba" | "mlb" | "nfl" | "nhl" | "ufc",
       "model_key": "<sport>-winprob-<ver>",
       "generated_at": "<ISO-8601>",
       "insights": [
@@ -132,15 +193,8 @@ def get_insights(
     if event_id <= 0:
         raise HTTPException(status_code=400, detail="Invalid event_id")
 
-    if sport == "nba":
-        model_key = "nba-winprob-0.1.0"
-        insights = _nba_insights(event_id)
-    elif sport == "ufc":
-        model_key = "ufc-winprob-0.1.0"
-        insights = _ufc_insights(event_id)
-    else:
-        # Should be unreachable because of Literal, but keep for safety
-        raise HTTPException(status_code=400, detail="Unsupported sport")
+    insights = _insights_for(sport, event_id)
+    model_key = f"{sport}-winprob-0.1.0"
 
     # Optional persistence; never breaks the response
     _best_effort_persist(sport, event_id, model_key, insights)
