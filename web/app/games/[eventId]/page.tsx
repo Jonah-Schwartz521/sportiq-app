@@ -134,7 +134,7 @@ export default function GameDetailPage() {
     })();
   }, [event]);
 
-  // 🔹 Fetch insights once we know the event
+  // Fetch insights once we know the event
   useEffect(() => {
     if (!event) return;
 
@@ -248,30 +248,53 @@ export default function GameDetailPage() {
               )}
 
               {prediction && !predLoading && !predError && (
-                <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 px-3 py-2 text-xs text-zinc-200 flex flex-col gap-2">
-                  <div className="flex justify-between">
-                    <span className="text-zinc-400">
-                      {homeName || "Home"} win prob
-                    </span>
-                    <span className="font-medium">
+                <>
+                  <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 px-3 py-2 text-xs text-zinc-200 flex flex-col gap-2">
+                    <div className="flex justify-between">
+                      <span className="text-zinc-400">
+                        {homeName || "Home"} win prob
+                      </span>
+                      <span className="font-medium">
+                        {(
+                          (prediction.win_probabilities.home ?? 0) * 100
+                        ).toFixed(1)}
+                        %
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-400">
+                        {awayName || "Away"} win prob
+                      </span>
+                      <span className="font-medium">
+                        {(
+                          (prediction.win_probabilities.away ?? 0) * 100
+                        ).toFixed(1)}
+                        %
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Model edge copy */}
+                  <p className="mt-1 text-[11px] text-zinc-400">
+                    Model edge: leans toward{" "}
+                    <span className="text-zinc-100 font-medium">
+                      {homeName} (
                       {(
                         (prediction.win_probabilities.home ?? 0) * 100
                       ).toFixed(1)}
-                      %
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-400">
-                      {awayName || "Away"} win prob
-                    </span>
-                    <span className="font-medium">
+                      %)
+                    </span>{" "}
+                    over{" "}
+                    <span className="text-zinc-100 font-medium">
+                      {awayName} (
                       {(
                         (prediction.win_probabilities.away ?? 0) * 100
                       ).toFixed(1)}
-                      %
+                      %)
                     </span>
-                  </div>
-                </div>
+                    .
+                  </p>
+                </>
               )}
 
               {!prediction && !predLoading && !predError && (
@@ -282,11 +305,12 @@ export default function GameDetailPage() {
               )}
             </section>
 
-            {/* 🔹 Insights panel (now live) */}
+            {/* Insights panel */}
             <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-zinc-100">Insights</h2>
-                {/* Could add model_key / generated_at here later if useful */}
+                <h2 className="text-sm font-semibold text-zinc-100">
+                  Insights
+                </h2>
               </div>
 
               {insightsLoading && (
