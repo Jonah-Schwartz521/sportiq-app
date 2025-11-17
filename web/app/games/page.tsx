@@ -4,41 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api, type Event, type Team } from "@/lib/api";
 
-// 🔹 1) Sport label helper (you already had this)
-function sportLabelFromId(id: number | null): string {
-  switch (id) {
-    case 1:
-      return "NBA";
-    case 2:
-      return "MLB";
-    case 3:
-      return "NFL";
-    case 4:
-      return "NHL";
-    case 5:
-      return "UFC";
-    default:
-      return "Unknown";
-  }
-}
+import { sportLabelFromId, sportIconFromId } from "@/lib/sport"
 
-// 🔹 2) Sport icon helper (new)
-function sportIconFromId(id: number | null): string {
-  switch (id) {
-    case 1:
-      return "🏀";
-    case 2:
-      return "⚾️";
-    case 3:
-      return "🏈";
-    case 4:
-      return "🏒";
-    case 5:
-      return "🥊";
-    default:
-      return "🏟️";
-  }
-}
+
 
 export default function GamesPage() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -46,7 +14,6 @@ export default function GamesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ❌ removed the stray `"🏟️";` here – it did nothing
 
   // Fetch events + teams
   useEffect(() => {
@@ -113,7 +80,7 @@ export default function GamesPage() {
             <Link
               key={e.event_id}
               href={`/games/${e.event_id}`}
-              className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 flex flex-col gap-1 hover:border-zinc-600 transition-colors"
+              className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 flex flex-col gap-1 hover:border-zinc-600 hover:scale-[1.01] transition-transform transition-colors"
             >
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-zinc-100">
