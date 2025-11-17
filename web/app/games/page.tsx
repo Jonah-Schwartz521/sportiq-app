@@ -1,29 +1,90 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { api, type Event } from "@/lib/api";
+import { api, type Event, type Team } from "@/lib/api";
+
+// 🔹 1) Sport label helper (you already had this)
+function sportLabelFromId(id: number | null): string {
+  switch (id) {
+    case 1:
+      return "NBA";
+    case 2:
+      return "MLB";
+    case 3:
+      return "NFL";
+    case 4:
+      return "NHL";
+    case 5:
+      return "UFC";
+    default:
+      return "Unknown";
+  }
+}
+
+// 🔹 2) Sport icon helper (new)
+function sportIconFromId(id: number | null): string {
+  switch (id) {
+    case 1:
+      return "🏀";
+    case 2:
+      return "⚾️";
+    case 3:
+      return "🏈";
+    case 4:
+      return "🏒";
+    case 5:
+      return "🥊";
+    default:
+      return "🏟️";
+  }
+}
 
 export default function GamesPage() {
   const [events, setEvents] = useState<Event[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // ❌ removed the stray `"🏟️";` here – it did nothing
+
+  // Fetch events + teams
   useEffect(() => {
     (async () => {
       try {
-        const data = await api.events();
-        setEvents(data.items || []);
+        setLoading(true);
+        const [eventsRes, teamsRes] = await Promise.all([
+          api.events(),
+          api.teams(),
+        ]);
+        setEvents(eventsRes.items || []);
+        setTeams(teamsRes.items || []);
       } catch (err: unknown) {
         console.error(err);
         const message =
-          err instanceof Error ? err.message : "Failed to load events";
+          err instanceof Error ? err.message : "Failed to load games";
         setError(message);
       } finally {
         setLoading(false);
       }
     })();
   }, []);
+
+  // Build quick lookup for team names
+  const teamsById = useMemo(() => {
+    const map = new Map<number, Team>();
+    for (const t of teams) {
+      map.set(t.team_id, t);
+    }
+    return map;
+  }, [teams]);
+
+  function teamLabel(id: number | null): string {
+    if (id == null) return "TBD";
+    const team = teamsById.get(id);
+    if (!team) return `#${id}`;
+    return team.name;
+  }
 
   return (
     <main className="min-h-screen bg-black text-white flex justify-center px-4 py-10">
@@ -32,18 +93,15 @@ export default function GamesPage() {
         <header className="flex items-baseline justify-between gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">Games</h1>
           <p className="text-xs text-zinc-500">
-            Fan view powered by the same API as <span className="font-mono">/admin</span>.
+            Fan view powered by the same API as{" "}
+            <span className="font-mono">/admin</span>.
           </p>
         </header>
 
         {/* Status */}
-        {loading && (
-          <p className="text-sm text-zinc-500">Loading games…</p>
-        )}
+        {loading && <p className="text-sm text-zinc-500">Loading games…</p>}
 
-        {error && (
-          <p className="text-sm text-red-400">{error}</p>
-        )}
+        {error && <p className="text-sm text-red-400">{error}</p>}
 
         {!loading && !error && events.length === 0 && (
           <p className="text-sm text-zinc-500">No games available.</p>
@@ -59,10 +117,13 @@ export default function GamesPage() {
             >
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-zinc-100">
-                  Game #{e.event_id}
+                  {teamLabel(e.home_team_id)} vs {teamLabel(e.away_team_id)}
                 </span>
-                <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
-                  {e.status || "scheduled"}
+
+                {/* 🔹 3) Sport icon + label go here */}
+                <span className="flex items-center gap-1 text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
+                  <span>{sportIconFromId(e.sport_id)}</span>
+                  <span>{sportLabelFromId(e.sport_id)}</span>
                 </span>
               </div>
 
@@ -71,7 +132,7 @@ export default function GamesPage() {
               </div>
 
               <div className="text-[11px] text-zinc-400">
-                Home #{e.home_team_id ?? "-"} vs Away #{e.away_team_id ?? "-"}
+                Status: {e.status || "scheduled"}
               </div>
 
               <div className="mt-2 text-[11px] text-blue-400">
