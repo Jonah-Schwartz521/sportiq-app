@@ -77,7 +77,7 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
 export const api = {
   health: () => getJSON<{ status: string }>("/health"),
 
-  teams: () => getJSON<{ items: Team[] }>("/teams?limit=5"),
+  teams: () => getJSON<{ items: Team[] }>("/teams?limit=100"),
 
   events: () => getJSON<{ items: Event[] }>("/events?limit=5"),
 
