@@ -8,10 +8,11 @@ import {
   type Event,
   type Team,
   type PredictResponse,
+  type Insight,
 } from "@/lib/api";
 import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
 
-// Helper to map sport_id -> backend slug for /predict/:sport
+// Helper to map sport_id -> backend slug for /predict/:sport and /insights/:sport
 function sportKeyFromId(id: number | null): string {
   switch (id) {
     case 1:
@@ -44,6 +45,11 @@ export default function GameDetailPage() {
   const [predLoading, setPredLoading] = useState(false);
   const [predError, setPredError] = useState<string | null>(null);
 
+  // Insights state
+  const [insights, setInsights] = useState<Insight[] | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+
   // Fallback timestamp for when the page rendered
   const [generatedAt] = useState(() => new Date().toISOString());
 
@@ -56,7 +62,6 @@ export default function GameDetailPage() {
         setLoading(true);
         setError(null);
 
-        // For now: reuse api.events() and find this one, plus teams.
         const [eventsRes, teamsRes] = await Promise.all([
           api.events(),
           api.teams(),
@@ -116,9 +121,7 @@ export default function GameDetailPage() {
         const sportKey = sportKeyFromId(event.sport_id);
         const result = await api.predict(sportKey, event.event_id);
 
-        // Optional: inspect what the backend is actually returning
         console.log("Predict response", result);
-
         setPrediction(result);
       } catch (err: unknown) {
         console.error(err);
@@ -127,6 +130,32 @@ export default function GameDetailPage() {
         setPredError(message);
       } finally {
         setPredLoading(false);
+      }
+    })();
+  }, [event]);
+
+  // 🔹 Fetch insights once we know the event
+  useEffect(() => {
+    if (!event) return;
+
+    (async () => {
+      try {
+        setInsightsLoading(true);
+        setInsightsError(null);
+        setInsights(null);
+
+        const sportKey = sportKeyFromId(event.sport_id);
+        const data = await api.insights(sportKey, event.event_id);
+
+        console.log("Insights response", data);
+        setInsights(data.insights || []);
+      } catch (err: unknown) {
+        console.error(err);
+        const message =
+          err instanceof Error ? err.message : "Failed to load insights";
+        setInsightsError(message);
+      } finally {
+        setInsightsLoading(false);
       }
     })();
   }, [event]);
@@ -253,13 +282,53 @@ export default function GameDetailPage() {
               )}
             </section>
 
-            {/* Insights panel placeholder */}
-            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-2">
-              <h2 className="text-sm font-semibold text-zinc-100">Insights</h2>
-              <p className="text-xs text-zinc-400">
-                Placeholder for matchup notes and edges from{" "}
-                <span className="font-mono">/insights</span>.
-              </p>
+            {/* 🔹 Insights panel (now live) */}
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-zinc-100">Insights</h2>
+                {/* Could add model_key / generated_at here later if useful */}
+              </div>
+
+              {insightsLoading && (
+                <p className="text-xs text-zinc-500">Loading insights…</p>
+              )}
+
+              {insightsError && !insightsLoading && (
+                <p className="text-xs text-red-400">{insightsError}</p>
+              )}
+
+              {insights &&
+                !insightsLoading &&
+                !insightsError &&
+                insights.length > 0 && (
+                  <ul className="space-y-2 text-xs">
+                    {insights.map((insight, idx) => (
+                      <li key={idx} className="space-y-0.5">
+                        <div className="flex justify-between gap-2">
+                          <span className="font-medium text-zinc-100">
+                            {insight.label}
+                          </span>
+                          {insight.value != null && (
+                            <span className="text-[11px] text-zinc-400">
+                              {(insight.value * 100).toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-zinc-400">
+                          {insight.detail}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+              {(!insights || insights?.length === 0) &&
+                !insightsLoading &&
+                !insightsError && (
+                  <p className="text-xs text-zinc-400">
+                    No insights available yet for this matchup.
+                  </p>
+                )}
             </section>
 
             {/* Event info panel */}
