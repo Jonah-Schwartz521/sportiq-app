@@ -3,17 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api, type Event, type Team } from "@/lib/api";
-
-import { sportLabelFromId, sportIconFromId } from "@/lib/sport"
-
-
+import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
 
 export default function GamesPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
+  const [selectedSport, setSelectedSport] = useState<number | "all">("all");
 
   // Fetch events + teams
   useEffect(() => {
@@ -53,6 +50,22 @@ export default function GamesPage() {
     return team.name;
   }
 
+  // Sport filter options
+  const sportFilters = [
+    { id: "all" as const, label: "All" },
+    { id: 1 as const, label: "NBA" },
+    { id: 2 as const, label: "MLB" },
+    { id: 3 as const, label: "NFL" },
+    { id: 4 as const, label: "NHL" },
+    { id: 5 as const, label: "UFC" },
+  ];
+
+  // Apply selected sport filter
+  const visibleEvents =
+    selectedSport === "all"
+      ? events
+      : events.filter((e) => e.sport_id === selectedSport);
+
   return (
     <main className="min-h-screen bg-black text-white flex justify-center px-4 py-10">
       <div className="w-full max-w-4xl space-y-6">
@@ -65,29 +78,46 @@ export default function GamesPage() {
           </p>
         </header>
 
+        {/* Sport filter bar */}
+        <div className="flex flex-wrap gap-2 text-xs mb-2">
+          {sportFilters.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setSelectedSport(f.id)}
+              className={
+                "px-2 py-1 rounded-full border text-[11px] " +
+                (selectedSport === f.id
+                  ? "border-blue-500/80 bg-blue-500/10 text-blue-100"
+                  : "border-zinc-700 text-zinc-400 hover:border-zinc-500")
+              }
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
         {/* Status */}
         {loading && <p className="text-sm text-zinc-500">Loading games…</p>}
 
         {error && <p className="text-sm text-red-400">{error}</p>}
 
-        {!loading && !error && events.length === 0 && (
+        {!loading && !error && visibleEvents.length === 0 && (
           <p className="text-sm text-zinc-500">No games available.</p>
         )}
 
         {/* Cards */}
         <div className="grid gap-3 sm:grid-cols-2">
-          {events.map((e) => (
+          {visibleEvents.map((e) => (
             <Link
               key={e.event_id}
               href={`/games/${e.event_id}`}
-              className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 flex flex-col gap-1 hover:border-zinc-600 hover:scale-[1.01] transition-transform transition-colors"
+              className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 flex flex-col gap-1 hover:border-zinc-600 hover:bg-zinc-900/60 hover:-translate-y-[1px] transition-all"
             >
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-zinc-100">
                   {teamLabel(e.home_team_id)} vs {teamLabel(e.away_team_id)}
                 </span>
 
-                {/* 🔹 3) Sport icon + label go here */}
                 <span className="flex items-center gap-1 text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
                   <span>{sportIconFromId(e.sport_id)}</span>
                   <span>{sportLabelFromId(e.sport_id)}</span>
@@ -98,8 +128,10 @@ export default function GamesPage() {
                 {e.date} · {e.venue || "TBD"}
               </div>
 
-              <div className="text-[11px] text-zinc-400">
-                Status: {e.status || "scheduled"}
+              <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                <span>
+                  Status: {e.status || "scheduled"}
+                </span>
               </div>
 
               <div className="mt-2 text-[11px] text-blue-400">
