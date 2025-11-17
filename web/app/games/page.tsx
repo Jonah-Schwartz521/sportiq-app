@@ -46,7 +46,6 @@ export default function GamesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ❌ removed the stray `"🏟️";` here – it did nothing
 
   // Fetch events + teams
   useEffect(() => {
@@ -113,7 +112,7 @@ export default function GamesPage() {
             <Link
               key={e.event_id}
               href={`/games/${e.event_id}`}
-              className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 flex flex-col gap-1 hover:border-zinc-600 transition-colors"
+              className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 flex flex-col gap-1 hover:border-zinc-600 hover:scale-[1.01] transition-transform transition-colors"
             >
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-zinc-100">
