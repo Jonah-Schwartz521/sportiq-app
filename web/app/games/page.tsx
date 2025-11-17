@@ -4,41 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api, type Event, type Team } from "@/lib/api";
 
-// 🔹 1) Sport label helper (you already had this)
-function sportLabelFromId(id: number | null): string {
-  switch (id) {
-    case 1:
-      return "NBA";
-    case 2:
-      return "MLB";
-    case 3:
-      return "NFL";
-    case 4:
-      return "NHL";
-    case 5:
-      return "UFC";
-    default:
-      return "Unknown";
-  }
-}
+import { sportLabelFromId, sportIconFromId } from "@/lib/sport"
 
-// 🔹 2) Sport icon helper (new)
-function sportIconFromId(id: number | null): string {
-  switch (id) {
-    case 1:
-      return "🏀";
-    case 2:
-      return "⚾️";
-    case 3:
-      return "🏈";
-    case 4:
-      return "🏒";
-    case 5:
-      return "🥊";
-    default:
-      return "🏟️";
-  }
-}
+
 
 export default function GamesPage() {
   const [events, setEvents] = useState<Event[]>([]);

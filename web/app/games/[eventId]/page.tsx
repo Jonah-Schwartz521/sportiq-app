@@ -4,41 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, type Event, type Team } from "@/lib/api";
+import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
 
-// Same helpers as /games
-function sportLabelFromId(id: number | null): string {
-  switch (id) {
-    case 1:
-      return "NBA";
-    case 2:
-      return "MLB";
-    case 3:
-      return "NFL";
-    case 4:
-      return "NHL";
-    case 5:
-      return "UFC";
-    default:
-      return "Unknown";
-  }
-}
-
-function sportIconFromId(id: number | null): string {
-  switch (id) {
-    case 1:
-      return "🏀";
-    case 2:
-      return "⚾️";
-    case 3:
-      return "🏈";
-    case 4:
-      return "🏒";
-    case 5:
-      return "🥊";
-    default:
-      return "🏟️";
-  }
-}
 
 export default function GameDetailPage() {
   // 🔹 Because the folder is [eventId], the param key is "eventId"

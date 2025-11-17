@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
+import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
 import PredictPanel from "@/components/PredictPanel";
 import PredictionsPanel from "@/components/Predictions_Panel";
 import InsightsPanel from "@/components/InsightsPanel";
@@ -50,13 +51,29 @@ export default function Home() {
       } catch (err: unknown) {
         console.error(err);
         const message =
-          err instanceof Error ? err.message : "Failed to load from API";
+          err instanceof Error ? err.message : "Failed to load admin data";
         setError(message);
       } finally {
         setLoading(false);
       }
     })();
   }, []);
+
+  // 🔹 Build team lookup + label helper (shared pattern with /games)
+  const teamsById = useMemo(() => {
+    const map = new Map<number, Team>();
+    for (const t of teams) {
+      map.set(t.team_id, t);
+    }
+    return map;
+  }, [teams]);
+
+  function teamLabel(id: number | null): string {
+    if (id == null) return "TBD";
+    const team = teamsById.get(id);
+    if (!team) return `#${id}`;
+    return team.name;
+  }
 
   // Click handler for "View"
   async function handleViewEvent(eventId: number) {
@@ -81,19 +98,23 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-black text-white flex justify-center px-4 py-10">
       <div className="w-full max-w-5xl space-y-8">
-
         {/* HEADER */}
         <header className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
-          <h1 className="text-3xl font-semibold tracking-tight">SportIQ Admin Surface</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            SportIQ Admin Surface
+          </h1>
           <p className="text-sm text-zinc-400">
-            Backend contracts: /teams, /events, /predict, /predictions, /insights
+            Backend contracts: /teams, /events, /predict, /predictions,
+            /insights
           </p>
         </header>
 
         {/* HEALTH */}
         <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-5 py-4 flex items-center justify-between">
           <div>
-            <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">API Health</div>
+            <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">
+              API Health
+            </div>
 
             {error ? (
               <div className="text-red-400 text-sm mt-1">{error}</div>
@@ -127,24 +148,37 @@ export default function Home() {
 
         {/* TEAMS + EVENTS */}
         <section className="grid gap-4 md:grid-cols-2">
-
           {/* TEAMS */}
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-5 py-4">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-sm font-medium text-zinc-200">Sample Teams</h2>
-              <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">GET /teams</span>
+              <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
+                GET /teams
+              </span>
             </div>
 
             {loading ? (
               <p className="text-xs text-zinc-500">Loading…</p>
             ) : teams.length === 0 ? (
-              <p className="text-xs text-zinc-500">No teams returned from API.</p>
+              <p className="text-xs text-zinc-500">
+                No teams returned from API.
+              </p>
             ) : (
               <ul className="space-y-1.5 text-xs text-zinc-300">
                 {teams.map((t) => (
-                  <li key={t.team_id} className="flex items-center justify-between">
-                    <span className="truncate">#{t.team_id} · {t.name}</span>
-                    <span className="text-[10px] text-zinc-500">sport {t.sport_id}</span>
+                  <li
+                    key={t.team_id}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <span className="truncate">
+                      #{t.team_id} · {t.name}
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px] text-zinc-500">
+                      <span>{sportIconFromId(t.sport_id)}</span>
+                      <span className="uppercase tracking-[0.16em]">
+                        {sportLabelFromId(t.sport_id)}
+                      </span>
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -154,23 +188,45 @@ export default function Home() {
           {/* EVENTS */}
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-5 py-4">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-medium text-zinc-200">Sample Events</h2>
-              <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">GET /events</span>
+              <h2 className="text-sm font-medium text-zinc-200">
+                Sample Events
+              </h2>
+              <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
+                GET /events
+              </span>
             </div>
 
             {loading ? (
               <p className="text-xs text-zinc-500">Loading…</p>
             ) : events.length === 0 ? (
-              <p className="text-xs text-zinc-500">No events returned from API.</p>
+              <p className="text-xs text-zinc-500">
+                No events returned from API.
+              </p>
             ) : (
               <ul className="space-y-1.5 text-xs text-zinc-300">
                 {events.map((e) => (
-                  <li key={e.event_id} className="flex flex-col border-b border-zinc-900/60 pb-1 last:border-b-0">
+                  <li
+                    key={e.event_id}
+                    className="flex flex-col border-b border-zinc-900/60 pb-1 last:border-b-0"
+                  >
                     <div className="flex justify-between items-center">
-                      <span>Event {e.event_id} · sport {e.sport_id}</span>
+                      <span className="flex items-center gap-2">
+                        <span className="flex items-center gap-1 text-[10px] text-zinc-500">
+                          <span>{sportIconFromId(e.sport_id)}</span>
+                          <span className="uppercase tracking-[0.16em]">
+                            {sportLabelFromId(e.sport_id)}
+                          </span>
+                        </span>
+                        <span>
+                          · {teamLabel(e.away_team_id)} @{" "}
+                          {teamLabel(e.home_team_id)}
+                        </span>
+                      </span>
 
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-zinc-500">{e.status || "scheduled"}</span>
+                        <span className="text-[10px] text-zinc-500">
+                          {e.status || "scheduled"}
+                        </span>
                         <button
                           className="text-[10px] px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700"
                           onClick={() => handleViewEvent(e.event_id)}
@@ -181,14 +237,13 @@ export default function Home() {
                     </div>
 
                     <div className="text-[10px] text-zinc-500">
-                      {e.date} · {e.venue || "TBD"} · home {e.home_team_id ?? "-"} vs away {e.away_team_id ?? "-"}
+                      {e.date} · {e.venue || "TBD"}
                     </div>
                   </li>
                 ))}
               </ul>
             )}
           </div>
-
         </section>
 
         {/* EVENT DETAIL PANEL */}
@@ -209,38 +264,54 @@ export default function Home() {
 
             {selectedEvent && !loadingEventDetail && (
               <div className="text-xs text-zinc-300 space-y-2">
-
                 <div className="flex flex-wrap gap-4">
                   <div>
-                    <div className="text-[10px] text-zinc-500 uppercase">Date</div>
+                    <div className="text-[10px] text-zinc-500 uppercase">
+                      Date
+                    </div>
                     <div>{selectedEvent.date}</div>
                   </div>
 
                   <div>
-                    <div className="text-[10px] text-zinc-500 uppercase">Sport</div>
-                    <div>{selectedEvent.sport_id}</div>
+                    <div className="text-[10px] text-zinc-500 uppercase">
+                      Sport
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span>{sportIconFromId(selectedEvent.sport_id)}</span>
+                      <span className="uppercase tracking-[0.16em]">
+                        {sportLabelFromId(selectedEvent.sport_id)}
+                      </span>
+                    </div>
                   </div>
 
                   <div>
-                    <div className="text-[10px] text-zinc-500 uppercase">Status</div>
+                    <div className="text-[10px] text-zinc-500 uppercase">
+                      Status
+                    </div>
                     <div>{selectedEvent.status ?? "scheduled"}</div>
                   </div>
 
                   <div>
-                    <div className="text-[10px] text-zinc-500 uppercase">Venue</div>
+                    <div className="text-[10px] text-zinc-500 uppercase">
+                      Venue
+                    </div>
                     <div>{selectedEvent.venue ?? "TBD"}</div>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap gap-4">
                   <div>
-                    <div className="text-[10px] text-zinc-500 uppercase">Home Team</div>
-                    <div>#{selectedEvent.home_team_id ?? "-"}</div>
+                    <div className="text-[10px] text-zinc-500 uppercase">
+                      Home Team
+                    </div>
+                    <div>{teamLabel(selectedEvent.home_team_id)}</div>
                   </div>
 
                   <div>
-                    <div className="text-[10px] text-zinc-500 uppercase">Away Team</div>
-                    <div>#{selectedEvent.away_team_id ?? "-"}</div>
+                    <div className="text-[10px] text-zinc-500 uppercase">
+                      Away Team
+                    </div>
+                    <div>{teamLabel(selectedEvent.away_team_id)}</div>
                   </div>
                 </div>
 
@@ -252,7 +323,6 @@ export default function Home() {
                     {JSON.stringify(selectedEvent, null, 2)}
                   </pre>
                 </details>
-
               </div>
             )}
           </section>
@@ -271,7 +341,6 @@ export default function Home() {
         <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-5 py-6">
           <InsightsPanel />
         </section>
-
       </div>
     </main>
   );
