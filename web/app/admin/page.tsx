@@ -59,7 +59,7 @@ export default function Home() {
     })();
   }, []);
 
-  // 🔹 Build team lookup + label helper (shared pattern with /games)
+  // Build team lookup + label helper (shared pattern with /games)
   const teamsById = useMemo(() => {
     const map = new Map<number, Team>();
     for (const t of teams) {
@@ -166,19 +166,18 @@ export default function Home() {
             ) : (
               <ul className="space-y-1.5 text-xs text-zinc-300">
                 {teams.map((t) => (
-                  <li
-                    key={t.team_id}
-                    className="flex items-center justify-between gap-2"
-                  >
-                    <span className="truncate">
-                      #{t.team_id} · {t.name}
-                    </span>
-                    <span className="flex items-center gap-1 text-[10px] text-zinc-500">
-                      <span>{sportIconFromId(t.sport_id)}</span>
-                      <span className="uppercase tracking-[0.16em]">
-                        {sportLabelFromId(t.sport_id)}
+                  <li key={t.team_id}>
+                    <div className="flex items-center justify-between gap-2 rounded-lg px-2 py-1 hover:bg-zinc-900/60 transition-colors">
+                      <span className="truncate">
+                        #{t.team_id} · {t.name}
                       </span>
-                    </span>
+                      <span className="flex items-center gap-1 text-[10px] text-zinc-500">
+                        <span>{sportIconFromId(t.sport_id)}</span>
+                        <span className="uppercase tracking-[0.16em]">
+                          {sportLabelFromId(t.sport_id)}
+                        </span>
+                      </span>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -205,39 +204,38 @@ export default function Home() {
             ) : (
               <ul className="space-y-1.5 text-xs text-zinc-300">
                 {events.map((e) => (
-                  <li
-                    key={e.event_id}
-                    className="flex flex-col border-b border-zinc-900/60 pb-1 last:border-b-0"
-                  >
-                    <div className="flex justify-between items-center">
-                      <span className="flex items-center gap-2">
-                        <span className="flex items-center gap-1 text-[10px] text-zinc-500">
-                          <span>{sportIconFromId(e.sport_id)}</span>
-                          <span className="uppercase tracking-[0.16em]">
-                            {sportLabelFromId(e.sport_id)}
+                  <li key={e.event_id}>
+                    <div className="flex flex-col border-b border-zinc-900/60 pb-1 last:border-b-0 rounded-lg px-2 py-1 hover:bg-zinc-900/60 transition-colors">
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-2">
+                          <span className="flex items-center gap-1 text-[10px] text-zinc-500">
+                            <span>{sportIconFromId(e.sport_id)}</span>
+                            <span className="uppercase tracking-[0.16em]">
+                              {sportLabelFromId(e.sport_id)}
+                            </span>
+                          </span>
+                          <span>
+                            · {teamLabel(e.away_team_id)} @{" "}
+                            {teamLabel(e.home_team_id)}
                           </span>
                         </span>
-                        <span>
-                          · {teamLabel(e.away_team_id)} @{" "}
-                          {teamLabel(e.home_team_id)}
-                        </span>
-                      </span>
 
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-zinc-500">
-                          {e.status || "scheduled"}
-                        </span>
-                        <button
-                          className="text-[10px] px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700"
-                          onClick={() => handleViewEvent(e.event_id)}
-                        >
-                          View
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-zinc-500">
+                            {e.status || "scheduled"}
+                          </span>
+                          <button
+                            className="text-[10px] px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700"
+                            onClick={() => handleViewEvent(e.event_id)}
+                          >
+                            View
+                          </button>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="text-[10px] text-zinc-500">
-                      {e.date} · {e.venue || "TBD"}
+                      <div className="text-[10px] text-zinc-500">
+                        {e.date} · {e.venue || "TBD"}
+                      </div>
                     </div>
                   </li>
                 ))}
@@ -338,6 +336,7 @@ export default function Home() {
           <PredictionsPanel />
         </section>
 
+        {/* INSIGHTS */}
         <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-5 py-6">
           <InsightsPanel />
         </section>
