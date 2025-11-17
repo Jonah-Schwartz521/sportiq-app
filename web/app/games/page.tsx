@@ -78,6 +78,25 @@ export default function GamesPage() {
           </p>
         </header>
 
+        {/* Small count of visible games */}
+        <p className="text-[11px] text-zinc-500">
+          Showing{" "}
+          <span className="text-zinc-200 font-medium">{visibleEvents.length}</span>{" "}
+          game{visibleEvents.length === 1 ? "" : "s"}
+          {selectedSport !== "all" && (
+            <>
+              {" "}
+              for{" "}
+              <span className="uppercase tracking-[0.12em]">
+                {
+                  sportFilters.find((f) => f.id === selectedSport)?.label
+                }
+              </span>
+            </>
+           )}
+          </p>
+
+
         {/* Sport filter bar */}
         <div className="flex flex-wrap gap-2 text-xs mb-2">
           {sportFilters.map((f) => (
@@ -124,13 +143,13 @@ export default function GamesPage() {
                 </span>
               </div>
 
-              <div className="text-[11px] text-zinc-400">
-                {e.date} · {e.venue || "TBD"}
-              </div>
 
               <div className="flex items-center justify-between text-[11px] text-zinc-400">
                 <span>
-                  Status: {e.status || "scheduled"}
+                  {e.date} · {e.venue || "TBD"}
+                </span>
+                <span className="inline-flex items-center rounded-full border border-zinc-700 px-2 py-0.5 uppercase tracking-[0.16em] text-[9px] text-zinc-400">
+                  {e.status || "scheduled"}
                 </span>
               </div>
 
