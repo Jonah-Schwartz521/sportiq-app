@@ -32,6 +32,9 @@ export default function GameDetailPage() {
   const [predLoading, setPredLoading] = useState(false);
   const [predError, setPredError] = useState<string | null>(null);
 
+  // Bet slip state (local only, demo UI)
+  const [selectedSide, setSelectedSide] = useState<"home" | "away" | null>(null);
+
   // Insights state
   const [insights, setInsights] = useState<Insight[] | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
@@ -39,6 +42,12 @@ export default function GameDetailPage() {
 
   // Fallback timestamp for when the page rendered
   const [generatedAt] = useState(() => new Date().toISOString());
+
+  // Helper: convert probability to implied decimal odds
+  function impliedOdds(prob: number | null | undefined): string {
+    if (!prob || prob <= 0) return "-";
+    return `${(1 / prob).toFixed(2)}x`;
+  }
 
   // Fetch this event + all teams
   useEffect(() => {
@@ -95,6 +104,7 @@ export default function GameDetailPage() {
         setPredLoading(true);
         setPredError(null);
         setPrediction(null);
+        setSelectedSide(null); // reset bet slip when game changes
 
         const sportKey = sportKeyFromId(event.sport_id);
         const result = await api.predict(sportKey, event.event_id);
@@ -233,6 +243,7 @@ export default function GameDetailPage() {
 
               {prediction && !predLoading && !predError && (
                 <>
+                  {/* Win probabilities summary */}
                   <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 px-3 py-2 text-xs text-zinc-200 flex flex-col gap-2">
                     <div className="flex justify-between">
                       <span className="text-zinc-400">
@@ -277,6 +288,96 @@ export default function GameDetailPage() {
                     </span>
                     .
                   </p>
+
+                  {/* Bet slip stub */}
+                  <div className="mt-3 border-t border-zinc-800 pt-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-semibold text-zinc-100">
+                        Quick Bet (demo)
+                      </h3>
+                      <p className="text-[10px] text-zinc-500">
+                        Select a side to see implied odds
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      {/* Home side */}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSide("home")}
+                        className={
+                          "flex-1 rounded-lg border px-3 py-2 text-xs text-left " +
+                          (selectedSide === "home"
+                            ? "border-emerald-500/70 bg-emerald-500/10"
+                            : "border-zinc-700 bg-zinc-900/40 hover:border-zinc-500")
+                        }
+                      >
+                        <div className="flex justify-between gap-2">
+                          <span className="font-medium truncate">
+                            {homeName || "Home"}
+                          </span>
+                          <span className="text-[11px] text-zinc-400 text-right">
+                            {(
+                              (prediction.win_probabilities.home ?? 0) * 100
+                            ).toFixed(1)}
+                            % ·{" "}
+                            {impliedOdds(
+                              prediction.win_probabilities.home ?? 0
+                            )}
+                          </span>
+                        </div>
+                      </button>
+
+                      {/* Away side */}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSide("away")}
+                        className={
+                          "flex-1 rounded-lg border px-3 py-2 text-xs text-left " +
+                          (selectedSide === "away"
+                            ? "border-emerald-500/70 bg-emerald-500/10"
+                            : "border-zinc-700 bg-zinc-900/40 hover:border-zinc-500")
+                        }
+                      >
+                        <div className="flex justify-between gap-2">
+                          <span className="font-medium truncate">
+                            {awayName || "Away"}
+                          </span>
+                          <span className="text-[11px] text-zinc-400 text-right">
+                            {(
+                              (prediction.win_probabilities.away ?? 0) * 100
+                            ).toFixed(1)}
+                            % ·{" "}
+                            {impliedOdds(
+                              prediction.win_probabilities.away ?? 0
+                            )}
+                          </span>
+                        </div>
+                      </button>
+                    </div>
+
+                    {selectedSide && (
+                      <p className="text-[11px] text-zinc-400">
+                        You&apos;ve selected{" "}
+                        <span className="text-zinc-100 font-medium">
+                          {selectedSide === "home"
+                            ? homeName || "Home"
+                            : awayName || "Away"}
+                        </span>{" "}
+                        with implied odds of{" "}
+                        <span className="text-zinc-100 font-mono">
+                          {selectedSide === "home"
+                            ? impliedOdds(
+                                prediction.win_probabilities.home ?? 0
+                              )
+                            : impliedOdds(
+                                prediction.win_probabilities.away ?? 0
+                              )}
+                        </span>
+                        . This is a demo only – no real bets placed.
+                      </p>
+                    )}
+                  </div>
                 </>
               )}
 
