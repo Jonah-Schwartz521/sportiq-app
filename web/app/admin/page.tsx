@@ -210,6 +210,15 @@ export default function Home() {
                         </div>
                       </div>
 
+                      <a 
+                        href={`/games/${e.event_id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-blue-400 hover:text-blue-300 underline-offset-2 hover:underline"
+                      >
+                        Open fan view 
+                      </a>
+
                       <div className="text-[10px] text-zinc-500">
                         {e.date} · {e.venue || "TBD"}
                       </div>
