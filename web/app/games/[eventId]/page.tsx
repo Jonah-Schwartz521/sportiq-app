@@ -3,12 +3,22 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api, type Event, type Team } from "@/lib/api";
-import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
-
+import {
+  api,
+  type Event,
+  type Team,
+  type PredictResponse,
+  type Insight,
+} from "@/lib/api";
+import {
+  sportLabelFromId,
+  sportIconFromId,
+  sportKeyFromId,
+} from "@/lib/sport";
+import { buildTeamsById, teamLabelFromMap } from "@/lib/teams";
 
 export default function GameDetailPage() {
-  // 🔹 Because the folder is [eventId], the param key is "eventId"
+  // Because the folder is [eventId], the param key is "eventId"
   const { eventId: eventIdParam } = useParams() as { eventId: string };
   const eventId = Number(eventIdParam);
 
@@ -17,8 +27,19 @@ export default function GameDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const MODEL_KEY = "nba-winprob-0.1.0";
+  // Model prediction state
+  const [prediction, setPrediction] = useState<PredictResponse | null>(null);
+  const [predLoading, setPredLoading] = useState(false);
+  const [predError, setPredError] = useState<string | null>(null);
+
+  // Insights state
+  const [insights, setInsights] = useState<Insight[] | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+
+  // Fallback timestamp if API doesn’t include one
   const [generatedAt] = useState(() => new Date().toISOString());
+
   // Fetch this event + all teams
   useEffect(() => {
     if (!eventId) return;
@@ -26,8 +47,8 @@ export default function GameDetailPage() {
     (async () => {
       try {
         setLoading(true);
+        setError(null);
 
-        // For now: reuse api.events() and find this one.
         const [eventsRes, teamsRes] = await Promise.all([
           api.events(),
           api.teams(),
@@ -38,6 +59,7 @@ export default function GameDetailPage() {
 
         if (!found) {
           setError("Game not found");
+          setEvent(null);
         } else {
           setEvent(found);
         }
@@ -54,24 +76,67 @@ export default function GameDetailPage() {
     })();
   }, [eventId]);
 
-  // Team lookup
-  const teamsById = useMemo(() => {
-    const map = new Map<number, Team>();
-    for (const t of teams) {
-      map.set(t.team_id, t);
-    }
-    return map;
-  }, [teams]);
+  // Build quick lookup for team names (shared helper)
+  const teamsById = useMemo(() => buildTeamsById(teams), [teams]);
 
   function teamLabel(id: number | null): string {
-    if (id == null) return "TBD";
-    const team = teamsById.get(id);
-    if (!team) return `#${id}`;
-    return team.name;
+    return teamLabelFromMap(teamsById, id);
   }
 
   const homeName = event ? teamLabel(event.home_team_id) : "";
   const awayName = event ? teamLabel(event.away_team_id) : "";
+
+  // Fetch a prediction once we know the event
+  useEffect(() => {
+    if (!event) return;
+
+    (async () => {
+      try {
+        setPredLoading(true);
+        setPredError(null);
+        setPrediction(null);
+
+        const sportKey = sportKeyFromId(event.sport_id);
+        const result = await api.predict(sportKey, event.event_id);
+
+        console.log("Predict response", result);
+        setPrediction(result);
+      } catch (err: unknown) {
+        console.error(err);
+        const message =
+          err instanceof Error ? err.message : "Failed to load prediction";
+        setPredError(message);
+      } finally {
+        setPredLoading(false);
+      }
+    })();
+  }, [event]);
+
+  // Fetch insights once we know the event
+  useEffect(() => {
+    if (!event) return;
+
+    (async () => {
+      try {
+        setInsightsLoading(true);
+        setInsightsError(null);
+        setInsights(null);
+
+        const sportKey = sportKeyFromId(event.sport_id);
+        const data = await api.insights(sportKey, event.event_id);
+
+        console.log("Insights response", data);
+        setInsights(data.insights || []);
+      } catch (err: unknown) {
+        console.error(err);
+        const message =
+          err instanceof Error ? err.message : "Failed to load insights";
+        setInsightsError(message);
+      } finally {
+        setInsightsLoading(false);
+      }
+    })();
+  }, [event]);
 
   return (
     <main className="min-h-screen bg-black text-white flex justify-center px-4 py-10">
@@ -133,55 +198,116 @@ export default function GameDetailPage() {
               </p>
             </section>
 
-                    {/* Prediction panel */}
+            {/* Prediction panel */}
             <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-zinc-100">
                   Model Prediction
                 </h2>
                 <div className="text-[10px] text-zinc-500 text-right space-y-0.5">
-                  <div>Model: <span className="font-mono">{MODEL_KEY}</span></div>
-                  <div>Generated: {generatedAt}</div>
+                  <div>
+                    Model:{" "}
+                    <span className="font-mono">
+                      {prediction?.model_key ?? "nba-winprob-0.1.0"}
+                    </span>
+                  </div>
+                  <div>
+                    Generated: {prediction?.generated_at ?? generatedAt}
+                  </div>
                 </div>
               </div>
 
-              {/* Betting line placeholder */}
-              <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 px-3 py-2 text-xs text-zinc-200 flex flex-col gap-1">
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">Market Line</span>
-                  <span className="font-medium">
-                    {homeName || "Home"} -3.5
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">Model Spread</span>
-                  <span className="font-medium">
-                    {homeName || "Home"} -2.1
-                  </span>
-                </div>
-                <div className="text-[11px] text-zinc-400 pt-1">
-                  Model lean: slight edge toward{" "}
-                  <span className="text-zinc-100">
-                    {awayName || "Away"} +3.5
-                  </span>{" "}
-                  versus the market.
-                </div>
-              </div>
+              {predLoading && (
+                <p className="text-xs text-zinc-500">Loading prediction…</p>
+              )}
 
-              <p className="text-[11px] text-zinc-500">
-                These numbers are placeholders. Later, you will wire this panel
-                to your real <span className="font-mono">/predict</span> endpoint
-                and live market lines.
-              </p>
+              {predError && !predLoading && (
+                <p className="text-xs text-red-400">{predError}</p>
+              )}
+
+              {prediction && !predLoading && !predError && (
+                <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 px-3 py-2 text-xs text-zinc-200 flex flex-col gap-2">
+                  <div className="flex justify-between">
+                    <span className="text-zinc-400">
+                      {homeName || "Home"} win prob
+                    </span>
+                    <span className="font-medium">
+                      {(
+                        (prediction.win_probabilities.home ?? 0) * 100
+                      ).toFixed(1)}
+                      %
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-zinc-400">
+                      {awayName || "Away"} win prob
+                    </span>
+                    <span className="font-medium">
+                      {(
+                        (prediction.win_probabilities.away ?? 0) * 100
+                      ).toFixed(1)}
+                      %
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {!prediction && !predLoading && !predError && (
+                <p className="text-[11px] text-zinc-500">
+                  No prediction yet. Once the model is wired to this event, it
+                  will appear here.
+                </p>
+              )}
             </section>
 
             {/* Insights panel */}
-            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-2">
-              <h2 className="text-sm font-semibold text-zinc-100">Insights</h2>
-              <p className="text-xs text-zinc-400">
-                Placeholder for matchup notes and edges from{" "}
-                <span className="font-mono">/insights</span>.
-              </p>
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-zinc-100">
+                  Insights
+                </h2>
+              </div>
+
+              {insightsLoading && (
+                <p className="text-xs text-zinc-500">Loading insights…</p>
+              )}
+
+              {insightsError && !insightsLoading && (
+                <p className="text-xs text-red-400">{insightsError}</p>
+              )}
+
+              {insights &&
+                !insightsLoading &&
+                !insightsError &&
+                insights.length > 0 && (
+                  <ul className="space-y-2 text-xs">
+                    {insights.map((insight, idx) => (
+                      <li key={idx} className="space-y-0.5">
+                        <div className="flex justify-between gap-2">
+                          <span className="font-medium text-zinc-100">
+                            {insight.label}
+                          </span>
+                          {insight.value != null && (
+                            <span className="text-[11px] text-zinc-400">
+                              {(insight.value * 100).toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-zinc-400">
+                          {insight.detail}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+              {(!insights || insights?.length === 0) &&
+                !insightsLoading &&
+                !insightsError && (
+                  <p className="text-xs text-zinc-400">
+                    No insights available yet for this matchup.
+                  </p>
+                )}
             </section>
 
             {/* Event info panel */}

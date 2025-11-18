@@ -44,14 +44,18 @@ export default function InsightsPanel() {
   }
 
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-5 py-4 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-medium text-zinc-200">
             Explain a Prediction
           </h2>
           <p className="text-xs text-zinc-500">
-            Fetch top reasons from <span className="font-mono">/insights/&lt;sport&gt;/&lt;event_id&gt;</span>.
+            Fetch top reasons from{" "}
+            <span className="font-mono">
+              /insights/&lt;sport&gt;/&lt;event_id&gt;
+            </span>
+            .
           </p>
         </div>
         <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
@@ -93,11 +97,16 @@ export default function InsightsPanel() {
       {/* Status / results */}
       {error && <p className="text-xs text-red-400">{error}</p>}
 
+      {loading && !error && (
+        <p className="text-xs text-zinc-500">Loading insights…</p>
+      )}
+
       {data && (
         <div className="border border-zinc-800 rounded-xl px-4 py-3 space-y-3 bg-black/40">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs text-zinc-400">
-              Event <span className="text-zinc-200 font-mono">{data.event_id}</span>{" "}
+              Event{" "}
+              <span className="text-zinc-200 font-mono">{data.event_id}</span>{" "}
               · Sport{" "}
               <span className="text-zinc-200 font-mono uppercase">
                 {data.sport}
@@ -106,31 +115,40 @@ export default function InsightsPanel() {
               Model{" "}
               <span className="text-zinc-200 font-mono">{data.model_key}</span>
             </div>
-            <div className="text-[10px] text-zinc-500">
-              Generated at {new Date(data.generated_at).toLocaleString()}
+            <div className="text-right text-[10px] text-zinc-500 space-y-0.5">
+              <div>
+                Generated at{" "}
+                {new Date(data.generated_at).toLocaleString()}
+              </div>
             </div>
           </div>
 
-          <ul className="space-y-2">
-            {data.insights.map((insight, idx) => (
-              <li
-                key={`${insight.type}-${insight.label}-${idx}`}
-                className="rounded-lg border border-zinc-800 bg-zinc-950/80 px-3 py-2"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-zinc-200">
-                    {insight.label}
-                  </span>
-                  {typeof insight.value === "number" && (
-                    <span className="text-[10px] text-zinc-500">
-                      impact {(insight.value * 100).toFixed(1)}%
+          {data.insights.length > 0 ? (
+            <ul className="space-y-2">
+              {data.insights.map((insight, idx) => (
+                <li
+                  key={`${insight.type}-${insight.label}-${idx}`}
+                  className="rounded-lg border border-zinc-800 bg-zinc-950/80 px-3 py-2"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-zinc-200">
+                      {insight.label}
                     </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-zinc-400">{insight.detail}</p>
-              </li>
-            ))}
-          </ul>
+                    {typeof insight.value === "number" && (
+                      <span className="text-[10px] text-zinc-500">
+                        {(insight.value * 100).toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-zinc-400">{insight.detail}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-zinc-500">
+              No insights available yet for this event.
+            </p>
+          )}
         </div>
       )}
 

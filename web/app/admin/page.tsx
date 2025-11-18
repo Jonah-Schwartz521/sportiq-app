@@ -1,27 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { api } from "@/lib/api";
+import { api, type Team, type Event } from "@/lib/api";
 import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
+import { buildTeamsById, teamLabelFromMap } from "@/lib/teams";
 import PredictPanel from "@/components/PredictPanel";
 import PredictionsPanel from "@/components/Predictions_Panel";
 import InsightsPanel from "@/components/InsightsPanel";
 
-type Team = {
-  team_id: number;
-  sport_id: number;
-  name: string;
-};
-
-type Event = {
-  event_id: number;
-  sport_id: number;
-  date: string;
-  home_team_id: number | null;
-  away_team_id: number | null;
-  venue: string | null;
-  status: string | null;
-};
 
 export default function Home() {
   const [health, setHealth] = useState("checking...");
@@ -59,20 +45,11 @@ export default function Home() {
     })();
   }, []);
 
-  // Build team lookup + label helper (shared pattern with /games)
-  const teamsById = useMemo(() => {
-    const map = new Map<number, Team>();
-    for (const t of teams) {
-      map.set(t.team_id, t);
-    }
-    return map;
-  }, [teams]);
+  // 🔹 Build team lookup + label helper (shared pattern with /games)
+  const teamsById = useMemo(() => buildTeamsById(teams), [teams]);
 
   function teamLabel(id: number | null): string {
-    if (id == null) return "TBD";
-    const team = teamsById.get(id);
-    if (!team) return `#${id}`;
-    return team.name;
+    return teamLabelFromMap(teamsById, id);
   }
 
   // Click handler for "View"
