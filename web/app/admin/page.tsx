@@ -191,9 +191,9 @@ export default function Home() {
                               {sportLabelFromId(e.sport_id)}
                             </span>
                           </span>
-                          <span>
-                            · {teamLabel(e.away_team_id)} @{" "}
-                            {teamLabel(e.home_team_id)}
+                          
+                          <span className="truncate max-w-[120px] sm:max-w-[200px] block">
+                            {teamLabel(e.away_team_id)} @ {teamLabel(e.home_team_id)}
                           </span>
                         </span>
 

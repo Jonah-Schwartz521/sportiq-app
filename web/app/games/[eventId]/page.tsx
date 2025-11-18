@@ -190,7 +190,13 @@ export default function GameDetailPage() {
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-                {awayName} @ {homeName}
+                <span className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
+                  <span className="truncate max-w-full">{awayName}</span>
+                  <span className="text-zinc-500 text-base sm:text-lg flex-shrink-0">
+                    @
+                  </span>
+                  <span className="truncate max-w-full">{homeName}</span>
+                </span>
               </h1>
 
               <p className="text-xs text-zinc-400">

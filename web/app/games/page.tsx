@@ -125,12 +125,14 @@ export default function GamesPage() {
               href={`/games/${e.event_id}`}
               className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 flex flex-col gap-1 space-y-1 hover:border-zinc-600 hover:bg-zinc-900/60 hover:-translate-y-[1px] transition-all"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-zinc-100 truncate">
-                  {teamLabel(e.home_team_id)} vs {teamLabel(e.away_team_id)}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-zinc-100 flex-1 min-w-0">
+                  <span className="block trunate">
+                    {teamLabel(e.home_team_id)} vs {teamLabel(e.away_team_id)}
                 </span>
+              </span>
 
-                <span className="flex items-center gap-1 text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
+                <span className="flex flex-wrap items-center gap-2 text-[10px] text-zinc-500 uppercase tracking-[0.16em] shrink-0">
                   <span>{sportIconFromId(e.sport_id)}</span>
                   <span>{sportLabelFromId(e.sport_id)}</span>
                 </span>
