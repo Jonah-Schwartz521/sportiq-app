@@ -10,25 +10,12 @@ import {
   type PredictResponse,
   type Insight,
 } from "@/lib/api";
-import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
-
-// Helper to map sport_id -> backend slug for /predict/:sport and /insights/:sport
-function sportKeyFromId(id: number | null): string {
-  switch (id) {
-    case 1:
-      return "nba";
-    case 2:
-      return "mlb";
-    case 3:
-      return "nfl";
-    case 4:
-      return "nhl";
-    case 5:
-      return "ufc";
-    default:
-      return "nba";
-  }
-}
+import {
+  sportLabelFromId,
+  sportIconFromId,
+  sportKeyFromId,
+} from "@/lib/sport";
+import { buildTeamsById, teamLabelFromMap } from "@/lib/teams";
 
 export default function GameDetailPage() {
   // Because the folder is [eventId], the param key is "eventId"
@@ -89,20 +76,11 @@ export default function GameDetailPage() {
     })();
   }, [eventId]);
 
-  // Build team lookup
-  const teamsById = useMemo(() => {
-    const map = new Map<number, Team>();
-    for (const t of teams) {
-      map.set(t.team_id, t);
-    }
-    return map;
-  }, [teams]);
+  // Team lookup using shared helpers
+  const teamsById = useMemo(() => buildTeamsById(teams), [teams]);
 
   function teamLabel(id: number | null): string {
-    if (id == null) return "TBD";
-    const team = teamsById.get(id);
-    if (!team) return `#${id}`;
-    return team.name;
+    return teamLabelFromMap(teamsById, id);
   }
 
   const homeName = event ? teamLabel(event.home_team_id) : "";
@@ -274,7 +252,6 @@ export default function GameDetailPage() {
                     </div>
                   </div>
 
-                  {/* Model edge copy */}
                   <p className="mt-1 text-[11px] text-zinc-400">
                     Model edge: leans toward{" "}
                     <span className="text-zinc-100 font-medium">
@@ -308,9 +285,7 @@ export default function GameDetailPage() {
             {/* Insights panel */}
             <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-zinc-100">
-                  Insights
-                </h2>
+                <h2 className="text-sm font-semibold text-zinc-100">Insights</h2>
               </div>
 
               {insightsLoading && (
@@ -346,7 +321,7 @@ export default function GameDetailPage() {
                   </ul>
                 )}
 
-              {(!insights || insights?.length === 0) &&
+              {(!insights || insights.length === 0) &&
                 !insightsLoading &&
                 !insightsError && (
                   <p className="text-xs text-zinc-400">

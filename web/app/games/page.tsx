@@ -4,13 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api, type Event, type Team } from "@/lib/api";
 import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
+import { buildTeamsById, teamLabelFromMap } from "@/lib/teams";
+
+type SportFilterId = "all" | 1 | 2 | 3 | 4 | 5;
 
 export default function GamesPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedSport, setSelectedSport] = useState<number | "all">("all");
+  const [selectedSport, setSelectedSport] = useState<SportFilterId>("all");
 
   // Fetch events + teams
   useEffect(() => {
@@ -34,30 +37,21 @@ export default function GamesPage() {
     })();
   }, []);
 
-  // Build quick lookup for team names
-  const teamsById = useMemo(() => {
-    const map = new Map<number, Team>();
-    for (const t of teams) {
-      map.set(t.team_id, t);
-    }
-    return map;
-  }, [teams]);
+  // Team lookup using shared helpers
+  const teamsById = useMemo(() => buildTeamsById(teams), [teams]);
 
   function teamLabel(id: number | null): string {
-    if (id == null) return "TBD";
-    const team = teamsById.get(id);
-    if (!team) return `#${id}`;
-    return team.name;
+    return teamLabelFromMap(teamsById, id);
   }
 
   // Sport filter options
-  const sportFilters = [
-    { id: "all" as const, label: "All" },
-    { id: 1 as const, label: "NBA" },
-    { id: 2 as const, label: "MLB" },
-    { id: 3 as const, label: "NFL" },
-    { id: 4 as const, label: "NHL" },
-    { id: 5 as const, label: "UFC" },
+  const sportFilters: { id: SportFilterId; label: string }[] = [
+    { id: "all", label: "All" },
+    { id: 1, label: "NBA" },
+    { id: 2, label: "MLB" },
+    { id: 3, label: "NFL" },
+    { id: 4, label: "NHL" },
+    { id: 5, label: "UFC" },
   ];
 
   // Apply selected sport filter
@@ -81,21 +75,20 @@ export default function GamesPage() {
         {/* Small count of visible games */}
         <p className="text-[11px] text-zinc-500">
           Showing{" "}
-          <span className="text-zinc-200 font-medium">{visibleEvents.length}</span>{" "}
+          <span className="text-zinc-200 font-medium">
+            {visibleEvents.length}
+          </span>{" "}
           game{visibleEvents.length === 1 ? "" : "s"}
           {selectedSport !== "all" && (
             <>
               {" "}
               for{" "}
               <span className="uppercase tracking-[0.12em]">
-                {
-                  sportFilters.find((f) => f.id === selectedSport)?.label
-                }
+                {sportFilters.find((f) => f.id === selectedSport)?.label}
               </span>
             </>
-           )}
-          </p>
-
+          )}
+        </p>
 
         {/* Sport filter bar */}
         <div className="flex flex-wrap gap-2 text-xs mb-2">
@@ -142,7 +135,6 @@ export default function GamesPage() {
                   <span>{sportLabelFromId(e.sport_id)}</span>
                 </span>
               </div>
-
 
               <div className="flex items-center justify-between text-[11px] text-zinc-400">
                 <span>
