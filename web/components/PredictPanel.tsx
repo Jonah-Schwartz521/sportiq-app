@@ -1,173 +1,229 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  api,
-  type PredictResponse,
-  type EventForPicker,
-} from "@/lib/api";
+import { useEffect, useMemo, useState } from "react";
+import { api, type EventForPicker, type Team, type PredictResponse } from "@/lib/api";
+import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
 
-type Sport = "nba" | "mlb" | "nfl" | "nhl" | "ufc";
+type SportKey = "nba" | "mlb" | "nfl" | "nhl" | "ufc";
 
-export default function PredictPanel() {
-  const [sport, setSport] = useState<Sport>("nba");
-  const [eventId, setEventId] = useState<string>(""); // always string for the input
-  const [result, setResult] = useState<PredictResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const sportOptions: { id: SportKey; label: string }[] = [
+  { id: "nba", label: "NBA" },
+  { id: "mlb", label: "MLB" },
+  { id: "nfl", label: "NFL" },
+  { id: "nhl", label: "NHL" },
+  { id: "ufc", label: "UFC" },
+];
+
+// map backend sport slug -> numeric sport_id in your data
+function sportIdFromKey(key: SportKey): number {
+  switch (key) {
+    case "nba":
+      return 1;
+    case "mlb":
+      return 2;
+    case "nfl":
+      return 3;
+    case "nhl":
+      return 4;
+    case "ufc":
+      return 5;
+  }
+}
+
+function PredictPanel() {
+  const [sport, setSport] = useState<SportKey>("nba");
 
   const [events, setEvents] = useState<EventForPicker[]>([]);
-  const [loadingEvents, setLoadingEvents] = useState(false);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+  const [eventsError, setEventsError] = useState<string | null>(null);
 
-  // Load events for dropdown on mount
+  const [selectedEventId, setSelectedEventId] = useState<number | "">("");
+  const [manualEventId, setManualEventId] = useState<string>("");
+
+  const [result, setResult] = useState<PredictResponse | null>(null);
+  const [predictLoading, setPredictLoading] = useState(false);
+  const [predictError, setPredictError] = useState<string | null>(null);
+
+  // ---- Teams lookup + helpers ----
+  const teamsById = useMemo(() => {
+    const map = new Map<number, Team>();
+    for (const t of teams) {
+      map.set(t.team_id, t);
+    }
+    return map;
+  }, [teams]);
+
+  function teamLabel(id: number | null): string {
+    if (id == null) return "TBD";
+    const team = teamsById.get(id);
+    if (!team) return `#${id}`;
+    return team.name;
+  }
+
+  function eventLabel(e: EventForPicker): string {
+    const home = teamLabel(e.home_team_id);
+    const away = teamLabel(e.away_team_id);
+    const sportText = sportLabelFromId(e.sport_id);
+    return `${sportText} · ${away} @ ${home} · ${e.date}`;
+  }
+
+  // ---- Load events + teams for the picker ----
   useEffect(() => {
     (async () => {
       try {
         setLoadingEvents(true);
-        const data = await api.eventsForPicker();
-        setEvents(data.items || []);
-      } catch (e) {
-        console.error(e);
+        setEventsError(null);
+
+        const [eventsRes, teamsRes] = await Promise.all([
+          api.eventsForPicker(),
+          api.teams(),
+        ]);
+
+        setEvents(eventsRes.items || []);
+        setTeams(teamsRes.items || []);
+      } catch (err: unknown) {
+        console.error(err);
+        const msg =
+          err instanceof Error ? err.message : "Failed to load events for picker";
+        setEventsError(msg);
       } finally {
         setLoadingEvents(false);
       }
     })();
   }, []);
 
+  // Filter events by selected sport so dropdown is shorter
+  const visibleEvents = useMemo(() => {
+    const id = sportIdFromKey(sport);
+    return events.filter((e) => e.sport_id === id);
+  }, [events, sport]);
+
+  // ---- Predict handler ----
   async function handlePredict() {
-    setLoading(true);
-    setError(null);
-    setResult(null);
-
-    const idNum = Number(eventId);
-    if (!idNum || Number.isNaN(idNum)) {
-      setError("Please enter a valid numeric event_id");
-      setLoading(false);
-      return;
-    }
-
     try {
-      const data = await api.predict(sport, idNum);
-      setResult(data);
+      setPredictLoading(true);
+      setPredictError(null);
+      setResult(null);
+
+      const finalId =
+        selectedEventId !== "" ? selectedEventId : Number(manualEventId || 0);
+
+      if (!finalId) {
+        setPredictError("Please pick an event or enter a valid event_id.");
+        return;
+      }
+
+      const res = await api.predict(sport, finalId);
+      setResult(res);
     } catch (err: unknown) {
       console.error(err);
-      const message =
-        err instanceof Error ? err.message : "Failed to fetch prediction";
-      setError(message);
+      const msg =
+        err instanceof Error ? err.message : "Prediction request failed";
+      setPredictError(msg);
     } finally {
-      setLoading(false);
+      setPredictLoading(false);
     }
-  }
-
-  function handleSelectChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const selected = e.target.value;
-    // value is the event_id as string
-    setEventId(selected);
   }
 
   return (
-    <div className="w-full rounded-2xl border border-zinc-800 bg-zinc-950/60 px-5 py-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-zinc-200">
-          Predict Win Probability
-        </h2>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-sm font-semibold text-zinc-100">Predict Win Probability</h2>
         <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
           POST /predict/&lt;sport&gt;
         </span>
       </div>
 
-      {/* Controls */}
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <select
-          className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm"
-          value={sport}
-          onChange={(e) => setSport(e.target.value as Sport)}
-        >
-          <option value="nba">NBA</option>
-          <option value="mlb">MLB</option>
-          <option value="nfl">NFL</option>
-          <option value="nhl">NHL</option>
-          <option value="ufc">UFC</option>
-        </select>
+      <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+        {/* sport select */}
+        <div className="flex items-center gap-1 text-xs">
+          <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
+            Sport
+          </span>
+          <select
+            value={sport}
+            onChange={(e) => {
+              setSport(e.target.value as SportKey);
+              setSelectedEventId("");
+            }}
+            className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs"
+          >
+            {sportOptions.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        {/* Event dropdown */}
-        <select
-          className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm flex-1"
-          value={eventId} // keep it controlled
-          onChange={handleSelectChange}
-        >
-          <option value="">
-            {loadingEvents ? "Loading events…" : "Pick an event…"}
-          </option>
-          {events.map((ev) => (
-            <option key={ev.event_id} value={String(ev.event_id)}>
-              {`Event ${ev.event_id} • ${ev.date} • home ${ev.home_team_id ?? "-"} vs away ${ev.away_team_id ?? "-"}`}
-            </option>
-          ))}
-        </select>
+        {/* event dropdown */}
+        <div className="flex-1">
+          <select
+            value={selectedEventId === "" ? "" : String(selectedEventId)}
+            onChange={(e) =>
+              setSelectedEventId(e.target.value ? Number(e.target.value) : "")
+            }
+            className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs"
+          >
+            <option value="">Pick an event…</option>
+            {visibleEvents.map((e) => (
+              <option key={e.event_id} value={e.event_id}>
+                {/* Icon + label to match fan UI */}
+                {sportIconFromId(e.sport_id)} {eventLabel(e)}
+              </option>
+            ))}
+          </select>
+          {loadingEvents && (
+            <p className="text-[10px] text-zinc-500 mt-1">Loading events…</p>
+          )}
+          {eventsError && (
+            <p className="text-[10px] text-red-400 mt-1">{eventsError}</p>
+          )}
+        </div>
 
-        {/* Manual input (always controlled) */}
-        <input
-          type="number"
-          placeholder="event_id"
-          className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm flex-1"
-          value={eventId}
-          onChange={(e) => setEventId(e.target.value)}
-        />
+        {/* manual event id input */}
+        <div className="flex items-center gap-1 text-xs">
+          <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
+            event_id
+          </span>
+          <input
+            value={manualEventId}
+            onChange={(e) => setManualEventId(e.target.value)}
+            placeholder="optional"
+            className="w-20 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs"
+          />
+        </div>
 
         <button
           onClick={handlePredict}
-          disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 rounded px-4 py-2 text-sm font-medium"
+          disabled={predictLoading}
+          className="text-xs px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-60"
         >
-          {loading ? "Loading…" : "Predict"}
+          {predictLoading ? "Predicting…" : "Predict"}
         </button>
       </div>
 
-      <p className="text-[11px] text-zinc-500">
-        Pick an event from the dropdown or enter an{" "}
-        <span className="font-mono">event_id</span> manually, then hit{" "}
-        <span className="font-mono">Predict</span>.
-      </p>
-
-      {/* Status / result */}
-      {error && <p className="text-xs text-red-400">{error}</p>}
-
-      {result && (
-        <div className="space-y-2">
-          {/* Friendly summary */}
-          <div className="text-sm text-zinc-200">
-            {typeof result.win_probabilities.home === "number" &&
-            typeof result.win_probabilities.away === "number" ? (
-              <>
-                Home:{" "}
-                <span className="font-mono">
-                  {(result.win_probabilities.home * 100).toFixed(1)}%
-                </span>{" "}
-                · Away:{" "}
-                <span className="font-mono">
-                  {(result.win_probabilities.away * 100).toFixed(1)}%
-                </span>
-              </>
-            ) : (
-              <span className="text-zinc-400">
-                Model returned non-standard probabilities.
-              </span>
-            )}
-          </div>
-
-          {/* Raw JSON for debugging */}
-          <pre className="text-xs bg-zinc-900/80 p-3 rounded overflow-x-auto">
-            {JSON.stringify(result, null, 2)}
-          </pre>
-        </div>
+      {/* result / error */}
+      {predictError && (
+        <p className="text-xs text-red-400 mt-1">{predictError}</p>
       )}
 
-      {!loading && !error && !result && (
-        <p className="text-xs text-zinc-500">
-          No prediction yet. Choose an event and click Predict.
-        </p>
+      {result && !predictError && (
+        <div className="mt-2 text-[11px] text-zinc-400 space-y-1">
+          <div>
+            Model: <span className="font-mono">{result.model_key}</span>
+          </div>
+          <div>Generated: {result.generated_at}</div>
+          <div>
+            Home:{" "}
+            {((result.win_probabilities.home ?? 0) * 100).toFixed(1)}% · Away:{" "}
+            {((result.win_probabilities.away ?? 0) * 100).toFixed(1)}%
+          </div>
+        </div>
       )}
     </div>
   );
 }
+
+export default PredictPanel;
