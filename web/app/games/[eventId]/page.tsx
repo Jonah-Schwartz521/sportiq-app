@@ -341,7 +341,7 @@ export default function GameDetailPage() {
               <h2 className="text-sm font-semibold text-zinc-100">
                 Event Info
               </h2>
-              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-y-1 text-xs text-zinc-300">
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 sm:gap-x-8 text-xs text-zinc-300">
                 <div className="flex justify-between gap-4">
                   <dt className="text-zinc-500">Sport</dt>
                   <dd>{sportLabelFromId(event.sport_id)}</dd>
