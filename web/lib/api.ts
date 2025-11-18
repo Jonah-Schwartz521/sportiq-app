@@ -19,11 +19,11 @@ export type Event = {
 };
 
 export type EventForPicker = {
-  event_id: number; 
-  sport_id: number; 
-  date: string; 
-  home_team_id: number | null; 
-  away_team_id: number | null; 
+  event_id: number;
+  sport_id: number;
+  date: string;
+  home_team_id: number | null;
+  away_team_id: number | null;
 };
 
 export type PredictResponse = {
@@ -81,7 +81,7 @@ export const api = {
 
   events: () => getJSON<{ items: Event[] }>("/events?limit=5"),
 
-  eventsForPicker: ()=>
+  eventsForPicker: () =>
     getJSON<{ items: Event[] }>("/events?limit=50"),
 
   eventById: (eventId: number) =>
