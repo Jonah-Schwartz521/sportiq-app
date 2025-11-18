@@ -118,15 +118,15 @@ export default function GamesPage() {
         )}
 
         {/* Cards */}
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           {visibleEvents.map((e) => (
             <Link
               key={e.event_id}
               href={`/games/${e.event_id}`}
-              className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 flex flex-col gap-1 hover:border-zinc-600 hover:bg-zinc-900/60 hover:-translate-y-[1px] transition-all"
+              className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 flex flex-col gap-1 space-y-1 hover:border-zinc-600 hover:bg-zinc-900/60 hover:-translate-y-[1px] transition-all"
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-zinc-100">
+                <span className="text-sm font-medium text-zinc-100 truncate">
                   {teamLabel(e.home_team_id)} vs {teamLabel(e.away_team_id)}
                 </span>
 
