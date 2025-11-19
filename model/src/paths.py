@@ -1,9 +1,14 @@
-from pathlib import Path 
+# model/src/paths.py
 
-# Root of the model folder 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+from pathlib import Path
 
-DATA_DIR = PROJECT_ROOT / "data"
-RAW_DATA_DIR = DATA_DIR / "raw"
-INTERIM_DATA_DIR = DATA_DIR / "interim"
-PROCESSED_DATA_DIR = DATA_DIR / "processed"
+# ---- Base directories ----
+MODEL_DIR = Path(__file__).resolve().parents[1]
+DATA_DIR = MODEL_DIR / "data"
+
+RAW_DIR = DATA_DIR / "raw"
+INTERIM_DIR = DATA_DIR / "interim"
+PROCESSED_DIR = DATA_DIR / "processed"
+
+# ---- NBA schedule results ----
+RAW_NBA_SCHEDULE_DIR = RAW_DIR / "NBA_schedule_results"
