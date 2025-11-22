@@ -1,5 +1,5 @@
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
 
 export type Team = {
   team_id: number;
@@ -77,28 +77,20 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
 export const api = {
   health: () => getJSON<{ status: string }>("/health"),
 
-  teams: () => getJSON<{ items: Team[] }>("/teams?limit=100"),
-
-  events: () => getJSON<{ items: Event[] }>("/events?limit=5"),
-
-  eventsForPicker: () =>
-    getJSON<{ items: Event[] }>("/events?limit=50"),
-
-  eventById: (eventId: number) =>
-    getJSON<Event>(`/events/${eventId}`),
+  // TEMPORARY MOCK ROUTES
+  teams: async () => ({ items: [] }),
+  events: async () => ({ items: [] }),
+  eventsForPicker: async () => ({ items: [] }),
+  eventById: async (_eventId: number) => ({} as any),
+  predictions: async () => ({ items: [] }),
+  insights: async () => ({
+    event_id: 0,
+    sport: "nba",
+    model_key: "nba_logreg_b2b_v1",
+    generated_at: new Date().toISOString(),
+    insights: [],
+  }),
 
   predict: (sport: string, eventId: number) =>
-    postJSON<PredictResponse>(`/predict/${sport}`, { event_id: eventId }),
-
-  predictions: () =>
-    getJSON<{ items: PredictionSummary[] }>("/predictions?limit=5"),
-
-  insights: (sport: string, eventId: number) =>
-    getJSON<{
-      event_id: number;
-      sport: string;
-      model_key: string;
-      generated_at: string;
-      insights: Insight[];
-    }>(`/insights/${sport}/${eventId}`),
+    postJSON(`/predict/${sport}`, { event_id: eventId }),
 };
