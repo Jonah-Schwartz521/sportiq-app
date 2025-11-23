@@ -3,16 +3,12 @@
 import { useState } from "react";
 import { api, type Insight } from "@/lib/api";
 
-type Sport = "nba" | "mlb" | "nfl" | "nhl" | "ufc";
-
 export default function InsightsPanel() {
-  const [sport, setSport] = useState<Sport>("nba");
   const [eventId, setEventId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<{
-    event_id: number;
-    sport: string;
+    game_id: number;
     model_key: string;
     generated_at: string;
     insights: Insight[];
@@ -31,7 +27,8 @@ export default function InsightsPanel() {
     }
 
     try {
-      const res = await api.insights(sport, idNum);
+      // api.insights now takes just gameId
+      const res = await api.insights(idNum);
       setData(res);
     } catch (err: unknown) {
       console.error(err);
@@ -53,7 +50,7 @@ export default function InsightsPanel() {
           <p className="text-xs text-zinc-500">
             Fetch top reasons from{" "}
             <span className="font-mono">
-              /insights/&lt;sport&gt;/&lt;event_id&gt;
+              /insights/{"<event_id>"}
             </span>
             .
           </p>
@@ -65,21 +62,9 @@ export default function InsightsPanel() {
 
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <select
-          className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm"
-          value={sport}
-          onChange={(e) => setSport(e.target.value as Sport)}
-        >
-          <option value="nba">NBA</option>
-          <option value="mlb">MLB</option>
-          <option value="nfl">NFL</option>
-          <option value="nhl">NHL</option>
-          <option value="ufc">UFC</option>
-        </select>
-
         <input
           type="number"
-          placeholder="event_id"
+          placeholder="event_id (game_id)"
           className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm flex-1"
           value={eventId}
           onChange={(e) => setEventId(e.target.value)}
@@ -105,12 +90,8 @@ export default function InsightsPanel() {
         <div className="border border-zinc-800 rounded-xl px-4 py-3 space-y-3 bg-black/40">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs text-zinc-400">
-              Event{" "}
-              <span className="text-zinc-200 font-mono">{data.event_id}</span>{" "}
-              · Sport{" "}
-              <span className="text-zinc-200 font-mono uppercase">
-                {data.sport}
-              </span>
+              Game{" "}
+              <span className="text-zinc-200 font-mono">{data.game_id}</span>
               <br />
               Model{" "}
               <span className="text-zinc-200 font-mono">{data.model_key}</span>
@@ -154,7 +135,7 @@ export default function InsightsPanel() {
 
       {!loading && !error && !data && (
         <p className="text-xs text-zinc-500">
-          Enter a sport and event_id to see explanation reasons.
+          Enter an event_id (game_id) to see explanation reasons.
         </p>
       )}
     </div>

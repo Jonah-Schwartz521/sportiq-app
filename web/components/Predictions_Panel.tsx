@@ -2,13 +2,25 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  api,
-  type PredictionSummary,
-  type EventForPicker,
-  type Team,
-} from "@/lib/api";
+import { api, type Team } from "@/lib/api";
 import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
+
+// Local types matching what we expect from the backend / API
+type PredictionSummary = {
+  event_id: number;
+  model_key: string;
+  home_wp: number;
+  away_wp: number;
+  created_at: string;
+};
+
+type EventForPicker = {
+  event_id: number;
+  sport_id: number;
+  date: string;
+  home_team_id: number | null;
+  away_team_id: number | null;
+};
 
 export default function PredictionsPanel() {
   const [predictions, setPredictions] = useState<PredictionSummary[]>([]);
@@ -26,8 +38,10 @@ export default function PredictionsPanel() {
         setLoading(true);
         setError(null);
 
+        // api.predictions is currently mocked; cast to our local type
         const res = await api.predictions();
-        setPredictions(res.items || []);
+        const items = (res.items || []) as PredictionSummary[];
+        setPredictions(items);
       } catch (err: unknown) {
         console.error(err);
         const msg =
@@ -44,11 +58,11 @@ export default function PredictionsPanel() {
     (async () => {
       try {
         const [eventsRes, teamsRes] = await Promise.all([
-          api.eventsForPicker(),
+          api.events(), // we can reuse /events as the picker source
           api.teams(),
         ]);
 
-        setEvents(eventsRes.items || []);
+        setEvents((eventsRes.items || []) as EventForPicker[]);
         setTeams(teamsRes.items || []);
       } catch (err: unknown) {
         console.error(err);

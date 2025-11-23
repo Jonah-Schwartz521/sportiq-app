@@ -15,7 +15,7 @@ import {
 } from "@/lib/sport";
 
 export default function PredictPanel() {
-  // Which sport we are predicting
+  // Which sport we are predicting (UI only — backend currently supports NBA games)
   const [sport, setSport] = useState<SportKey>("nba");
 
   // Metadata for dropdown
@@ -102,7 +102,8 @@ export default function PredictPanel() {
         return;
       }
 
-      const res = await api.predict(sport, finalId);
+      // 🔥 Backend expects GET /predict_by_game_id?game_id=<number>
+      const res = await api.predict(finalId);
       setResult(res);
     } catch (err: unknown) {
       console.error(err);
@@ -121,7 +122,7 @@ export default function PredictPanel() {
           Predict Win Probability
         </h2>
         <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
-          POST /predict/&lt;sport&gt;
+          GET /predict_by_game_id
         </span>
       </div>
 
@@ -203,13 +204,21 @@ export default function PredictPanel() {
       {result && !predictError && (
         <div className="mt-2 text-[11px] text-zinc-400 space-y-1">
           <div>
-            Model: <span className="font-mono">{result.model_key}</span>
+            Game{" "}
+            <span className="font-mono">
+              #{result.game_id} — {result.away_team} @ {result.home_team}
+            </span>
           </div>
-          <div>Generated: {result.generated_at}</div>
+          <div>Date: {result.date}</div>
           <div>
-            Home:{" "}
-            {((result.win_probabilities.home ?? 0) * 100).toFixed(1)}% · Away:{" "}
-            {((result.win_probabilities.away ?? 0) * 100).toFixed(1)}%
+            Home win prob:{" "}
+            <span className="text-zinc-100">
+              {(result.p_home * 100).toFixed(1)}%
+            </span>{" "}
+            · Away win prob:{" "}
+            <span className="text-zinc-100">
+              {(result.p_away * 100).toFixed(1)}%
+            </span>
           </div>
         </div>
       )}

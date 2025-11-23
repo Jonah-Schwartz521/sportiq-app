@@ -18,6 +18,8 @@ export type Event = {
   start_time?: string | null;
 };
 
+// For places that just need a lightweight event (like pickers)
+// we’ll reuse the same shape for now
 export type EventForPicker = {
   event_id: number;
   sport_id: number;
@@ -27,17 +29,12 @@ export type EventForPicker = {
 };
 
 export type PredictResponse = {
-  model_key: string;
-  win_probabilities: Record<string, number>;
-  generated_at: string;
-};
-
-export type PredictionSummary = {
-  event_id: number;
-  model_key: string;
-  home_wp: number;
-  away_wp: number;
-  created_at: string;
+  game_id: number;
+  date: string;
+  home_team: string;
+  away_team: string;
+  p_home: number;
+  p_away: number;
 };
 
 export type Insight = {
@@ -49,7 +46,7 @@ export type Insight = {
 
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    cache: "no-store", // ensures no stale cache in dev
+    cache: "no-store",
   });
 
   if (!res.ok) {
@@ -75,22 +72,42 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
 }
 
 export const api = {
-  health: () => getJSON<{ status: string }>("/health"),
+  // --- health ---
+  health: () =>
+    getJSON<{
+      status: string;
+      num_games: number;
+      model_loaded: boolean;
+    }>("/health"),
 
-  // TEMPORARY MOCK ROUTES
-  teams: async () => ({ items: [] }),
-  events: async () => ({ items: [] }),
-  eventsForPicker: async () => ({ items: [] }),
-  eventById: async (_eventId: number) => ({} as any),
-  predictions: async () => ({ items: [] }),
-  insights: async () => ({
-    event_id: 0,
-    sport: "nba",
-    model_key: "nba_logreg_b2b_v1",
-    generated_at: new Date().toISOString(),
-    insights: [],
-  }),
+  // --- teams ---
+  teams: () => getJSON<{ items: Team[] }>("/teams?limit=100"),
 
-  predict: (sport: string, eventId: number) =>
-    postJSON(`/predict/${sport}`, { event_id: eventId }),
+  // --- events (for games list, admin, etc.) ---
+  events: () => getJSON<{ items: Event[] }>("/events?limit=50"),
+
+  // used by PredictPanel and PredictionsPanel as a “picker” source
+  eventsForPicker: () =>
+    getJSON<{ items: EventForPicker[] }>("/events?limit=50"),
+
+  // --- single event ---
+  eventById: (eventId: number) => getJSON<Event>(`/events/${eventId}`),
+
+  // --- predictions ---
+  // call your FastAPI /predict_by_game_id endpoint
+  predict: (gameId: number) =>
+    getJSON<PredictResponse>(`/predict_by_game_id?game_id=${gameId}`),
+
+  // still mocked / unused for now – can be wired later
+  predictions: async () => ({ items: [] as any[] }),
+
+  // --- insights ---
+  // wired to GET /insights/{game_id}
+  insights: (gameId: number) =>
+    getJSON<{
+      game_id: number;
+      model_key: string;
+      generated_at: string;
+      insights: Insight[];
+    }>(`/insights/${gameId}`),
 };
