@@ -10,11 +10,7 @@ import {
   type PredictResponse,
   type Insight,
 } from "@/lib/api";
-import {
-  sportLabelFromId,
-  sportIconFromId,
-  sportKeyFromId,
-} from "@/lib/sport";
+import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
 import { buildTeamsById, teamLabelFromMap } from "@/lib/teams";
 
 export default function GameDetailPage() {
@@ -33,7 +29,9 @@ export default function GameDetailPage() {
   const [predError, setPredError] = useState<string | null>(null);
 
   // Bet slip state (local only, demo UI)
-  const [selectedSide, setSelectedSide] = useState<"home" | "away" | null>(null);
+  const [selectedSide, setSelectedSide] = useState<"home" | "away" | null>(
+    null,
+  );
 
   // Insights state
   const [insights, setInsights] = useState<Insight[] | null>(null);
@@ -49,9 +47,10 @@ export default function GameDetailPage() {
     return `${(1 / prob).toFixed(2)}x`;
   }
 
-  // Fetch this event + all teams
+  // ✅ Fetch this event + all teams
   useEffect(() => {
-    if (!eventId) return;
+    // if the URL param is missing or not a number, do nothing
+    if (!eventIdParam || Number.isNaN(eventId)) return;
 
     (async () => {
       try {
@@ -83,7 +82,7 @@ export default function GameDetailPage() {
         setLoading(false);
       }
     })();
-  }, [eventId]);
+  }, [eventId]); // ✅ dependency array is stable
 
   // Team lookup using shared helpers
   const teamsById = useMemo(() => buildTeamsById(teams), [teams]);
@@ -95,7 +94,7 @@ export default function GameDetailPage() {
   const homeName = event ? teamLabel(event.home_team_id) : "";
   const awayName = event ? teamLabel(event.away_team_id) : "";
 
-  // Fetch a prediction once we know the event
+  // ✅ Fetch a prediction once we know the event
   useEffect(() => {
     if (!event) return;
 
@@ -106,8 +105,8 @@ export default function GameDetailPage() {
         setPrediction(null);
         setSelectedSide(null); // reset bet slip when game changes
 
-        const sportKey = sportKeyFromId(event.sport_id);
-        const result = await api.predict(sportKey, event.event_id);
+        // Backend expects /predict_by_game_id?game_id=<number>
+        const result = await api.predict(event.event_id);
 
         console.log("Predict response", result);
         setPrediction(result);
@@ -122,7 +121,7 @@ export default function GameDetailPage() {
     })();
   }, [event]);
 
-  // Fetch insights once we know the event
+  // ✅ Fetch insights once we know the event (uses /insights/{game_id})
   useEffect(() => {
     if (!event) return;
 
@@ -132,9 +131,7 @@ export default function GameDetailPage() {
         setInsightsError(null);
         setInsights(null);
 
-        const sportKey = sportKeyFromId(event.sport_id);
-        const data = await api.insights(sportKey, event.event_id);
-
+        const data = await api.insights(event.event_id);
         console.log("Insights response", data);
         setInsights(data.insights || []);
       } catch (err: unknown) {
@@ -147,6 +144,10 @@ export default function GameDetailPage() {
       }
     })();
   }, [event]);
+
+  // We don't get model_key / generated_at from prediction,
+  // so keep a simple constant + client timestamp for now.
+  const fallbackModelKey = "nba_logreg_b2b_v1";
 
   return (
     <main className="min-h-screen bg-black text-white flex justify-center px-4 py-10">
@@ -224,12 +225,10 @@ export default function GameDetailPage() {
                   <div>
                     Model:{" "}
                     <span className="font-mono">
-                      {prediction?.model_key ?? "nba-winprob-0.1.0"}
+                      {fallbackModelKey}
                     </span>
                   </div>
-                  <div>
-                    Generated: {prediction?.generated_at ?? generatedAt}
-                  </div>
+                  <div>Generated: {generatedAt}</div>
                 </div>
               </div>
 
@@ -250,10 +249,7 @@ export default function GameDetailPage() {
                         {homeName || "Home"} win prob
                       </span>
                       <span className="font-medium">
-                        {(
-                          (prediction.win_probabilities.home ?? 0) * 100
-                        ).toFixed(1)}
-                        %
+                        {((prediction.p_home ?? 0) * 100).toFixed(1)}%
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -261,10 +257,7 @@ export default function GameDetailPage() {
                         {awayName || "Away"} win prob
                       </span>
                       <span className="font-medium">
-                        {(
-                          (prediction.win_probabilities.away ?? 0) * 100
-                        ).toFixed(1)}
-                        %
+                        {((prediction.p_away ?? 0) * 100).toFixed(1)}%
                       </span>
                     </div>
                   </div>
@@ -272,19 +265,11 @@ export default function GameDetailPage() {
                   <p className="mt-1 text-[11px] text-zinc-400">
                     Model edge: leans toward{" "}
                     <span className="text-zinc-100 font-medium">
-                      {homeName} (
-                      {(
-                        (prediction.win_probabilities.home ?? 0) * 100
-                      ).toFixed(1)}
-                      %)
+                      {homeName} ({((prediction.p_home ?? 0) * 100).toFixed(1)}%)
                     </span>{" "}
                     over{" "}
                     <span className="text-zinc-100 font-medium">
-                      {awayName} (
-                      {(
-                        (prediction.win_probabilities.away ?? 0) * 100
-                      ).toFixed(1)}
-                      %)
+                      {awayName} ({((prediction.p_away ?? 0) * 100).toFixed(1)}%)
                     </span>
                     .
                   </p>
@@ -317,13 +302,8 @@ export default function GameDetailPage() {
                             {homeName || "Home"}
                           </span>
                           <span className="text-[11px] text-zinc-400 text-right">
-                            {(
-                              (prediction.win_probabilities.home ?? 0) * 100
-                            ).toFixed(1)}
-                            % ·{" "}
-                            {impliedOdds(
-                              prediction.win_probabilities.home ?? 0
-                            )}
+                            {((prediction.p_home ?? 0) * 100).toFixed(1)}% ·{" "}
+                            {impliedOdds(prediction.p_home ?? 0)}
                           </span>
                         </div>
                       </button>
@@ -344,19 +324,14 @@ export default function GameDetailPage() {
                             {awayName || "Away"}
                           </span>
                           <span className="text-[11px] text-zinc-400 text-right">
-                            {(
-                              (prediction.win_probabilities.away ?? 0) * 100
-                            ).toFixed(1)}
-                            % ·{" "}
-                            {impliedOdds(
-                              prediction.win_probabilities.away ?? 0
-                            )}
+                            {((prediction.p_away ?? 0) * 100).toFixed(1)}% ·{" "}
+                            {impliedOdds(prediction.p_away ?? 0)}
                           </span>
                         </div>
                       </button>
                     </div>
 
-                    {selectedSide && (
+                    {selectedSide && prediction && (
                       <p className="text-[11px] text-zinc-400">
                         You&apos;ve selected{" "}
                         <span className="text-zinc-100 font-medium">
@@ -367,12 +342,8 @@ export default function GameDetailPage() {
                         with implied odds of{" "}
                         <span className="text-zinc-100 font-mono">
                           {selectedSide === "home"
-                            ? impliedOdds(
-                                prediction.win_probabilities.home ?? 0
-                              )
-                            : impliedOdds(
-                                prediction.win_probabilities.away ?? 0
-                              )}
+                            ? impliedOdds(prediction.p_home ?? 0)
+                            : impliedOdds(prediction.p_away ?? 0)}
                         </span>
                         . This is a demo only – no real bets placed.
                       </p>
