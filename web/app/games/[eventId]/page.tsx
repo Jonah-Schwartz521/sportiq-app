@@ -46,9 +46,43 @@ export default function GameDetailPage() {
     return "STRONG FAVORITE";
   }, [prediction]);
 
+
+  // Color for the confidence bar based on edge strength
+  const edgeFillClass = useMemo(() => {
+    if (edgeCategory === "COIN FLIP") {
+      // neutral, low confidence
+      return "bg-zinc-400";
+    }
+    if (edgeCategory === "MODEST EDGE") {
+      // amber, medium confidence
+      return "bg-amber-400";
+    }
+    if (edgeCategory === "STRONG FAVORITE") {
+      // strong green, high confidence
+      return "bg-emerald-500";
+    }
+    // fallback
+    return "bg-zinc-500";
+  }, [edgeCategory]);
+
   const keyFactors = useMemo(() => {
     if (!insights || insights.length === 0) return [];
-    const sorted = [...insights].sort((a, b) => {
+
+    const preferredTypes = new Set([
+      "favorite",
+      "edge",
+      "season_strength",
+      "recent_form",
+      "rest",
+      "momentum",
+    ]);
+
+  const canidates = insights.filter((ins) => {
+    // keep only preferred types and those that have some numeric strenth 
+      const hasValue = ins.value != null && !Number.isNaN(ins.value);
+      return preferredTypes.has(ins.type) && hasValue;
+  });
+  const sorted = canidates.sort((a, b) => {
       const va = a.value ?? 0;
       const vb = b.value ?? 0;
       return vb - va;
@@ -153,6 +187,10 @@ export default function GameDetailPage() {
 
   const fallbackModelKey = "nba_logreg_b2b_v1";
 
+  // Derived percentages for convenience
+  const homeProbPct = prediction ? prediction.p_home * 100 : 0;
+  const awayProbPct = prediction ? prediction.p_away * 100 : 0;
+
   return (
     <main className="min-h-screen bg-black text-white flex justify-center px-4 py-10">
       <div className="w-full max-w-4xl space-y-6">
@@ -241,13 +279,14 @@ export default function GameDetailPage() {
 
               {prediction && !predLoading && !predError && (
                 <>
+                  {/* Win probabilities summary */}
                   <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 px-3 py-2 text-xs text-zinc-200 flex flex-col gap-2">
                     <div className="flex justify-between">
                       <span className="text-zinc-400">
                         {homeName || "Home"} win prob
                       </span>
                       <span className="font-medium">
-                        {(prediction.p_home * 100).toFixed(1)}%
+                        {homeProbPct.toFixed(1)}%
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -255,10 +294,44 @@ export default function GameDetailPage() {
                         {awayName || "Away"} win prob
                       </span>
                       <span className="font-medium">
-                        {(prediction.p_away * 100).toFixed(1)}%
+                        {awayProbPct.toFixed(1)}%
                       </span>
                     </div>
                   </div>
+
+                  {/* Confidence bar */}
+                  <div className="mt-2">
+                    <div className="flex justify-between items-center text-[10px] text-zinc-500 mb-1">
+                      <span>{awayName || "Away"} win</span>
+                      <span className="font-semibold text-zinc-200">
+                        {homeProbPct.toFixed(1)}% to home
+                      </span>
+                      <span>{homeName || "Home"} win</span>
+                    </div>
+                    <div className="relative h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                      <div
+                        className={`absolute inset-y-0 left-0 ${edgeFillClass}`}
+                        style={{ width: `${homeProbPct}%` }}
+                      />
+                    </div>
+
+                  {/* Legend for confidence colors */}
+                    <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-zinc-500">
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-1.5 w-4 rounded-full bg-zinc-400" />
+                        <span>Coin flip</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-1.5 w-4 rounded-full bg-amber-400" />
+                        <span>Modest edge</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-1.5 w-4 rounded-full bg-emerald-500" />
+                        <span>Strong favorite</span>
+                      </span>
+                    </div>
+                  </div>
+
 
                   {/* Quick Bet */}
                   <div className="mt-3 border-t border-zinc-800 pt-3 space-y-2">
