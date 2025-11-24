@@ -132,6 +132,210 @@ class InsightsResponse(BaseModel):
     generated_at: str
     insights: List[InsightItem]
 
+# --- Insight helpers -----------------------------------------------
+import pandas as pd  # you already have this at the top
+
+# ...
+
+class InsightsResponse(BaseModel):
+    game_id: int
+    model_key: str
+    generated_at: str
+    insights: List[InsightItem]
+
+
+# --- Insight helpers (NEW) -----------------------------------------
+
+def compute_insight_features(row: pd.Series) -> pd.Series:
+    """
+    Compute the extra feature differences we used in the notebook:
+    - season_wp_diff
+    - recent_wp_diff
+    - rest_diff
+    - last_pd_diff
+    """
+    r = row.copy()
+
+    r["season_wp_diff"] = r["home_season_win_pct"] - r["away_season_win_pct"]
+    r["recent_wp_diff"] = (
+        r["home_recent_win_pct_20g"] - r["away_recent_win_pct_20g"]
+    )
+    r["rest_diff"] = r["home_days_rest"] - r["away_days_rest"]
+    r["last_pd_diff"] = r["home_last_pd"] - r["away_last_pd"]
+
+    return r
+
+
+def build_feature_insights(row: pd.Series) -> List[InsightItem]:
+    """
+    Derive feature-based insights from a single game row:
+    - season win% difference
+    - recent 20-game form
+    - rest (days)
+    - back-to-back flags
+    - last-game point differential
+    """
+    insights: List[InsightItem] = []
+
+    home_team = str(row["home_team"])
+    away_team = str(row["away_team"])
+
+    def safe(col: str) -> Optional[float]:
+        """Return float(row[col]) or None if missing/NaN."""
+        val = row.get(col, None)
+        if val is None or pd.isna(val):
+            return None
+        return float(val)
+
+    # --- Season strength (overall season win %) ---
+    home_season = safe("home_season_win_pct")
+    away_season = safe("away_season_win_pct")
+
+    if home_season is not None and away_season is not None:
+        season_wp_diff = home_season - away_season
+        if abs(season_wp_diff) > 0.15:
+            if season_wp_diff > 0:
+                insights.append(
+                    InsightItem(
+                        type="season_strength",
+                        label="Season strength",
+                        detail=(
+                            f"{home_team} have a stronger season performance "
+                            f"(+{season_wp_diff:.1%} win rate vs {away_team})."
+                        ),
+                        value=home_season,
+                    )
+                )
+            else:
+                insights.append(
+                    InsightItem(
+                        type="season_strength",
+                        label="Season strength",
+                        detail=(
+                            f"{away_team} have a stronger season performance "
+                            f"(+{-season_wp_diff:.1%} win rate vs {home_team})."
+                        ),
+                        value=away_season,
+                    )
+                )
+
+    # --- Recent form (last 20 games win %) ---
+    home_recent = safe("home_recent_win_pct_20g")
+    away_recent = safe("away_recent_win_pct_20g")
+
+    if home_recent is not None and away_recent is not None:
+        recent_wp_diff = home_recent - away_recent
+        if abs(recent_wp_diff) > 0.20:
+            if recent_wp_diff > 0:
+                insights.append(
+                    InsightItem(
+                        type="recent_form",
+                        label="Recent form",
+                        detail=(
+                            f"{home_team} are in better recent form over the last 20 games."
+                        ),
+                        value=home_recent,
+                    )
+                )
+            else:
+                insights.append(
+                    InsightItem(
+                        type="recent_form",
+                        label="Recent form",
+                        detail=(
+                            f"{away_team} are in better recent form over the last 20 games."
+                        ),
+                        value=away_recent,
+                    )
+                )
+
+    # --- Rest difference (days since last game) ---
+    home_rest = safe("home_days_rest")
+    away_rest = safe("away_days_rest")
+
+    if (
+        home_rest is not None
+        and away_rest is not None
+        and home_rest < 20
+        and away_rest < 20
+    ):
+        rest_diff = home_rest - away_rest
+        if abs(rest_diff) >= 2:
+            if rest_diff > 0:
+                insights.append(
+                    InsightItem(
+                        type="rest",
+                        label="Rest advantage",
+                        detail=(
+                            f"{home_team} are more rested (+{rest_diff:.0f} days) than "
+                            f"{away_team}."
+                        ),
+                        value=home_rest,
+                    )
+                )
+            else:
+                insights.append(
+                    InsightItem(
+                        type="rest",
+                        label="Rest advantage",
+                        detail=(
+                            f"{away_team} are more rested (+{-rest_diff:.0f} days) than "
+                            f"{home_team}."
+                        ),
+                        value=away_rest,
+                    )
+                )
+
+    # --- Back-to-back fatigue flags ---
+    home_b2b = safe("home_b2b")
+    away_b2b = safe("away_b2b")
+
+    if home_b2b == 1.0:
+        insights.append(
+            InsightItem(
+                type="fatigue",
+                label="Fatigue",
+                detail=f"{home_team} are on a back-to-back (may be more fatigued).",
+                value=None,
+            )
+        )
+    if away_b2b == 1.0:
+        insights.append(
+            InsightItem(
+                type="fatigue",
+                label="Fatigue",
+                detail=f"{away_team} are on a back-to-back (may be more fatigued).",
+                value=None,
+            )
+        )
+
+    # --- Last-game performance (point diff) ---
+    home_last_pd = safe("home_last_pd")
+    away_last_pd = safe("away_last_pd")
+
+    if home_last_pd is not None and away_last_pd is not None:
+        last_pd_diff = home_last_pd - away_last_pd
+        if last_pd_diff > 0.5:
+            insights.append(
+                InsightItem(
+                    type="momentum",
+                    label="Momentum",
+                    detail=f"{home_team} had a stronger last game performance.",
+                    value=home_last_pd,
+                )
+            )
+        elif last_pd_diff < -0.5:
+            insights.append(
+                InsightItem(
+                    type="momentum",
+                    label="Momentum",
+                    detail=f"{away_team} had a stronger last game performance.",
+                    value=away_last_pd,
+                )
+            )
+
+    return insights
+
 
 # --- Startup hook --------------------------------------------------
 
@@ -319,9 +523,11 @@ def predict(
 @app.get("/insights/{game_id}", response_model=InsightsResponse)
 def game_insights(game_id: int) -> InsightsResponse:
     """
-    Return simple model-driven insights for a given game_id.
-    Currently uses only the win probabilities from the NBA model
-    (no extra feature columns required).
+    Return model-driven insights for a given game_id.
+
+    Combines:
+    - base win-probability insights (favorite / edge / home court)
+    - feature-based insights from season, recent form, rest, B2B, last game
     """
     games = load_games_table()
 
@@ -351,7 +557,7 @@ def game_insights(game_id: int) -> InsightsResponse:
 
     insights: List[InsightItem] = []
 
-    # 1) Favorite / underdog insight
+    # --- 1) Favorite / underdog ---
     fav_team = home_team if home_is_fav else away_team
     dog_team = away_team if home_is_fav else home_team
     fav_prob = p_home if home_is_fav else p_away
@@ -360,12 +566,15 @@ def game_insights(game_id: int) -> InsightsResponse:
         InsightItem(
             type="favorite",
             label="Favorite",
-            detail=f"{fav_team} are favored over {dog_team} with a win probability of {fav_prob:.1%}.",
+            detail=(
+                f"{fav_team} are favored over {dog_team} "
+                f"with a win probability of {fav_prob:.1%}."
+            ),
             value=fav_prob,
         )
     )
 
-    # 2) Edge strength insight
+    # --- 2) Edge strength (how close the game is) ---
     if edge < 0.05:
         desc = "This looks like a near coin-flip matchup."
     elif edge < 0.15:
@@ -382,15 +591,21 @@ def game_insights(game_id: int) -> InsightsResponse:
         )
     )
 
-    # 3) Home court insight
+    # --- 3) Home court ---
     insights.append(
         InsightItem(
             type="home_court",
             label="Home court",
-            detail=f"{home_team} are at home. The model gives them a win probability of {p_home:.1%}.",
+            detail=(
+                f"{home_team} are at home. The model gives them a "
+                f"win probability of {p_home:.1%}."
+            ),
             value=p_home,
         )
     )
+
+    # --- 4) Feature-based insights from season / recent form / rest / momentum ---
+    insights.extend(build_feature_insights(row))
 
     return InsightsResponse(
         game_id=int(row["game_id"]),
