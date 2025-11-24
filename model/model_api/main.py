@@ -4,11 +4,15 @@ from datetime import date as date_type, datetime
 from pathlib import Path
 from typing import Optional, Dict, List
 
+from collections import deque
+
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import sys
+
+
 
 # --- Create app ONCE and add CORS ---------------------------------
 
@@ -43,6 +47,8 @@ TEAM_NAME_TO_ID: Dict[str, int] = {}
 TEAM_ID_TO_NAME: Dict[int, str] = {}
 SPORT_ID_NBA = 1
 
+RECENT_PREDICTIONS: deque[PredictionLogItem] = deque(maxlen=200)
+
 
 def load_games_table() -> pd.DataFrame:
     """Load the processed B2B modeling table once."""
@@ -75,6 +81,19 @@ def build_team_lookups(df: pd.DataFrame) -> None:
     TEAM_ID_TO_NAME = {v: k for k, v in TEAM_NAME_TO_ID.items()}
 
     print(f"Built team lookups for {len(TEAM_NAME_TO_ID)} NBA teams.")
+
+def log_prediction_row(row: pd.Series, p_home: float, p_away: float) -> None:
+    """Append a prediction to the in-memory log for admin/debug."""
+    item = PredictionLogItem(
+        game_id=int(row["game_id"]),
+        date=str(row["date"].date()),
+        home_team=str(row["home_team"]),
+        away_team=str(row["away_team"]),
+        p_home=float(p_home),
+        p_away=float(p_away),
+        created_at=datetime.utcnow().isoformat() + "Z",
+    )
+    RECENT_PREDICTIONS.appendleft(item)
 
 
 # --- Schemas -------------------------------------------------------
@@ -132,16 +151,20 @@ class InsightsResponse(BaseModel):
     generated_at: str
     insights: List[InsightItem]
 
+class PredictionLogItem(BaseModel):
+    game_id: int
+    date: str
+    home_team: str
+    away_team: str
+    p_home: float
+    p_away: float
+    created_at: str
+
+class PredictionLogResponse(BaseModel):
+    items: List[PredictionLogItem]
+
 # --- Insight helpers -----------------------------------------------
 import pandas as pd  # you already have this at the top
-
-# ...
-
-class InsightsResponse(BaseModel):
-    game_id: int
-    model_key: str
-    generated_at: str
-    insights: List[InsightItem]
 
 
 # --- Insight helpers (NEW) -----------------------------------------
@@ -463,6 +486,8 @@ def predict_by_game_id(game_id: int) -> PredictionResponse:
     p_home = predict_home_win_proba(row)
     p_away = 1.0 - p_home
 
+    log_prediction_row(row, p_home, p_away)
+
     return PredictionResponse(
         game_id=int(row["game_id"]),
         date=str(row["date"].date()),
@@ -613,3 +638,9 @@ def game_insights(game_id: int) -> InsightsResponse:
         generated_at=datetime.utcnow().isoformat() + "Z",
         insights=insights,
     )
+
+@app.get("/predictions", response_model=PredictionLogResponse)
+def list_predictions(limit: int = 20) -> PredictionLogResponse:
+    """Return most recent logged predictions for admin/debug."""
+    items = list(RECENT_PREDICTIONS)[:limit]
+    return PredictionLogResponse(items=items)
