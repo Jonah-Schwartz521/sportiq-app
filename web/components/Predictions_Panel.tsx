@@ -8,6 +8,8 @@ import {
   type PredictionLogResponse,
 } from "@/lib/api";
 
+import { formatIsoToLocal, timeAgo } from "@/lib/time";
+
 // Edge filter buckets for the pills
 type EdgeFilter = "all" | "coinflip" | "lean" | "strong";
 
@@ -185,9 +187,10 @@ export default function PredictionsPanel() {
                     </td>
 
                     <td className="px-3 py-2 align-top">
-                      <span className="text-[10px] text-zinc-500">
-                        {item.created_at}
-                      </span>
+                      <div className="flex flex-col text-[10px] text-zinc-500">
+                        <span>{formatIsoToLocal(item.created_at)}</span>
+                        <span>{timeAgo(item.created_at)}</span>
+                      </div>
                     </td>
 
                     <td className="px-3 py-2 align-top text-right">
