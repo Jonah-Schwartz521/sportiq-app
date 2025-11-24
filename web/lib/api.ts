@@ -1,5 +1,7 @@
+// web/lib/api.ts
+
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8001";
 
 export type Team = {
   team_id: number;
@@ -19,7 +21,6 @@ export type Event = {
 };
 
 // For places that just need a lightweight event (like pickers)
-// we’ll reuse the same shape for now
 export type EventForPicker = {
   event_id: number;
   sport_id: number;
@@ -44,6 +45,24 @@ export type Insight = {
   value?: number | null;
 };
 
+// --- NEW: prediction log types ------------------------------------
+
+export type PredictionLogItem = {
+  game_id: number;
+  date: string;        // "2015-10-29"
+  home_team: string;
+  away_team: string;
+  p_home: number;
+  p_away: number;
+  created_at: string;  // ISO timestamp
+};
+
+export type PredictionLogResponse = {
+  items: PredictionLogItem[];
+};
+
+// -----------------------------------------------------------------
+
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     cache: "no-store",
@@ -56,20 +75,6 @@ async function getJSON<T>(path: string): Promise<T> {
   return res.json();
 }
 
-async function postJSON<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    throw new Error(`API POST ${path} failed: ${res.status}`);
-  }
-
-  return res.json();
-}
 
 export const api = {
   // --- health ---
@@ -94,12 +99,13 @@ export const api = {
   eventById: (eventId: number) => getJSON<Event>(`/events/${eventId}`),
 
   // --- predictions ---
-  // call your FastAPI /predict_by_game_id endpoint
+  // call FastAPI /predict_by_game_id endpoint
   predict: (gameId: number) =>
     getJSON<PredictResponse>(`/predict_by_game_id?game_id=${gameId}`),
 
-  // still mocked / unused for now – can be wired later
-  predictions: async () => ({ items: [] as any[] }),
+  // NEW: real recent-predictions endpoint for admin surface
+  predictions: (limit: number = 20) =>
+    getJSON<PredictionLogResponse>(`/predictions?limit=${limit}`),
 
   // --- insights ---
   // wired to GET /insights/{game_id}
