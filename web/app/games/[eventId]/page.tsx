@@ -14,7 +14,6 @@ import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
 import { buildTeamsById, teamLabelFromMap } from "@/lib/teams";
 
 export default function GameDetailPage() {
-  // Because the folder is [eventId], the param key is "eventId"
   const { eventId: eventIdParam } = useParams() as { eventId: string };
   const eventId = Number(eventIdParam);
 
@@ -23,33 +22,44 @@ export default function GameDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Model prediction state
   const [prediction, setPrediction] = useState<PredictResponse | null>(null);
   const [predLoading, setPredLoading] = useState(false);
   const [predError, setPredError] = useState<string | null>(null);
 
-  // Bet slip state (local only, demo UI)
-  const [selectedSide, setSelectedSide] = useState<"home" | "away" | null>(
-    null,
-  );
+  const [selectedSide, setSelectedSide] = useState<"home" | "away" | null>(null);
 
-  // Insights state
   const [insights, setInsights] = useState<Insight[] | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsError, setInsightsError] = useState<string | null>(null);
 
-  // Fallback timestamp for when the page rendered
   const [generatedAt] = useState(() => new Date().toISOString());
 
-  // Helper: convert probability to implied decimal odds
-  function impliedOdds(prob: number | null | undefined): string {
+  // ---------- Derived helpers ----------
+  const edgeCategory = useMemo(() => {
+    if (!prediction) return null;
+    const edge = Math.abs(prediction.p_home - prediction.p_away);
+    if (edge < 0.05) return "COIN FLIP";
+    if (edge < 0.15) return "MODEST EDGE";
+    return "STRONG FAVORITE";
+  }, [prediction]);
+
+  const keyFactors = useMemo(() => {
+    if (!insights || insights.length === 0) return [];
+    const sorted = [...insights].sort((a, b) => {
+      const va = a.value ?? 0;
+      const vb = b.value ?? 0;
+      return vb - va;
+    });
+    return sorted.slice(0, 3);
+  }, [insights]);
+
+  function impliedOdds(prob: number | null | undefined) {
     if (!prob || prob <= 0) return "-";
     return `${(1 / prob).toFixed(2)}x`;
   }
 
-  // ✅ Fetch this event + all teams
+  // ---------- Load event & teams ----------
   useEffect(() => {
-    // if the URL param is missing or not a number, do nothing
     if (!eventIdParam || Number.isNaN(eventId)) return;
 
     (async () => {
@@ -62,39 +72,29 @@ export default function GameDetailPage() {
           api.teams(),
         ]);
 
-        const events = eventsRes.items || [];
-        const found = events.find((e) => e.event_id === eventId) ?? null;
+        const found =
+          eventsRes.items.find((e) => e.event_id === eventId) ?? null;
 
-        if (!found) {
-          setError("Game not found");
-          setEvent(null);
-        } else {
-          setEvent(found);
-        }
-
+        setEvent(found);
         setTeams(teamsRes.items || []);
+
+        if (!found) setError("Game not found");
       } catch (err: unknown) {
         console.error(err);
-        const message =
-          err instanceof Error ? err.message : "Failed to load game";
-        setError(message);
+        setError("Failed to load game");
       } finally {
         setLoading(false);
       }
     })();
-  }, [eventId]); // ✅ dependency array is stable
+  }, [eventId, eventIdParam]);
 
-  // Team lookup using shared helpers
   const teamsById = useMemo(() => buildTeamsById(teams), [teams]);
-
-  function teamLabel(id: number | null): string {
-    return teamLabelFromMap(teamsById, id);
-  }
+  const teamLabel = (id: number | null) => teamLabelFromMap(teamsById, id);
 
   const homeName = event ? teamLabel(event.home_team_id) : "";
   const awayName = event ? teamLabel(event.away_team_id) : "";
 
-  // ✅ Fetch a prediction once we know the event
+  // ---------- Load prediction ----------
   useEffect(() => {
     if (!event) return;
 
@@ -103,25 +103,19 @@ export default function GameDetailPage() {
         setPredLoading(true);
         setPredError(null);
         setPrediction(null);
-        setSelectedSide(null); // reset bet slip when game changes
+        setSelectedSide(null);
 
-        // Backend expects /predict_by_game_id?game_id=<number>
         const result = await api.predict(event.event_id);
-
-        console.log("Predict response", result);
         setPrediction(result);
-      } catch (err: unknown) {
-        console.error(err);
-        const message =
-          err instanceof Error ? err.message : "Failed to load prediction";
-        setPredError(message);
+      } catch (err) {
+        setPredError("Failed to load prediction");
       } finally {
         setPredLoading(false);
       }
     })();
   }, [event]);
 
-  // ✅ Fetch insights once we know the event (uses /insights/{game_id})
+  // ---------- Load insights ----------
   useEffect(() => {
     if (!event) return;
 
@@ -132,27 +126,22 @@ export default function GameDetailPage() {
         setInsights(null);
 
         const data = await api.insights(event.event_id);
-        console.log("Insights response", data);
         setInsights(data.insights || []);
-      } catch (err: unknown) {
-        console.error(err);
-        const message =
-          err instanceof Error ? err.message : "Failed to load insights";
-        setInsightsError(message);
+      } catch (err) {
+        setInsightsError("Failed to load insights");
       } finally {
         setInsightsLoading(false);
       }
     })();
   }, [event]);
 
-  // We don't get model_key / generated_at from prediction,
-  // so keep a simple constant + client timestamp for now.
   const fallbackModelKey = "nba_logreg_b2b_v1";
 
   return (
     <main className="min-h-screen bg-black text-white flex justify-center px-4 py-10">
       <div className="w-full max-w-4xl space-y-6">
-        {/* Top bar */}
+        
+        {/* Header */}
         <header className="flex items-center justify-between gap-2">
           <Link
             href="/games"
@@ -166,25 +155,19 @@ export default function GameDetailPage() {
           </span>
         </header>
 
-        {/* Loading / error */}
-        {loading && (
-          <p className="text-sm text-zinc-500">Loading game details…</p>
-        )}
-
-        {error && !loading && (
-          <p className="text-sm text-red-400">{error}</p>
-        )}
-
+        {/* Errors */}
+        {loading && <p className="text-sm text-zinc-500">Loading game…</p>}
+        {error && !loading && <p className="text-sm text-red-400">{error}</p>}
         {!loading && !error && !event && (
           <p className="text-sm text-zinc-500">Game not found.</p>
         )}
 
-        {/* Main content */}
         {event && (
           <div className="space-y-6">
-            {/* Matchup header */}
+
+            {/* ---- MATCHUP HEADER ---- */}
             <section className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-xs text-zinc-400">
                   <span>{sportIconFromId(event.sport_id)}</span>
                   <span className="uppercase tracking-[0.16em]">
@@ -195,18 +178,23 @@ export default function GameDetailPage() {
                   </span>
                 </div>
 
-                <div className="text-[10px] text-zinc-500">
-                  Event ID: {event.event_id}
+                <div className="flex items-center gap-2">
+                  {edgeCategory && (
+                    <span className="inline-flex items-center rounded-full bg-zinc-900 border border-zinc-700 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-zinc-100">
+                      {edgeCategory}
+                    </span>
+                  )}
+                  <span className="text-[10px] text-zinc-500">
+                    Event ID: {event.event_id}
+                  </span>
                 </div>
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
                 <span className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
-                  <span className="truncate max-w-full">{awayName}</span>
-                  <span className="text-zinc-500 text-base sm:text-lg flex-shrink-0">
-                    @
-                  </span>
-                  <span className="truncate max-w-full">{homeName}</span>
+                  <span className="truncate">{awayName}</span>
+                  <span className="text-zinc-500 text-base sm:text-lg">@</span>
+                  <span className="truncate">{homeName}</span>
                 </span>
               </h1>
 
@@ -215,18 +203,15 @@ export default function GameDetailPage() {
               </p>
             </section>
 
-            {/* Prediction panel */}
+            {/* ---- PREDICTION PANEL ---- */}
             <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-zinc-100">
                   Model Prediction
                 </h2>
-                <div className="text-[10px] text-zinc-500 text-right space-y-0.5">
+                <div className="text-[10px] text-zinc-500 text-right">
                   <div>
-                    Model:{" "}
-                    <span className="font-mono">
-                      {fallbackModelKey}
-                    </span>
+                    Model: <span className="font-mono">{fallbackModelKey}</span>
                   </div>
                   <div>Generated: {generatedAt}</div>
                 </div>
@@ -235,46 +220,24 @@ export default function GameDetailPage() {
               {predLoading && (
                 <p className="text-xs text-zinc-500">Loading prediction…</p>
               )}
-
-              {predError && !predLoading && (
+              {predError && (
                 <p className="text-xs text-red-400">{predError}</p>
               )}
 
-              {prediction && !predLoading && !predError && (
+              {prediction && (
                 <>
-                  {/* Win probabilities summary */}
                   <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 px-3 py-2 text-xs text-zinc-200 flex flex-col gap-2">
                     <div className="flex justify-between">
-                      <span className="text-zinc-400">
-                        {homeName || "Home"} win prob
-                      </span>
-                      <span className="font-medium">
-                        {((prediction.p_home ?? 0) * 100).toFixed(1)}%
-                      </span>
+                      <span className="text-zinc-400">{homeName} win prob</span>
+                      <span>{(prediction.p_home * 100).toFixed(1)}%</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-zinc-400">
-                        {awayName || "Away"} win prob
-                      </span>
-                      <span className="font-medium">
-                        {((prediction.p_away ?? 0) * 100).toFixed(1)}%
-                      </span>
+                      <span className="text-zinc-400">{awayName} win prob</span>
+                      <span>{(prediction.p_away * 100).toFixed(1)}%</span>
                     </div>
                   </div>
 
-                  <p className="mt-1 text-[11px] text-zinc-400">
-                    Model edge: leans toward{" "}
-                    <span className="text-zinc-100 font-medium">
-                      {homeName} ({((prediction.p_home ?? 0) * 100).toFixed(1)}%)
-                    </span>{" "}
-                    over{" "}
-                    <span className="text-zinc-100 font-medium">
-                      {awayName} ({((prediction.p_away ?? 0) * 100).toFixed(1)}%)
-                    </span>
-                    .
-                  </p>
-
-                  {/* Bet slip stub */}
+                  {/* Quick Bet */}
                   <div className="mt-3 border-t border-zinc-800 pt-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <h3 className="text-xs font-semibold text-zinc-100">
@@ -286,102 +249,98 @@ export default function GameDetailPage() {
                     </div>
 
                     <div className="flex flex-col sm:flex-row gap-2">
-                      {/* Home side */}
                       <button
-                        type="button"
                         onClick={() => setSelectedSide("home")}
                         className={
-                          "flex-1 rounded-lg border px-3 py-2 text-xs text-left " +
+                          "flex-1 rounded-lg border px-3 py-2 text-xs " +
                           (selectedSide === "home"
                             ? "border-emerald-500/70 bg-emerald-500/10"
                             : "border-zinc-700 bg-zinc-900/40 hover:border-zinc-500")
                         }
                       >
-                        <div className="flex justify-between gap-2">
+                        <div className="flex justify-between">
                           <span className="font-medium truncate">
-                            {homeName || "Home"}
+                            {homeName}
                           </span>
-                          <span className="text-[11px] text-zinc-400 text-right">
-                            {((prediction.p_home ?? 0) * 100).toFixed(1)}% ·{" "}
-                            {impliedOdds(prediction.p_home ?? 0)}
+                          <span className="text-[11px] text-zinc-400">
+                            {(prediction.p_home * 100).toFixed(1)}% ·{" "}
+                            {impliedOdds(prediction.p_home)}
                           </span>
                         </div>
                       </button>
 
-                      {/* Away side */}
                       <button
-                        type="button"
                         onClick={() => setSelectedSide("away")}
                         className={
-                          "flex-1 rounded-lg border px-3 py-2 text-xs text-left " +
+                          "flex-1 rounded-lg border px-3 py-2 text-xs " +
                           (selectedSide === "away"
                             ? "border-emerald-500/70 bg-emerald-500/10"
                             : "border-zinc-700 bg-zinc-900/40 hover:border-zinc-500")
                         }
                       >
-                        <div className="flex justify-between gap-2">
+                        <div className="flex justify-between">
                           <span className="font-medium truncate">
-                            {awayName || "Away"}
+                            {awayName}
                           </span>
-                          <span className="text-[11px] text-zinc-400 text-right">
-                            {((prediction.p_away ?? 0) * 100).toFixed(1)}% ·{" "}
-                            {impliedOdds(prediction.p_away ?? 0)}
+                          <span className="text-[11px] text-zinc-400">
+                            {(prediction.p_away * 100).toFixed(1)}% ·{" "}
+                            {impliedOdds(prediction.p_away)}
                           </span>
                         </div>
                       </button>
                     </div>
-
-                    {selectedSide && prediction && (
-                      <p className="text-[11px] text-zinc-400">
-                        You&apos;ve selected{" "}
-                        <span className="text-zinc-100 font-medium">
-                          {selectedSide === "home"
-                            ? homeName || "Home"
-                            : awayName || "Away"}
-                        </span>{" "}
-                        with implied odds of{" "}
-                        <span className="text-zinc-100 font-mono">
-                          {selectedSide === "home"
-                            ? impliedOdds(prediction.p_home ?? 0)
-                            : impliedOdds(prediction.p_away ?? 0)}
-                        </span>
-                        . This is a demo only – no real bets placed.
-                      </p>
-                    )}
                   </div>
                 </>
               )}
-
-              {!prediction && !predLoading && !predError && (
-                <p className="text-[11px] text-zinc-500">
-                  No prediction yet. Once the model is wired to this event, it
-                  will appear here.
-                </p>
-              )}
             </section>
 
-            {/* Insights panel */}
-            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-zinc-100">Insights</h2>
-              </div>
+            {/* ---- INSIGHTS PANEL ---- */}
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-4">
+              <h2 className="text-sm font-semibold text-zinc-100">Insights</h2>
 
               {insightsLoading && (
                 <p className="text-xs text-zinc-500">Loading insights…</p>
               )}
-
-              {insightsError && !insightsLoading && (
+              {insightsError && (
                 <p className="text-xs text-red-400">{insightsError}</p>
               )}
 
-              {insights &&
-                !insightsLoading &&
-                !insightsError &&
-                insights.length > 0 && (
+              {insights && insights.length > 0 && (
+                <div className="space-y-4">
+
+                  {/* Key Factors */}
+                  {keyFactors.length > 0 && (
+                    <div className="rounded-xl bg-zinc-900/70 border border-zinc-800 px-3 py-2">
+                      <h3 className="text-[11px] font-semibold text-zinc-100 mb-1">
+                        Key Factors (Top 3)
+                      </h3>
+                      <ul className="space-y-1.5">
+                        {keyFactors.map((ins, idx) => (
+                          <li key={"kf" + idx}>
+                            <div className="flex justify-between">
+                              <span className="font-medium text-zinc-100">
+                                {ins.label}
+                              </span>
+                              {ins.value != null && (
+                                <span className="text-[11px] text-zinc-400">
+                                  {(ins.value * 100).toFixed(1)}%
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-zinc-400">
+                              {ins.detail}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Full list */}
                   <ul className="space-y-2 text-xs">
                     {insights.map((insight, idx) => (
                       <li key={idx} className="space-y-0.5">
-                        <div className="flex justify-between gap-2">
+                        <div className="flex justify-between">
                           <span className="font-medium text-zinc-100">
                             {insight.label}
                           </span>
@@ -397,7 +356,8 @@ export default function GameDetailPage() {
                       </li>
                     ))}
                   </ul>
-                )}
+                </div>
+              )}
 
               {(!insights || insights.length === 0) &&
                 !insightsLoading &&
@@ -408,32 +368,33 @@ export default function GameDetailPage() {
                 )}
             </section>
 
-            {/* Event info panel */}
-            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
+            {/* ---- EVENT INFO ---- */}
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
               <h2 className="text-sm font-semibold text-zinc-100">
                 Event Info
               </h2>
-              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 sm:gap-x-8 text-xs text-zinc-300">
-                <div className="flex justify-between gap-4">
+
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 sm:gap-x-8 text-xs text-zinc-300 mt-2">
+                <div className="flex justify-between">
                   <dt className="text-zinc-500">Sport</dt>
                   <dd>{sportLabelFromId(event.sport_id)}</dd>
                 </div>
-                <div className="flex justify-between gap-4">
+                <div className="flex justify-between">
                   <dt className="text-zinc-500">Status</dt>
                   <dd>{event.status || "scheduled"}</dd>
                 </div>
-                <div className="flex justify-between gap-4">
+                <div className="flex justify-between">
                   <dt className="text-zinc-500">Home</dt>
                   <dd>{homeName}</dd>
                 </div>
-                <div className="flex justify-between gap-4">
+                <div className="flex justify-between">
                   <dt className="text-zinc-500">Away</dt>
                   <dd>{awayName}</dd>
                 </div>
               </dl>
             </section>
 
-            {/* Raw JSON debug */}
+            {/* ---- RAW JSON ---- */}
             <section className="rounded-2xl border border-zinc-900 bg-zinc-950/80 p-4">
               <details className="text-xs text-zinc-400">
                 <summary className="cursor-pointer mb-1">
