@@ -507,6 +507,7 @@ def predict(
     """
     Predict home win probability based on (date, home_team, away_team).
     Uses the pre-engineered features from the processed table.
+    Also logs the prediction to RECENT_PREDICTIONS.
     """
     games = load_games_table()
 
@@ -530,6 +531,9 @@ def predict(
 
     p_home = predict_home_win_proba(row)
     p_away = 1.0 - p_home
+
+    # log it for the admin recent-predictions panel
+    log_prediction_row(row, p_home, p_away)
 
     game_id = int(row["game_id"]) if "game_id" in row else -1
 
