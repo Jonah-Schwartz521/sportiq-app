@@ -2,236 +2,209 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { api, type Team } from "@/lib/api";
-import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
+import {
+  api,
+  type PredictionLogItem,
+  type PredictionLogResponse,
+} from "@/lib/api";
 
-// Local types matching what we expect from the backend / API
-type PredictionSummary = {
-  event_id: number;
-  model_key: string;
-  home_wp: number;
-  away_wp: number;
-  created_at: string;
-};
+// Edge filter buckets for the pills
+type EdgeFilter = "all" | "coinflip" | "lean" | "strong";
 
-type EventForPicker = {
-  event_id: number;
-  sport_id: number;
-  date: string;
-  home_team_id: number | null;
-  away_team_id: number | null;
-};
+function classifyEdge(pHome: number, pAway: number): EdgeFilter {
+  const edge = Math.abs(pHome - pAway);
+  if (edge < 0.05) return "coinflip";     // near coin flip
+  if (edge < 0.15) return "lean";         // modest edge
+  return "strong";                        // strong favorite
+}
+
+function edgeLabelFromFilter(filter: EdgeFilter): string {
+  if (filter === "coinflip") return "Coin flip";
+  if (filter === "lean") return "Modest edge";
+  if (filter === "strong") return "Strong edge";
+  return "All edges";
+}
+
+function impliedOdds(prob: number): string {
+  if (!prob || prob <= 0) return "-";
+  return `${(1 / prob).toFixed(2)}x`;
+}
 
 export default function PredictionsPanel() {
-  const [predictions, setPredictions] = useState<PredictionSummary[]>([]);
+  const [data, setData] = useState<PredictionLogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [events, setEvents] = useState<EventForPicker[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [metaError, setMetaError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<EdgeFilter>("all");
 
-  // ---- Load predictions ----
+  // Load recent predictions from FastAPI /predictions
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // api.predictions is currently mocked; cast to our local type
-        const res = await api.predictions();
-        const items = (res.items || []) as PredictionSummary[];
-        setPredictions(items);
+        const res: PredictionLogResponse = await api.predictions(50);
+        setData(res.items || []);
       } catch (err: unknown) {
         console.error(err);
-        const msg =
+        const message =
           err instanceof Error ? err.message : "Failed to load predictions";
-        setError(msg);
+        setError(message);
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  // ---- Load events + teams so we can show matchups ----
-  useEffect(() => {
-    (async () => {
-      try {
-        const [eventsRes, teamsRes] = await Promise.all([
-          api.events(), // we can reuse /events as the picker source
-          api.teams(),
-        ]);
-
-        setEvents((eventsRes.items || []) as EventForPicker[]);
-        setTeams(teamsRes.items || []);
-      } catch (err: unknown) {
-        console.error(err);
-        const msg =
-          err instanceof Error ? err.message : "Failed to load metadata";
-        setMetaError(msg);
-      }
-    })();
-  }, []);
-
-  // ---- Lookup maps + helpers ----
-  const eventsById = useMemo(() => {
-    const map = new Map<number, EventForPicker>();
-    for (const e of events) {
-      map.set(e.event_id, e);
-    }
-    return map;
-  }, [events]);
-
-  const teamsById = useMemo(() => {
-    const map = new Map<number, Team>();
-    for (const t of teams) {
-      map.set(t.team_id, t);
-    }
-    return map;
-  }, [teams]);
-
-  function teamLabel(id: number | null): string {
-    if (id == null) return "TBD";
-    const team = teamsById.get(id);
-    if (!team) return `#${id}`;
-    return team.name;
-  }
-
-  function eventLabelFromPrediction(p: PredictionSummary): {
-    sportId: number | null;
-    sportText: string;
-    icon: string;
-    matchup: string;
-    dateText: string | null;
-  } {
-    const e = eventsById.get(p.event_id);
-    if (!e) {
-      return {
-        sportId: null,
-        sportText: "Unknown",
-        icon: "🏟️",
-        matchup: `Event #${p.event_id}`,
-        dateText: null,
-      };
-    }
-
-    const sportText = sportLabelFromId(e.sport_id);
-    const icon = sportIconFromId(e.sport_id);
-    const home = teamLabel(e.home_team_id);
-    const away = teamLabel(e.away_team_id);
-
-    return {
-      sportId: e.sport_id,
-      sportText,
-      icon,
-      matchup: `${away} @ ${home}`,
-      dateText: e.date,
-    };
-  }
+  // Apply edge filter
+  const filtered = useMemo(() => {
+    if (filter === "all") return data;
+    return data.filter((i) => classifyEdge(i.p_home, i.p_away) === filter);
+  }, [data, filter]);
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="text-sm font-semibold text-zinc-100">
-          Recent Predictions
-        </h2>
-        <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
-          GET /predictions
-        </span>
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-100">
+            Recent Predictions
+          </h2>
+          <p className="text-[11px] text-zinc-500">
+            Latest calls from the NBA model (logged from /predict_by_game_id).
+          </p>
+        </div>
+
+        {/* Filter pills */}
+        <div className="flex items-center gap-1">
+          {[
+            { key: "all", label: "All" },
+            { key: "coinflip", label: "Coin flips" },
+            { key: "lean", label: "Leans" },
+            { key: "strong", label: "Strong edges" },
+          ].map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setFilter(f.key as EdgeFilter)}
+              className={
+                "px-2 py-1 rounded-full text-[10px] uppercase tracking-[0.14em] " +
+                (filter === f.key
+                  ? "bg-zinc-200 text-black"
+                  : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800")
+              }
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
+      {/* Content states */}
       {loading && (
-        <p className="text-xs text-zinc-500">Loading recent predictions…</p>
+        <p className="text-xs text-zinc-500">Loading predictions…</p>
       )}
 
       {error && !loading && (
         <p className="text-xs text-red-400">{error}</p>
       )}
 
-      {!loading && !error && predictions.length === 0 && (
+      {!loading && !error && filtered.length === 0 && (
         <p className="text-xs text-zinc-500">
-          No predictions have been recorded yet.
+          No predictions logged yet. Use the Predict panel or fan view to call
+          the model.
         </p>
       )}
 
-      {metaError && (
-        <p className="text-[10px] text-yellow-400">
-          {metaError} — showing predictions without full matchup context.
-        </p>
-      )}
+      {/* Table */}
+      {filtered.length > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/60">
+          <table className="w-full text-xs text-zinc-300">
+            <thead className="text-[10px] uppercase tracking-[0.16em] text-zinc-500 bg-zinc-950 border-b border-zinc-800">
+              <tr>
+                <th className="px-3 py-2 text-left">Matchup</th>
+                <th className="px-3 py-2 text-left">Probs</th>
+                <th className="px-3 py-2 text-left">Edge</th>
+                <th className="px-3 py-2 text-left">Odds (home/away)</th>
+                <th className="px-3 py-2 text-left">Logged</th>
+                <th className="px-3 py-2 text-right">Fan view</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((item) => {
+                const edge = Math.abs(item.p_home - item.p_away);
+                const edgeBucket = classifyEdge(item.p_home, item.p_away);
 
-      {!loading && !error && predictions.length > 0 && (
-        <ul className="space-y-2 text-xs text-zinc-300">
-          {predictions.map((p) => {
-            const meta = eventLabelFromPrediction(p);
-            const homePct = (p.home_wp * 100).toFixed(1);
-            const awayPct = (p.away_wp * 100).toFixed(1);
+                return (
+                  <tr
+                    key={`${item.game_id}-${item.created_at}`}
+                    className="border-t border-zinc-900/80"
+                  >
+                    <td className="px-3 py-2">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-zinc-100">
+                          {item.away_team} @ {item.home_team}
+                        </span>
+                        <span className="text-[10px] text-zinc-500">
+                          Game ID {item.game_id} · {item.date}
+                        </span>
+                      </div>
+                    </td>
 
-            return (
-              <li
-                key={`${p.event_id}-${p.created_at}-${p.model_key}`}
-                className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2"
-              >
-                {/* Top line: sport + matchup */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px]">
-                      {meta.icon}
-                    </span>
-                    <div className="flex flex-col">
-                      <span className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">
-                        {meta.sportText}
+                    <td className="px-3 py-2 align-top">
+                      <div className="flex flex-col gap-0.5">
+                        <span>
+                          Home: {(item.p_home * 100).toFixed(1)}%
+                        </span>
+                        <span>
+                          Away: {(item.p_away * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </td>
+
+                    <td className="px-3 py-2 align-top">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="inline-flex items-center rounded-full border border-zinc-700 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em]">
+                          {edgeLabelFromFilter(edgeBucket)}
+                        </span>
+                        <span className="text-[10px] text-zinc-500">
+                          Diff: {(edge * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </td>
+
+                    <td className="px-3 py-2 align-top">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[11px]">
+                          Home: {impliedOdds(item.p_home)}
+                        </span>
+                        <span className="text-[11px]">
+                          Away: {impliedOdds(item.p_away)}
+                        </span>
+                      </div>
+                    </td>
+
+                    <td className="px-3 py-2 align-top">
+                      <span className="text-[10px] text-zinc-500">
+                        {item.created_at}
                       </span>
-                      <span className="text-xs text-zinc-100">
-                        {meta.matchup}
-                      </span>
-                    </div>
-                  </div>
+                    </td>
 
-                  <div className="text-right text-[10px] text-zinc-500">
-                    <div className="font-mono truncate max-w-[160px]">
-                      {p.model_key}
-                    </div>
-                    <div>{p.created_at}</div>
-                  </div>
-                </div>
-
-                {/* Probabilities */}
-                <div className="mt-2 flex items-center justify-between text-[11px]">
-                  <div className="flex flex-col">
-                    <span className="text-zinc-400">
-                      Home win prob
-                    </span>
-                    <span className="font-medium text-zinc-100">
-                      {homePct}%
-                    </span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-zinc-400">
-                      Away win prob
-                    </span>
-                    <span className="font-medium text-zinc-100">
-                      {awayPct}%
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    {meta.dateText && (
-                      <span className="text-[10px] text-zinc-500 mb-0.5">
-                        {meta.dateText}
-                      </span>
-                    )}
-                    <Link
-                      href={`/games/${p.event_id}`}
-                      className="text-[11px] text-blue-400 hover:text-blue-300"
-                    >
-                      Open fan view →
-                    </Link>
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                    <td className="px-3 py-2 align-top text-right">
+                      <Link
+                        href={`/games/${item.game_id}`}
+                        className="text-[11px] text-blue-400 hover:text-blue-300 underline underline-offset-2"
+                        target="_blank"
+                      >
+                        Open
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

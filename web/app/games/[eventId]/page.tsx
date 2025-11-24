@@ -26,7 +26,9 @@ export default function GameDetailPage() {
   const [predLoading, setPredLoading] = useState(false);
   const [predError, setPredError] = useState<string | null>(null);
 
-  const [selectedSide, setSelectedSide] = useState<"home" | "away" | null>(null);
+  const [selectedSide, setSelectedSide] = useState<"home" | "away" | null>(
+    null,
+  );
 
   const [insights, setInsights] = useState<Insight[] | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
@@ -35,6 +37,7 @@ export default function GameDetailPage() {
   const [generatedAt] = useState(() => new Date().toISOString());
 
   // ---------- Derived helpers ----------
+
   const edgeCategory = useMemo(() => {
     if (!prediction) return null;
     const edge = Math.abs(prediction.p_home - prediction.p_away);
@@ -59,6 +62,7 @@ export default function GameDetailPage() {
   }
 
   // ---------- Load event & teams ----------
+
   useEffect(() => {
     if (!eventIdParam || Number.isNaN(eventId)) return;
 
@@ -72,15 +76,17 @@ export default function GameDetailPage() {
           api.teams(),
         ]);
 
-        const found =
-          eventsRes.items.find((e) => e.event_id === eventId) ?? null;
+        const events = eventsRes.items || [];
+        const found = events.find((e) => e.event_id === eventId) ?? null;
 
         setEvent(found);
         setTeams(teamsRes.items || []);
 
-        if (!found) setError("Game not found");
-      } catch (err: unknown) {
-        console.error(err);
+        if (!found) {
+          setError("Game not found");
+        }
+      } catch (error: unknown) {
+        console.error(error);
         setError("Failed to load game");
       } finally {
         setLoading(false);
@@ -95,6 +101,7 @@ export default function GameDetailPage() {
   const awayName = event ? teamLabel(event.away_team_id) : "";
 
   // ---------- Load prediction ----------
+
   useEffect(() => {
     if (!event) return;
 
@@ -107,8 +114,13 @@ export default function GameDetailPage() {
 
         const result = await api.predict(event.event_id);
         setPrediction(result);
-      } catch (err) {
-        setPredError("Failed to load prediction");
+      } catch (error: unknown) {
+        console.error(error);
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to load prediction";
+        setPredError(message);
       } finally {
         setPredLoading(false);
       }
@@ -116,6 +128,7 @@ export default function GameDetailPage() {
   }, [event]);
 
   // ---------- Load insights ----------
+
   useEffect(() => {
     if (!event) return;
 
@@ -127,8 +140,11 @@ export default function GameDetailPage() {
 
         const data = await api.insights(event.event_id);
         setInsights(data.insights || []);
-      } catch (err) {
-        setInsightsError("Failed to load insights");
+      } catch (error: unknown) {
+        console.error(error);
+        const message =
+          error instanceof Error ? error.message : "Failed to load insights";
+        setInsightsError(message);
       } finally {
         setInsightsLoading(false);
       }
@@ -140,7 +156,6 @@ export default function GameDetailPage() {
   return (
     <main className="min-h-screen bg-black text-white flex justify-center px-4 py-10">
       <div className="w-full max-w-4xl space-y-6">
-        
         {/* Header */}
         <header className="flex items-center justify-between gap-2">
           <Link
@@ -155,7 +170,7 @@ export default function GameDetailPage() {
           </span>
         </header>
 
-        {/* Errors */}
+        {/* Errors / loading */}
         {loading && <p className="text-sm text-zinc-500">Loading game…</p>}
         {error && !loading && <p className="text-sm text-red-400">{error}</p>}
         {!loading && !error && !event && (
@@ -164,7 +179,6 @@ export default function GameDetailPage() {
 
         {event && (
           <div className="space-y-6">
-
             {/* ---- MATCHUP HEADER ---- */}
             <section className="space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -209,9 +223,10 @@ export default function GameDetailPage() {
                 <h2 className="text-sm font-semibold text-zinc-100">
                   Model Prediction
                 </h2>
-                <div className="text-[10px] text-zinc-500 text-right">
+                <div className="text-[10px] text-zinc-500 text-right space-y-0.5">
                   <div>
-                    Model: <span className="font-mono">{fallbackModelKey}</span>
+                    Model:{" "}
+                    <span className="font-mono">{fallbackModelKey}</span>
                   </div>
                   <div>Generated: {generatedAt}</div>
                 </div>
@@ -220,20 +235,28 @@ export default function GameDetailPage() {
               {predLoading && (
                 <p className="text-xs text-zinc-500">Loading prediction…</p>
               )}
-              {predError && (
+              {predError && !predLoading && (
                 <p className="text-xs text-red-400">{predError}</p>
               )}
 
-              {prediction && (
+              {prediction && !predLoading && !predError && (
                 <>
                   <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 px-3 py-2 text-xs text-zinc-200 flex flex-col gap-2">
                     <div className="flex justify-between">
-                      <span className="text-zinc-400">{homeName} win prob</span>
-                      <span>{(prediction.p_home * 100).toFixed(1)}%</span>
+                      <span className="text-zinc-400">
+                        {homeName || "Home"} win prob
+                      </span>
+                      <span className="font-medium">
+                        {(prediction.p_home * 100).toFixed(1)}%
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-zinc-400">{awayName} win prob</span>
-                      <span>{(prediction.p_away * 100).toFixed(1)}%</span>
+                      <span className="text-zinc-400">
+                        {awayName || "Away"} win prob
+                      </span>
+                      <span className="font-medium">
+                        {(prediction.p_away * 100).toFixed(1)}%
+                      </span>
                     </div>
                   </div>
 
@@ -250,19 +273,20 @@ export default function GameDetailPage() {
 
                     <div className="flex flex-col sm:flex-row gap-2">
                       <button
+                        type="button"
                         onClick={() => setSelectedSide("home")}
                         className={
-                          "flex-1 rounded-lg border px-3 py-2 text-xs " +
+                          "flex-1 rounded-lg border px-3 py-2 text-xs text-left " +
                           (selectedSide === "home"
                             ? "border-emerald-500/70 bg-emerald-500/10"
                             : "border-zinc-700 bg-zinc-900/40 hover:border-zinc-500")
                         }
                       >
-                        <div className="flex justify-between">
+                        <div className="flex justify-between gap-2">
                           <span className="font-medium truncate">
-                            {homeName}
+                            {homeName || "Home"}
                           </span>
-                          <span className="text-[11px] text-zinc-400">
+                          <span className="text-[11px] text-zinc-400 text-right">
                             {(prediction.p_home * 100).toFixed(1)}% ·{" "}
                             {impliedOdds(prediction.p_home)}
                           </span>
@@ -270,25 +294,44 @@ export default function GameDetailPage() {
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => setSelectedSide("away")}
                         className={
-                          "flex-1 rounded-lg border px-3 py-2 text-xs " +
+                          "flex-1 rounded-lg border px-3 py-2 text-xs text-left " +
                           (selectedSide === "away"
                             ? "border-emerald-500/70 bg-emerald-500/10"
                             : "border-zinc-700 bg-zinc-900/40 hover:border-zinc-500")
                         }
                       >
-                        <div className="flex justify-between">
+                        <div className="flex justify-between gap-2">
                           <span className="font-medium truncate">
-                            {awayName}
+                            {awayName || "Away"}
                           </span>
-                          <span className="text-[11px] text-zinc-400">
+                          <span className="text-[11px] text-zinc-400 text-right">
                             {(prediction.p_away * 100).toFixed(1)}% ·{" "}
                             {impliedOdds(prediction.p_away)}
                           </span>
                         </div>
                       </button>
                     </div>
+
+                    {selectedSide && prediction && (
+                      <p className="text-[11px] text-zinc-400">
+                        You&apos;ve selected{" "}
+                        <span className="text-zinc-100 font-medium">
+                          {selectedSide === "home"
+                            ? homeName || "Home"
+                            : awayName || "Away"}
+                        </span>{" "}
+                        with implied odds of{" "}
+                        <span className="text-zinc-100 font-mono">
+                          {selectedSide === "home"
+                            ? impliedOdds(prediction.p_home)
+                            : impliedOdds(prediction.p_away)}
+                        </span>
+                        . This is a demo only – no real bets placed.
+                      </p>
+                    )}
                   </div>
                 </>
               )}
@@ -301,63 +344,65 @@ export default function GameDetailPage() {
               {insightsLoading && (
                 <p className="text-xs text-zinc-500">Loading insights…</p>
               )}
-              {insightsError && (
+              {insightsError && !insightsLoading && (
                 <p className="text-xs text-red-400">{insightsError}</p>
               )}
 
-              {insights && insights.length > 0 && (
-                <div className="space-y-4">
-
-                  {/* Key Factors */}
-                  {keyFactors.length > 0 && (
-                    <div className="rounded-xl bg-zinc-900/70 border border-zinc-800 px-3 py-2">
-                      <h3 className="text-[11px] font-semibold text-zinc-100 mb-1">
-                        Key Factors (Top 3)
-                      </h3>
-                      <ul className="space-y-1.5">
-                        {keyFactors.map((ins, idx) => (
-                          <li key={"kf" + idx}>
-                            <div className="flex justify-between">
-                              <span className="font-medium text-zinc-100">
-                                {ins.label}
-                              </span>
-                              {ins.value != null && (
-                                <span className="text-[11px] text-zinc-400">
-                                  {(ins.value * 100).toFixed(1)}%
+              {insights &&
+                insights.length > 0 &&
+                !insightsLoading &&
+                !insightsError && (
+                  <div className="space-y-4">
+                    {/* Key Factors */}
+                    {keyFactors.length > 0 && (
+                      <div className="rounded-xl bg-zinc-900/70 border border-zinc-800 px-3 py-2">
+                        <h3 className="text-[11px] font-semibold text-zinc-100 mb-1">
+                          Key Factors (Top 3)
+                        </h3>
+                        <ul className="space-y-1.5">
+                          {keyFactors.map((ins, idx) => (
+                            <li key={`kf-${idx}`}>
+                              <div className="flex justify-between gap-2">
+                                <span className="font-medium text-zinc-100">
+                                  {ins.label}
                                 </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-zinc-400">
-                              {ins.detail}
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                                {ins.value != null && (
+                                  <span className="text-[11px] text-zinc-400">
+                                    {(ins.value * 100).toFixed(1)}%
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-zinc-400">
+                                {ins.detail}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
 
-                  {/* Full list */}
-                  <ul className="space-y-2 text-xs">
-                    {insights.map((insight, idx) => (
-                      <li key={idx} className="space-y-0.5">
-                        <div className="flex justify-between">
-                          <span className="font-medium text-zinc-100">
-                            {insight.label}
-                          </span>
-                          {insight.value != null && (
-                            <span className="text-[11px] text-zinc-400">
-                              {(insight.value * 100).toFixed(1)}%
+                    {/* Full list */}
+                    <ul className="space-y-2 text-xs">
+                      {insights.map((insight, idx) => (
+                        <li key={idx} className="space-y-0.5">
+                          <div className="flex justify-between gap-2">
+                            <span className="font-medium text-zinc-100">
+                              {insight.label}
                             </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-zinc-400">
-                          {insight.detail}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                            {insight.value != null && (
+                              <span className="text-[11px] text-zinc-400">
+                                {(insight.value * 100).toFixed(1)}%
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-zinc-400">
+                            {insight.detail}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
               {(!insights || insights.length === 0) &&
                 !insightsLoading &&
@@ -375,19 +420,19 @@ export default function GameDetailPage() {
               </h2>
 
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 sm:gap-x-8 text-xs text-zinc-300 mt-2">
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-4">
                   <dt className="text-zinc-500">Sport</dt>
                   <dd>{sportLabelFromId(event.sport_id)}</dd>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-4">
                   <dt className="text-zinc-500">Status</dt>
                   <dd>{event.status || "scheduled"}</dd>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-4">
                   <dt className="text-zinc-500">Home</dt>
                   <dd>{homeName}</dd>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-4">
                   <dt className="text-zinc-500">Away</dt>
                   <dd>{awayName}</dd>
                 </div>
