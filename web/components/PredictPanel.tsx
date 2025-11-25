@@ -14,6 +14,15 @@ import {
   type SportKey,
 } from "@/lib/sport";
 
+function isValidProb(p: number | null | undefined): p is number {
+  return typeof p === "number" && !Number.isNaN(p);
+}
+
+function safePercent(p: number | null | undefined): string {
+  if (!isValidProb(p)) return "–";
+  return `${(p * 100).toFixed(1)}%`;
+}
+
 export default function PredictPanel() {
   // Which sport we are predicting (UI only — backend currently supports NBA)
   const [sport, setSport] = useState<SportKey>("nba");
@@ -106,39 +115,49 @@ export default function PredictPanel() {
       const raw = await api.predict(finalId as number);
       const anyRes = raw as any;
 
-      // 🔧 Normalize backend fields into the PredictResponse shape
+      // Normalize backend fields into the PredictResponse shape
+      const probs = (anyRes.win_probabilities || anyRes.probs || {}) as {
+        home?: number;
+        away?: number;
+        home_win?: number;
+        away_win?: number;
+      };
+
+      const pHomeCandidate =
+        typeof probs.home === "number"
+          ? probs.home
+          : typeof probs.home_win === "number"
+          ? probs.home_win
+          : typeof anyRes.p_home === "number"
+          ? anyRes.p_home
+          : typeof anyRes.prob_home === "number"
+          ? anyRes.prob_home
+          : typeof anyRes.home_prob === "number"
+          ? anyRes.home_prob
+          : undefined;
+
+      const pAwayCandidate =
+        typeof probs.away === "number"
+          ? probs.away
+          : typeof probs.away_win === "number"
+          ? probs.away_win
+          : typeof anyRes.p_away === "number"
+          ? anyRes.p_away
+          : typeof anyRes.prob_away === "number"
+          ? anyRes.prob_away
+          : typeof anyRes.away_prob === "number"
+          ? anyRes.away_prob
+          : undefined;
+
       const normalized: PredictResponse = {
-        game_id:
-          anyRes.game_id ??
-          anyRes.event_id ??
-          finalId,
+        game_id: anyRes.game_id ?? anyRes.event_id ?? finalId,
         date: anyRes.date ?? anyRes.game_date ?? "Unknown date",
         home_team:
-          anyRes.home_team ??
-          anyRes.home ??
-          anyRes.home_name ??
-          "Home",
+          anyRes.home_team ?? anyRes.home ?? anyRes.home_name ?? "Home",
         away_team:
-          anyRes.away_team ??
-          anyRes.away ??
-          anyRes.away_name ??
-          "Away",
-        p_home:
-          typeof anyRes.p_home === "number"
-            ? anyRes.p_home
-            : typeof anyRes.prob_home === "number"
-            ? anyRes.prob_home
-            : typeof anyRes.home_prob === "number"
-            ? anyRes.home_prob
-            : 0,
-        p_away:
-          typeof anyRes.p_away === "number"
-            ? anyRes.p_away
-            : typeof anyRes.prob_away === "number"
-            ? anyRes.prob_away
-            : typeof anyRes.away_prob === "number"
-            ? anyRes.away_prob
-            : 0,
+          anyRes.away_team ?? anyRes.away ?? anyRes.away_name ?? "Away",
+        p_home: typeof pHomeCandidate === "number" ? pHomeCandidate : NaN,
+        p_away: typeof pAwayCandidate === "number" ? pAwayCandidate : NaN,
       };
 
       setResult(normalized);
@@ -159,7 +178,7 @@ export default function PredictPanel() {
           Predict Win Probability
         </h2>
         <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
-          GET /predict_by_game_id
+          POST /predict/nba
         </span>
       </div>
 
@@ -248,20 +267,23 @@ export default function PredictPanel() {
             </span>
           </div>
           <div>Date: {result.date}</div>
-          <div>
-            Home win prob:{" "}
-            <span className="text-zinc-100">
-              {Number.isFinite(result.p_home)
-                ? (result.p_home * 100).toFixed(1) + "%"
-                : "–"}
-            </span>{" "}
-            · Away win prob:{" "}
-            <span className="text-zinc-100">
-              {Number.isFinite(result.p_away)
-                ? (result.p_away * 100).toFixed(1) + "%"
-                : "–"}
-            </span>
-          </div>
+
+          {isValidProb(result.p_home) || isValidProb(result.p_away) ? (
+            <div>
+              Home win prob:{" "}
+              <span className="text-zinc-100">
+                {safePercent(result.p_home)}
+              </span>{" "}
+              · Away win prob:{" "}
+              <span className="text-zinc-100">
+                {safePercent(result.p_away)}
+              </span>
+            </div>
+          ) : (
+            <div className="text-zinc-500">
+              Model probabilities unavailable for this event.
+            </div>
+          )}
         </div>
       )}
     </div>
