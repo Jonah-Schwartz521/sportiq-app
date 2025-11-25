@@ -3,14 +3,19 @@
 import { useState } from "react";
 import { api, type Insight } from "@/lib/api";
 
-// Reuse the return type of api.insights so it always stays in sync
-type InsightsResponse = Awaited<ReturnType<typeof api.insights>>;
+// Shape of what we actually keep in state for the panel
+type InsightsPayload = {
+  game_id: number;
+  model_key: string;
+  generated_at: string;
+  insights: Insight[];
+};
 
 export default function InsightsPanel() {
   const [eventId, setEventId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<InsightsResponse | null>(null);
+  const [data, setData] = useState<InsightsPayload | null>(null);
 
   async function handleFetch() {
     setLoading(true);
@@ -25,9 +30,18 @@ export default function InsightsPanel() {
     }
 
     try {
-      // api.insights now takes just eventId
+      // Strongly-typed call to your backend
       const res = await api.insights(idNum);
-      setData(res);
+
+      // Normalize into our local shape (no `any`)
+      const payload: InsightsPayload = {
+        game_id: res.game_id ?? res.event_id ?? idNum,
+        model_key: res.model_key,
+        generated_at: res.generated_at,
+        insights: res.insights ?? [],
+      };
+
+      setData(payload);
     } catch (err: unknown) {
       console.error(err);
       const message =
@@ -38,12 +52,9 @@ export default function InsightsPanel() {
     }
   }
 
-  // Prefer game_id, fall back to event_id if that’s what the API returns
-  const displayGameId =
-    data && (data.game_id ?? (data as any).event_id ?? null);
-
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-medium text-zinc-200">
@@ -51,14 +62,11 @@ export default function InsightsPanel() {
           </h2>
           <p className="text-xs text-zinc-500">
             Fetch top reasons from{" "}
-            <span className="font-mono">
-              /insights/nba/{"{event_id}"}
-            </span>
-            .
+            <span className="font-mono">/insights/nba/&lt;event_id&gt;</span>.
           </p>
         </div>
         <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
-          GET /insights/nba/&#123;event_id&#125;
+          GET /insights
         </span>
       </div>
 
@@ -93,14 +101,10 @@ export default function InsightsPanel() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs text-zinc-400">
               Game{" "}
-              <span className="text-zinc-200 font-mono">
-                {displayGameId ?? "unknown"}
-              </span>
+              <span className="text-zinc-200 font-mono">{data.game_id}</span>
               <br />
               Model{" "}
-              <span className="text-zinc-200 font-mono">
-                {data.model_key}
-              </span>
+              <span className="text-zinc-200 font-mono">{data.model_key}</span>
             </div>
             <div className="text-right text-[10px] text-zinc-500 space-y-0.5">
               <div>

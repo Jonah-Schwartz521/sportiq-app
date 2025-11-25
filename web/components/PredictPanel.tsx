@@ -23,6 +23,32 @@ function safePercent(p: number | null | undefined): string {
   return `${(p * 100).toFixed(1)}%`;
 }
 
+// Extended shape for whatever the backend might send back
+type PredictBackendResponse = PredictResponse & {
+  win_probabilities?: {
+    home?: number;
+    away?: number;
+    home_win?: number;
+    away_win?: number;
+  };
+  probs?: {
+    home?: number;
+    away?: number;
+    home_win?: number;
+    away_win?: number;
+  };
+  prob_home?: number;
+  home_prob?: number;
+  prob_away?: number;
+  away_prob?: number;
+  home?: string;
+  away?: string;
+  home_name?: string;
+  away_name?: string;
+  game_date?: string;
+  event_id?: number;
+};
+
 export default function PredictPanel() {
   // Which sport we are predicting (UI only — backend currently supports NBA)
   const [sport, setSport] = useState<SportKey>("nba");
@@ -111,29 +137,26 @@ export default function PredictPanel() {
         return;
       }
 
-      // Raw response from backend (may have different key names)
-      const raw = await api.predict(finalId as number);
-      const anyRes = raw as any;
+      // Strongly typed, but with an extended backend shape
+      const raw = (await api.predict(finalId as number)) as PredictBackendResponse;
 
-      // Normalize backend fields into the PredictResponse shape
-      const probs = (anyRes.win_probabilities || anyRes.probs || {}) as {
-        home?: number;
-        away?: number;
-        home_win?: number;
-        away_win?: number;
-      };
+      const probs =
+        raw.win_probabilities ?? raw.probs ?? {
+          home: raw.p_home,
+          away: raw.p_away,
+        };
 
       const pHomeCandidate =
         typeof probs.home === "number"
           ? probs.home
           : typeof probs.home_win === "number"
           ? probs.home_win
-          : typeof anyRes.p_home === "number"
-          ? anyRes.p_home
-          : typeof anyRes.prob_home === "number"
-          ? anyRes.prob_home
-          : typeof anyRes.home_prob === "number"
-          ? anyRes.home_prob
+          : typeof raw.p_home === "number"
+          ? raw.p_home
+          : typeof raw.prob_home === "number"
+          ? raw.prob_home
+          : typeof raw.home_prob === "number"
+          ? raw.home_prob
           : undefined;
 
       const pAwayCandidate =
@@ -141,21 +164,22 @@ export default function PredictPanel() {
           ? probs.away
           : typeof probs.away_win === "number"
           ? probs.away_win
-          : typeof anyRes.p_away === "number"
-          ? anyRes.p_away
-          : typeof anyRes.prob_away === "number"
-          ? anyRes.prob_away
-          : typeof anyRes.away_prob === "number"
-          ? anyRes.away_prob
+          : typeof raw.p_away === "number"
+          ? raw.p_away
+          : typeof raw.prob_away === "number"
+          ? raw.prob_away
+          : typeof raw.away_prob === "number"
+          ? raw.away_prob
           : undefined;
 
+      // Normalize into the PredictResponse shape
       const normalized: PredictResponse = {
-        game_id: anyRes.game_id ?? anyRes.event_id ?? finalId,
-        date: anyRes.date ?? anyRes.game_date ?? "Unknown date",
+        game_id: raw.game_id ?? raw.event_id ?? finalId,
+        date: raw.date ?? raw.game_date ?? "Unknown date",
         home_team:
-          anyRes.home_team ?? anyRes.home ?? anyRes.home_name ?? "Home",
+          raw.home_team ?? raw.home ?? raw.home_name ?? "Home",
         away_team:
-          anyRes.away_team ?? anyRes.away ?? anyRes.away_name ?? "Away",
+          raw.away_team ?? raw.away ?? raw.away_name ?? "Away",
         p_home: typeof pHomeCandidate === "number" ? pHomeCandidate : NaN,
         p_away: typeof pAwayCandidate === "number" ? pAwayCandidate : NaN,
       };
