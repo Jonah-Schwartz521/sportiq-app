@@ -7,7 +7,6 @@ import {
   type PredictionLogItem,
   type PredictionLogResponse,
 } from "@/lib/api";
-
 import { formatIsoToLocal, timeAgo } from "@/lib/time";
 
 // Edge filter buckets for the pills
@@ -15,16 +14,9 @@ type EdgeFilter = "all" | "coinflip" | "lean" | "strong";
 
 function classifyEdge(pHome: number, pAway: number): EdgeFilter {
   const edge = Math.abs(pHome - pAway);
-  if (edge < 0.05) return "coinflip";     // near coin flip
-  if (edge < 0.15) return "lean";         // modest edge
-  return "strong";                        // strong favorite
-}
-
-function edgeLabelFromFilter(filter: EdgeFilter): string {
-  if (filter === "coinflip") return "Coin flip";
-  if (filter === "lean") return "Modest edge";
-  if (filter === "strong") return "Strong edge";
-  return "All edges";
+  if (edge < 0.05) return "coinflip"; // near coin flip
+  if (edge < 0.15) return "lean"; // modest edge
+  return "strong"; // strong favorite
 }
 
 function impliedOdds(prob: number): string {
@@ -38,6 +30,7 @@ export default function PredictionsPanel() {
   const [error, setError] = useState<string | null>(null);
 
   const [filter, setFilter] = useState<EdgeFilter>("all");
+  const [filterText, setFilterText] = useState(""); // text search
 
   // Load recent predictions from FastAPI /predictions
   useEffect(() => {
@@ -59,15 +52,32 @@ export default function PredictionsPanel() {
     })();
   }, []);
 
-  // Apply edge filter
+  // Apply edge filter + text search
   const filtered = useMemo(() => {
-    if (filter === "all") return data;
-    return data.filter((i) => classifyEdge(i.p_home, i.p_away) === filter);
-  }, [data, filter]);
+    const text = filterText.trim().toLowerCase();
+    
+    return data.filter((i) => {
+      // edge bucket filter
+      const edgeOk =
+        filter === "all" || classifyEdge(i.p_home, i.p_away) === filter;
+
+      // text search filter
+      const home = (i.home_team ?? "").toLowerCase();
+      const away = (i.away_team ?? "").toLowerCase();
+      
+      const textOk =
+        text.length === 0 ||
+        home.includes(text)||
+        away.includes(text);
+
+      return edgeOk && textOk;
+    });
+  }, [data, filter, filterText]);
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      {/* Header + filters */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-sm font-semibold text-zinc-100">
             Recent Predictions
@@ -77,28 +87,39 @@ export default function PredictionsPanel() {
           </p>
         </div>
 
-        {/* Filter pills */}
-        <div className="flex items-center gap-1">
-          {[
-            { key: "all", label: "All" },
-            { key: "coinflip", label: "Coin flips" },
-            { key: "lean", label: "Leans" },
-            { key: "strong", label: "Strong edges" },
-          ].map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              onClick={() => setFilter(f.key as EdgeFilter)}
-              className={
-                "px-2 py-1 rounded-full text-[10px] uppercase tracking-[0.14em] " +
-                (filter === f.key
-                  ? "bg-zinc-200 text-black"
-                  : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800")
-              }
-            >
-              {f.label}
-            </button>
-          ))}
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+          {/* Text search */}
+          <input
+            type="text"
+            placeholder="Filter by team…"
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            className="h-7 rounded-full border border-zinc-800 bg-zinc-950 px-3 text-[11px] text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+          />
+
+          {/* Edge filter pills */}
+          <div className="flex items-center gap-1">
+            {[
+              { key: "all", label: "All" },
+              { key: "coinflip", label: "Coin flips" },
+              { key: "lean", label: "Leans" },
+              { key: "strong", label: "Strong edges" },
+            ].map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setFilter(f.key as EdgeFilter)}
+                className={
+                  "px-2 py-1 rounded-full text-[10px] uppercase tracking-[0.14em] " +
+                  (filter === f.key
+                    ? "bg-zinc-200 text-black"
+                    : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800")
+                }
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -135,13 +156,13 @@ export default function PredictionsPanel() {
             <tbody>
               {filtered.map((item) => {
                 const edge = Math.abs(item.p_home - item.p_away);
-                const edgeBucket = classifyEdge(item.p_home, item.p_away);
 
                 return (
                   <tr
                     key={`${item.game_id}-${item.created_at}`}
                     className="border-t border-zinc-900/80"
                   >
+                    {/* Matchup */}
                     <td className="px-3 py-2">
                       <div className="flex flex-col">
                         <span className="font-medium text-zinc-100">
@@ -153,6 +174,7 @@ export default function PredictionsPanel() {
                       </div>
                     </td>
 
+                    {/* Probs */}
                     <td className="px-3 py-2 align-top">
                       <div className="flex flex-col gap-0.5">
                         <span>
@@ -164,17 +186,48 @@ export default function PredictionsPanel() {
                       </div>
                     </td>
 
+                    {/* Edge */}
                     <td className="px-3 py-2 align-top">
                       <div className="flex flex-col gap-0.5">
-                        <span className="inline-flex items-center rounded-full border border-zinc-700 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em]">
-                          {edgeLabelFromFilter(edgeBucket)}
-                        </span>
+                        {(() => {
+                          const category = classifyEdge(
+                            item.p_home,
+                            item.p_away,
+                          );
+
+                          const chipText =
+                            category === "coinflip"
+                              ? "Coin flip"
+                              : category === "lean"
+                              ? "Modest edge"
+                              : "Strong favorite";
+
+                          const chipClass =
+                            category === "coinflip"
+                              ? "bg-zinc-800 text-zinc-100 border-zinc-600"
+                              : category === "lean"
+                              ? "bg-amber-500/10 text-amber-300 border-amber-500/60"
+                              : "bg-emerald-500/10 text-emerald-300 border-emerald-500/60";
+
+                          return (
+                            <span
+                              className={
+                                "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] border " +
+                                chipClass
+                              }
+                            >
+                              {chipText}
+                            </span>
+                          );
+                        })()}
+
                         <span className="text-[10px] text-zinc-500">
                           Diff: {(edge * 100).toFixed(1)}%
                         </span>
                       </div>
                     </td>
 
+                    {/* Odds */}
                     <td className="px-3 py-2 align-top">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[11px]">
@@ -186,6 +239,7 @@ export default function PredictionsPanel() {
                       </div>
                     </td>
 
+                    {/* Logged time */}
                     <td className="px-3 py-2 align-top">
                       <div className="flex flex-col text-[10px] text-zinc-500">
                         <span>{formatIsoToLocal(item.created_at)}</span>
@@ -193,6 +247,7 @@ export default function PredictionsPanel() {
                       </div>
                     </td>
 
+                    {/* Fan view link */}
                     <td className="px-3 py-2 align-top text-right">
                       <Link
                         href={`/games/${item.game_id}`}

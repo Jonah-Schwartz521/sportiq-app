@@ -3,16 +3,14 @@
 import { useState } from "react";
 import { api, type Insight } from "@/lib/api";
 
+// Reuse the return type of api.insights so it always stays in sync
+type InsightsResponse = Awaited<ReturnType<typeof api.insights>>;
+
 export default function InsightsPanel() {
   const [eventId, setEventId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<{
-    game_id: number;
-    model_key: string;
-    generated_at: string;
-    insights: Insight[];
-  } | null>(null);
+  const [data, setData] = useState<InsightsResponse | null>(null);
 
   async function handleFetch() {
     setLoading(true);
@@ -27,7 +25,7 @@ export default function InsightsPanel() {
     }
 
     try {
-      // api.insights now takes just gameId
+      // api.insights now takes just eventId
       const res = await api.insights(idNum);
       setData(res);
     } catch (err: unknown) {
@@ -40,6 +38,10 @@ export default function InsightsPanel() {
     }
   }
 
+  // Prefer game_id, fall back to event_id if that’s what the API returns
+  const displayGameId =
+    data && (data.game_id ?? (data as any).event_id ?? null);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -50,13 +52,13 @@ export default function InsightsPanel() {
           <p className="text-xs text-zinc-500">
             Fetch top reasons from{" "}
             <span className="font-mono">
-              /insights/{"<event_id>"}
+              /insights/nba/{"{event_id}"}
             </span>
             .
           </p>
         </div>
         <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
-          GET /insights
+          GET /insights/nba/&#123;event_id&#125;
         </span>
       </div>
 
@@ -91,10 +93,14 @@ export default function InsightsPanel() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs text-zinc-400">
               Game{" "}
-              <span className="text-zinc-200 font-mono">{data.game_id}</span>
+              <span className="text-zinc-200 font-mono">
+                {displayGameId ?? "unknown"}
+              </span>
               <br />
               Model{" "}
-              <span className="text-zinc-200 font-mono">{data.model_key}</span>
+              <span className="text-zinc-200 font-mono">
+                {data.model_key}
+              </span>
             </div>
             <div className="text-right text-[10px] text-zinc-500 space-y-0.5">
               <div>
@@ -121,7 +127,9 @@ export default function InsightsPanel() {
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-zinc-400">{insight.detail}</p>
+                  <p className="text-[11px] text-zinc-400">
+                    {insight.detail}
+                  </p>
                 </li>
               ))}
             </ul>

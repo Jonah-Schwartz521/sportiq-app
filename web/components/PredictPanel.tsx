@@ -15,7 +15,7 @@ import {
 } from "@/lib/sport";
 
 export default function PredictPanel() {
-  // Which sport we are predicting (UI only — backend currently supports NBA games)
+  // Which sport we are predicting (UI only — backend currently supports NBA)
   const [sport, setSport] = useState<SportKey>("nba");
 
   // Metadata for dropdown
@@ -102,9 +102,46 @@ export default function PredictPanel() {
         return;
       }
 
-      // 🔥 Backend expects GET /predict_by_game_id?game_id=<number>
-      const res = await api.predict(finalId);
-      setResult(res);
+      // Raw response from backend (may have different key names)
+      const raw = await api.predict(finalId as number);
+      const anyRes = raw as any;
+
+      // 🔧 Normalize backend fields into the PredictResponse shape
+      const normalized: PredictResponse = {
+        game_id:
+          anyRes.game_id ??
+          anyRes.event_id ??
+          finalId,
+        date: anyRes.date ?? anyRes.game_date ?? "Unknown date",
+        home_team:
+          anyRes.home_team ??
+          anyRes.home ??
+          anyRes.home_name ??
+          "Home",
+        away_team:
+          anyRes.away_team ??
+          anyRes.away ??
+          anyRes.away_name ??
+          "Away",
+        p_home:
+          typeof anyRes.p_home === "number"
+            ? anyRes.p_home
+            : typeof anyRes.prob_home === "number"
+            ? anyRes.prob_home
+            : typeof anyRes.home_prob === "number"
+            ? anyRes.home_prob
+            : 0,
+        p_away:
+          typeof anyRes.p_away === "number"
+            ? anyRes.p_away
+            : typeof anyRes.prob_away === "number"
+            ? anyRes.prob_away
+            : typeof anyRes.away_prob === "number"
+            ? anyRes.away_prob
+            : 0,
+      };
+
+      setResult(normalized);
     } catch (err: unknown) {
       console.error(err);
       const msg =
@@ -154,7 +191,7 @@ export default function PredictPanel() {
             value={selectedEventId === "" ? "" : String(selectedEventId)}
             onChange={(e) =>
               setSelectedEventId(
-                e.target.value ? Number(e.target.value) : ""
+                e.target.value ? Number(e.target.value) : "",
               )
             }
             className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs"
@@ -206,18 +243,23 @@ export default function PredictPanel() {
           <div>
             Game{" "}
             <span className="font-mono">
-              #{result.game_id} — {result.away_team} @ {result.home_team}
+              #{result.game_id} — {result.away_team || "Away"} @{" "}
+              {result.home_team || "Home"}
             </span>
           </div>
           <div>Date: {result.date}</div>
           <div>
             Home win prob:{" "}
             <span className="text-zinc-100">
-              {(result.p_home * 100).toFixed(1)}%
+              {Number.isFinite(result.p_home)
+                ? (result.p_home * 100).toFixed(1) + "%"
+                : "–"}
             </span>{" "}
             · Away win prob:{" "}
             <span className="text-zinc-100">
-              {(result.p_away * 100).toFixed(1)}%
+              {Number.isFinite(result.p_away)
+                ? (result.p_away * 100).toFixed(1) + "%"
+                : "–"}
             </span>
           </div>
         </div>
