@@ -13,6 +13,31 @@ import {
 import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
 import { buildTeamsById, teamLabelFromMap } from "@/lib/teams";
 
+// --- Probability helpers ---
+function isValidProb(p: number | null | undefined): p is number {
+  return typeof p === "number" && !Number.isNaN(p);
+}
+
+function safePercent(p: number | null | undefined): string {
+  if (!isValidProb(p)) return "–";
+  return `${(p * 100).toFixed(1)}%`;
+}
+
+function parseApiError(
+  err: unknown,
+  notFoundMessage: string,
+  defaultMessage: string,
+): string {
+  if (err instanceof Error) {
+    // Our api wrapper throws messages like "API /predict/nba failed: 404"
+    if (err.message.includes("404")) {
+      return notFoundMessage;
+    }
+    return err.message;
+  }
+  return defaultMessage;
+}
+
 export default function GameDetailPage() {
   const { eventId: eventIdParam } = useParams() as { eventId: string };
   const eventId = Number(eventIdParam);
@@ -40,12 +65,14 @@ export default function GameDetailPage() {
 
   const edgeCategory = useMemo(() => {
     if (!prediction) return null;
+    if (!isValidProb(prediction.p_home) || !isValidProb(prediction.p_away)) {
+      return null;
+    }
     const edge = Math.abs(prediction.p_home - prediction.p_away);
     if (edge < 0.05) return "COIN FLIP";
     if (edge < 0.15) return "MODEST EDGE";
     return "STRONG FAVORITE";
   }, [prediction]);
-
 
   // Color for the confidence bar based on edge strength
   const edgeFillClass = useMemo(() => {
@@ -77,16 +104,17 @@ export default function GameDetailPage() {
       "momentum",
     ]);
 
-  const canidates = insights.filter((ins) => {
-    // keep only preferred types and those that have some numeric strenth 
+    const candidates = insights.filter((ins) => {
       const hasValue = ins.value != null && !Number.isNaN(ins.value);
       return preferredTypes.has(ins.type) && hasValue;
-  });
-  const sorted = canidates.sort((a, b) => {
+    });
+
+    const sorted = candidates.sort((a, b) => {
       const va = a.value ?? 0;
       const vb = b.value ?? 0;
       return vb - va;
     });
+
     return sorted.slice(0, 3);
   }, [insights]);
 
@@ -119,8 +147,8 @@ export default function GameDetailPage() {
         if (!found) {
           setError("Game not found");
         }
-      } catch (error: unknown) {
-        console.error(error);
+      } catch (err: unknown) {
+        console.error(err);
         setError("Failed to load game");
       } finally {
         setLoading(false);
@@ -148,12 +176,17 @@ export default function GameDetailPage() {
 
         const result = await api.predict(event.event_id);
         setPrediction(result);
-      } catch (error: unknown) {
-        console.error(error);
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to load prediction";
+      } catch (err: unknown) {
+        // 404s here are expected when the model hasn't scored this game yet,
+        // so we treat them as a soft error and just show a friendly message.
+        if (process.env.NODE_ENV === "development") {
+          console.warn("Prediction API error", err);
+        }
+        const message = parseApiError(
+          err,
+          "No model prediction is available yet for this game.",
+          "Failed to load prediction",
+        );
         setPredError(message);
       } finally {
         setPredLoading(false);
@@ -174,10 +207,16 @@ export default function GameDetailPage() {
 
         const data = await api.insights(event.event_id);
         setInsights(data.insights || []);
-      } catch (error: unknown) {
-        console.error(error);
-        const message =
-          error instanceof Error ? error.message : "Failed to load insights";
+      } catch (err: unknown) {
+        // 404s here are also expected when we haven't generated insights yet.
+        if (process.env.NODE_ENV === "development") {
+          console.warn("Insights API error", err);
+        }
+        const message = parseApiError(
+          err,
+          "No insights are available yet for this game.",
+          "Failed to load insights",
+        );
         setInsightsError(message);
       } finally {
         setInsightsLoading(false);
@@ -187,343 +226,319 @@ export default function GameDetailPage() {
 
   const fallbackModelKey = "nba_logreg_b2b_v1";
 
-  // Derived percentages for convenience
-  const homeProbPct = prediction ? prediction.p_home * 100 : 0;
-  const awayProbPct = prediction ? prediction.p_away * 100 : 0;
+  const edge =
+    isValidProb(prediction?.p_home) && isValidProb(prediction?.p_away)
+      ? Math.abs(prediction!.p_home - prediction!.p_away)
+      : null;
+
+  const edgeWidthPct =
+    edge !== null ? Math.min(Math.max(edge * 200, 5), 100) : 0;
+
+  // ---------- Render ----------
 
   return (
     <main className="min-h-screen bg-black text-white flex justify-center px-4 py-10">
-      <div className="w-full max-w-4xl space-y-6">
-        {/* Header */}
-        <header className="flex items-center justify-between gap-2">
+      <div className="w-full max-w-5xl space-y-6">
+        {/* Back link */}
+        <div className="flex items-center justify-between">
           <Link
             href="/games"
-            className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+            className="text-xs text-zinc-400 hover:text-zinc-200 underline underline-offset-4"
           >
             ← Back to games
           </Link>
+        </div>
 
-          <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
-            Game Detail
-          </span>
-        </header>
-
-        {/* Errors / loading */}
-        {loading && <p className="text-sm text-zinc-500">Loading game…</p>}
-        {error && !loading && <p className="text-sm text-red-400">{error}</p>}
-        {!loading && !error && !event && (
-          <p className="text-sm text-zinc-500">Game not found.</p>
+        {/* Loading / error states */}
+        {loading && (
+          <p className="text-sm text-zinc-500">Loading game details…</p>
         )}
 
-        {event && (
-          <div className="space-y-6">
-            {/* ---- MATCHUP HEADER ---- */}
-            <section className="space-y-2">
+        {!loading && error && (
+          <div className="rounded-xl border border-red-800 bg-red-950/40 px-4 py-3">
+            <p className="text-sm text-red-300">{error}</p>
+          </div>
+        )}
+
+        {!loading && !error && !event && (
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3">
+            <p className="text-sm text-zinc-300">
+              This game could not be found in the schedule.
+            </p>
+          </div>
+        )}
+
+        {/* Main content when we have an event */}
+        {!loading && !error && event && (
+          <>
+            {/* Header: matchup + basics */}
+            <section className="rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-950 to-zinc-900 px-4 py-4 sm:px-6 sm:py-5 space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-xs text-zinc-400">
-                  <span>{sportIconFromId(event.sport_id)}</span>
-                  <span className="uppercase tracking-[0.16em]">
-                    {sportLabelFromId(event.sport_id)}
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">
+                    {sportIconFromId(event.sport_id)}
                   </span>
-                  <span className="inline-flex items-center rounded-full border border-zinc-700 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em]">
-                    {event.status || "scheduled"}
-                  </span>
+                  <div>
+                    <h1 className="text-lg sm:text-xl font-semibold text-zinc-50">
+                      {awayName} @ {homeName}
+                    </h1>
+                    <p className="text-xs text-zinc-400">
+                      {sportLabelFromId(event.sport_id)} · {event.date}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {edgeCategory && (
-                    <span className="inline-flex items-center rounded-full bg-zinc-900 border border-zinc-700 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-zinc-100">
+                <div className="hidden sm:flex flex-col items-end text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
+                  <span>GAME ID {event.event_id}</span>
+                  {prediction && (
+                    <span>MODEL {fallbackModelKey}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Confidence bar */}
+              {edge !== null && edgeCategory && (
+                <div className="mt-2">
+                  <div className="flex items-center justify-between text-[11px] text-zinc-400 mb-1">
+                    <span>Model confidence</span>
+                    <span className="font-medium text-zinc-200">
                       {edgeCategory}
                     </span>
-                  )}
-                  <span className="text-[10px] text-zinc-500">
-                    Event ID: {event.event_id}
-                  </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                    <div
+                      className={`h-full ${edgeFillClass} transition-all`}
+                      style={{ width: `${edgeWidthPct}%` }}
+                    />
+                  </div>
                 </div>
-              </div>
-
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-                <span className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
-                  <span className="truncate">{awayName}</span>
-                  <span className="text-zinc-500 text-base sm:text-lg">@</span>
-                  <span className="truncate">{homeName}</span>
-                </span>
-              </h1>
-
-              <p className="text-xs text-zinc-400">
-                {event.date} · {event.venue || "TBD"}
-              </p>
+              )}
             </section>
 
-            {/* ---- PREDICTION PANEL ---- */}
-            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-zinc-100">
-                  Model Prediction
-                </h2>
-                <div className="text-[10px] text-zinc-500 text-right space-y-0.5">
+            {/* Prediction + insights grid */}
+            <section className="grid gap-4 md:grid-cols-[1.4fr,1fr]">
+              {/* Prediction card */}
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 px-4 py-4 sm:px-5 sm:py-5 space-y-3">
+                <div className="flex items-center justify-between mb-1">
                   <div>
-                    Model:{" "}
-                    <span className="font-mono">{fallbackModelKey}</span>
+                    <h2 className="text-sm font-semibold text-zinc-100">
+                      Model prediction
+                    </h2>
+                    <p className="text-[11px] text-zinc-500">
+                      Probabilities are generated by your NBA baseline model.
+                    </p>
                   </div>
-                  <div>Generated: {generatedAt}</div>
+                  <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
+                    POST /predict/nba
+                  </span>
                 </div>
-              </div>
 
-              {predLoading && (
-                <p className="text-xs text-zinc-500">Loading prediction…</p>
-              )}
-              {predError && !predLoading && (
-                <p className="text-xs text-red-400">{predError}</p>
-              )}
+                {predLoading && (
+                  <p className="text-xs text-zinc-500">
+                    Loading model prediction…
+                  </p>
+                )}
 
-              {prediction && !predLoading && !predError && (
-                <>
-                  {/* Win probabilities summary */}
-                  <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 px-3 py-2 text-xs text-zinc-200 flex flex-col gap-2">
-                    <div className="flex justify-between">
-                      <span className="text-zinc-400">
-                        {homeName || "Home"} win prob
-                      </span>
-                      <span className="font-medium">
-                        {homeProbPct.toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-zinc-400">
-                        {awayName || "Away"} win prob
-                      </span>
-                      <span className="font-medium">
-                        {awayProbPct.toFixed(1)}%
-                      </span>
-                    </div>
+                {!predLoading && predError && (
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-950/80 px-3 py-2">
+                    <p className="text-xs text-zinc-300">{predError}</p>
                   </div>
+                )}
 
-                  {/* Confidence bar */}
-                  <div className="mt-2">
-                    <div className="flex justify-between items-center text-[10px] text-zinc-500 mb-1">
-                      <span>{awayName || "Away"} win</span>
-                      <span className="font-semibold text-zinc-200">
-                        {homeProbPct.toFixed(1)}% to home
-                      </span>
-                      <span>{homeName || "Home"} win</span>
-                    </div>
-                    <div className="relative h-1.5 rounded-full bg-zinc-800 overflow-hidden">
-                      <div
-                        className={`absolute inset-y-0 left-0 ${edgeFillClass}`}
-                        style={{ width: `${homeProbPct}%` }}
-                      />
-                    </div>
+                {!predLoading && !predError && !prediction && (
+                  <p className="text-xs text-zinc-500">
+                    No prediction yet. Try again after the model has scored this
+                    game.
+                  </p>
+                )}
 
-                  {/* Legend for confidence colors */}
-                    <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-zinc-500">
-                      <span className="inline-flex items-center gap-1">
-                        <span className="h-1.5 w-4 rounded-full bg-zinc-400" />
-                        <span>Coin flip</span>
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <span className="h-1.5 w-4 rounded-full bg-amber-400" />
-                        <span>Modest edge</span>
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <span className="h-1.5 w-4 rounded-full bg-emerald-500" />
-                        <span>Strong favorite</span>
-                      </span>
-                    </div>
-                  </div>
-
-
-                  {/* Quick Bet */}
-                  <div className="mt-3 border-t border-zinc-800 pt-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-xs font-semibold text-zinc-100">
-                        Quick Bet (demo)
-                      </h3>
-                      <p className="text-[10px] text-zinc-500">
-                        Select a side to see implied odds
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-2">
+                {!predLoading && !predError && prediction && (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Away side */}
                       <button
                         type="button"
-                        onClick={() => setSelectedSide("home")}
+                        onClick={() =>
+                          setSelectedSide((prev) =>
+                            prev === "away" ? null : "away",
+                          )
+                        }
                         className={
-                          "flex-1 rounded-lg border px-3 py-2 text-xs text-left " +
-                          (selectedSide === "home"
-                            ? "border-emerald-500/70 bg-emerald-500/10"
-                            : "border-zinc-700 bg-zinc-900/40 hover:border-zinc-500")
+                          "rounded-xl border px-3 py-2 text-left transition-colors " +
+                          (selectedSide === "away"
+                            ? "border-blue-400 bg-blue-500/10"
+                            : "border-zinc-800 bg-zinc-950/80 hover:border-zinc-700")
                         }
                       >
-                        <div className="flex justify-between gap-2">
-                          <span className="font-medium truncate">
-                            {homeName || "Home"}
-                          </span>
-                          <span className="text-[11px] text-zinc-400 text-right">
-                            {(prediction.p_home * 100).toFixed(1)}% ·{" "}
-                            {impliedOdds(prediction.p_home)}
+                        <div className="text-[11px] text-zinc-500 uppercase tracking-[0.16em]">
+                          Away
+                        </div>
+                        <div className="text-sm font-semibold text-zinc-50">
+                          {prediction.away_team || awayName || "Away"}
+                        </div>
+                        <div className="mt-1 text-[11px] text-zinc-400">
+                          Win prob:{" "}
+                          <span className="text-zinc-100">
+                            {safePercent(prediction.p_away)}
                           </span>
                         </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setSelectedSide("away")}
-                        className={
-                          "flex-1 rounded-lg border px-3 py-2 text-xs text-left " +
-                          (selectedSide === "away"
-                            ? "border-emerald-500/70 bg-emerald-500/10"
-                            : "border-zinc-700 bg-zinc-900/40 hover:border-zinc-500")
-                        }
-                      >
-                        <div className="flex justify-between gap-2">
-                          <span className="font-medium truncate">
-                            {awayName || "Away"}
-                          </span>
-                          <span className="text-[11px] text-zinc-400 text-right">
-                            {(prediction.p_away * 100).toFixed(1)}% ·{" "}
+                        <div className="text-[10px] text-zinc-500">
+                          Implied odds:{" "}
+                          <span className="font-mono">
                             {impliedOdds(prediction.p_away)}
                           </span>
                         </div>
                       </button>
+
+                      {/* Home side */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedSide((prev) =>
+                            prev === "home" ? null : "home",
+                          )
+                        }
+                        className={
+                          "rounded-xl border px-3 py-2 text-left transition-colors " +
+                          (selectedSide === "home"
+                            ? "border-blue-400 bg-blue-500/10"
+                            : "border-zinc-800 bg-zinc-950/80 hover:border-zinc-700")
+                        }
+                      >
+                        <div className="text-[11px] text-zinc-500 uppercase tracking-[0.16em]">
+                          Home
+                        </div>
+                        <div className="text-sm font-semibold text-zinc-50">
+                          {prediction.home_team || homeName || "Home"}
+                        </div>
+                        <div className="mt-1 text-[11px] text-zinc-400">
+                          Win prob:{" "}
+                          <span className="text-zinc-100">
+                            {safePercent(prediction.p_home)}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-zinc-500">
+                          Implied odds:{" "}
+                          <span className="font-mono">
+                            {impliedOdds(prediction.p_home)}
+                          </span>
+                        </div>
+                      </button>
                     </div>
 
-                    {selectedSide && prediction && (
-                      <p className="text-[11px] text-zinc-400">
-                        You&apos;ve selected{" "}
-                        <span className="text-zinc-100 font-medium">
-                          {selectedSide === "home"
-                            ? homeName || "Home"
-                            : awayName || "Away"}
-                        </span>{" "}
-                        with implied odds of{" "}
-                        <span className="text-zinc-100 font-mono">
-                          {selectedSide === "home"
-                            ? impliedOdds(prediction.p_home)
-                            : impliedOdds(prediction.p_away)}
+                    <div className="mt-2 text-[11px] text-zinc-500 flex flex-wrap items-center gap-2">
+                      <span>
+                        Generated at{" "}
+                        <span className="text-zinc-300">
+                          {new Date(generatedAt).toLocaleString()}
                         </span>
-                        . This is a demo only – no real bets placed.
-                      </p>
-                    )}
+                      </span>
+                      <span className="hidden sm:inline">·</span>
+                      <span>Model: {fallbackModelKey}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Insights card */}
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 px-4 py-4 sm:px-5 sm:py-5 space-y-3">
+                <div className="flex items-center justify-between mb-1">
+                  <div>
+                    <h2 className="text-sm font-semibold text-zinc-100">
+                      Why the model likes this side
+                    </h2>
+                    <p className="text-[11px] text-zinc-500">
+                      Top drivers pulled from your SHAP-based insights.
+                    </p>
                   </div>
-                </>
-              )}
-            </section>
+                  <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
+                    GET /insights/nba/{"{event_id}"}
+                  </span>
+                </div>
 
-            {/* ---- INSIGHTS PANEL ---- */}
-            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-4">
-              <h2 className="text-sm font-semibold text-zinc-100">Insights</h2>
+                {insightsLoading && (
+                  <p className="text-xs text-zinc-500">
+                    Loading insights for this game…
+                  </p>
+                )}
 
-              {insightsLoading && (
-                <p className="text-xs text-zinc-500">Loading insights…</p>
-              )}
-              {insightsError && !insightsLoading && (
-                <p className="text-xs text-red-400">{insightsError}</p>
-              )}
+                {!insightsLoading && insightsError && (
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-950/80 px-3 py-2">
+                    <p className="text-xs text-zinc-300">{insightsError}</p>
+                  </div>
+                )}
 
-              {insights &&
-                insights.length > 0 &&
-                !insightsLoading &&
-                !insightsError && (
-                  <div className="space-y-4">
-                    {/* Key Factors */}
-                    {keyFactors.length > 0 && (
-                      <div className="rounded-xl bg-zinc-900/70 border border-zinc-800 px-3 py-2">
-                        <h3 className="text-[11px] font-semibold text-zinc-100 mb-1">
-                          Key Factors (Top 3)
-                        </h3>
-                        <ul className="space-y-1.5">
-                          {keyFactors.map((ins, idx) => (
-                            <li key={`kf-${idx}`}>
-                              <div className="flex justify-between gap-2">
-                                <span className="font-medium text-zinc-100">
+                {!insightsLoading &&
+                  !insightsError &&
+                  (!insights || insights.length === 0) && (
+                    <p className="text-xs text-zinc-500">
+                      No insights are available yet for this game.
+                    </p>
+                  )}
+
+                {!insightsLoading &&
+                  !insightsError &&
+                  insights &&
+                  insights.length > 0 && (
+                    <div className="space-y-3">
+                      {keyFactors.length > 0 && (
+                        <div className="space-y-1">
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">
+                            Key factors
+                          </div>
+                          <ul className="space-y-1.5">
+                            {keyFactors.map((ins, idx) => (
+                              <li
+                                key={`${ins.type}-${ins.label}-${idx}`}
+                                className="flex items-start justify-between gap-2"
+                              >
+                                <div className="text-[11px] text-zinc-200">
                                   {ins.label}
-                                </span>
-                                {ins.value != null && (
-                                  <span className="text-[11px] text-zinc-400">
+                                  <span className="block text-[11px] text-zinc-500">
+                                    {ins.detail}
+                                  </span>
+                                </div>
+                                {typeof ins.value === "number" && (
+                                  <span className="text-[10px] text-zinc-400 font-mono">
                                     {(ins.value * 100).toFixed(1)}%
                                   </span>
                                 )}
-                              </div>
-                              <p className="text-[11px] text-zinc-400">
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      <div className="border-t border-zinc-800 pt-2 mt-2">
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-zinc-500 mb-1">
+                          Full explanation
+                        </div>
+                        <ul className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                          {insights.map((ins, idx) => (
+                            <li
+                              key={`${ins.type}-${ins.label}-full-${idx}`}
+                              className="text-[11px] text-zinc-300"
+                            >
+                              <span className="font-medium text-zinc-100">
+                                {ins.label}
+                              </span>
+                              {typeof ins.value === "number" && (
+                                <span className="ml-1 text-[10px] text-zinc-400 font-mono">
+                                  {(ins.value * 100).toFixed(1)}%
+                                </span>
+                              )}
+                              <span className="block text-zinc-400">
                                 {ins.detail}
-                              </p>
+                              </span>
                             </li>
                           ))}
                         </ul>
                       </div>
-                    )}
-
-                    {/* Full list */}
-                    <ul className="space-y-2 text-xs">
-                      {insights.map((insight, idx) => (
-                        <li key={idx} className="space-y-0.5">
-                          <div className="flex justify-between gap-2">
-                            <span className="font-medium text-zinc-100">
-                              {insight.label}
-                            </span>
-                            {insight.value != null && (
-                              <span className="text-[11px] text-zinc-400">
-                                {(insight.value * 100).toFixed(1)}%
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[11px] text-zinc-400">
-                            {insight.detail}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-              {(!insights || insights.length === 0) &&
-                !insightsLoading &&
-                !insightsError && (
-                  <p className="text-xs text-zinc-400">
-                    No insights available yet for this matchup.
-                  </p>
-                )}
+                    </div>
+                  )}
+              </div>
             </section>
-
-            {/* ---- EVENT INFO ---- */}
-            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
-              <h2 className="text-sm font-semibold text-zinc-100">
-                Event Info
-              </h2>
-
-              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 sm:gap-x-8 text-xs text-zinc-300 mt-2">
-                <div className="flex justify-between gap-4">
-                  <dt className="text-zinc-500">Sport</dt>
-                  <dd>{sportLabelFromId(event.sport_id)}</dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-zinc-500">Status</dt>
-                  <dd>{event.status || "scheduled"}</dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-zinc-500">Home</dt>
-                  <dd>{homeName}</dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-zinc-500">Away</dt>
-                  <dd>{awayName}</dd>
-                </div>
-              </dl>
-            </section>
-
-            {/* ---- RAW JSON ---- */}
-            <section className="rounded-2xl border border-zinc-900 bg-zinc-950/80 p-4">
-              <details className="text-xs text-zinc-400">
-                <summary className="cursor-pointer mb-1">
-                  Raw event JSON (debug)
-                </summary>
-                <pre className="mt-2 whitespace-pre-wrap break-all text-[10px]">
-                  {JSON.stringify(event, null, 2)}
-                </pre>
-              </details>
-            </section>
-          </div>
+          </>
         )}
       </div>
     </main>

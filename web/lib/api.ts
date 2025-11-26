@@ -39,16 +39,6 @@ export type PredictResponse = {
   p_away: number;
 };
 
-// Raw response shape from the new /predict/{sport} endpoint
-type PredictApiResponse = {
-  model_key: string;
-  win_probabilities: {
-    home: number;
-    away: number;
-  };
-  generated_at: string;
-};
-
 export type Insight = {
   type: string;
   label: string;
@@ -123,32 +113,16 @@ export const api = {
   eventById: (eventId: number) => getJSON<Event>(`/events/${eventId}`),
 
   // --- predictions ---
-  // Call FastAPI POST /predict/{sport} with {"event_id": <number>}
-  // and map it into the flat PredictResponse shape your UI expects.
-  predict: async (eventId: number): Promise<PredictResponse> => {
-    const raw = await postJSON<PredictApiResponse>("/predict/nba", {
-      // IMPORTANT: backend expects "event_id", not "game_id"
-      event_id: eventId,
-    });
-
-    // We no longer get team names / date from this endpoint.
-    // For now, fill what we can so existing UI keeps working.
-    return {
-      game_id: eventId,
-      date: "", // you can optionally wire this from events later
-      home_team: "", // same here – can be resolved from Event + Team data
-      away_team: "",
-      p_home: raw.win_probabilities.home,
-      p_away: raw.win_probabilities.away,
-    };
-  },
+  // Call FastAPI GET /predict_by_game_id?game_id=<number>
+  predict: (eventId: number) =>
+    getJSON<PredictResponse>(`/predict_by_game_id?game_id=${eventId}`),
 
   // recent-predictions endpoint for admin surface
   predictions: (limit: number = 20) =>
     getJSON<PredictionLogResponse>(`/predictions?limit=${limit}`),
 
   // --- insights ---
-  // wired to GET /insights/{sport}/{event_id}
+  // wired to GET /insights/{event_id}
   insights: (eventId: number) =>
     getJSON<{
       game_id?: number;
@@ -156,5 +130,5 @@ export const api = {
       model_key: string;
       generated_at: string;
       insights: Insight[];
-    }>(`/insights/nba/${eventId}`),
+    }>(`/insights/${eventId}`),
 };
