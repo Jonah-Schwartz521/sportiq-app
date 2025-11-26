@@ -103,7 +103,7 @@ export const api = {
   teams: () => getJSON<{ items: Team[] }>("/teams?limit=100"),
 
   // --- events (for games list, admin, etc.) ---
-  events: () => getJSON<{ items: Event[] }>("/events?limit=50"),
+  events: () => getJSON<{ items: Event[] }>("/events?limit=20000"),
 
   // used by PredictPanel and PredictionsPanel as a “picker” source
   eventsForPicker: () =>

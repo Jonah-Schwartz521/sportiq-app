@@ -7,6 +7,7 @@ import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
 import { buildTeamsById, teamLabelFromMap } from "@/lib/teams";
 
 type SportFilterId = "all" | 1 | 2 | 3 | 4 | 5;
+const YEARS = [2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015];
 
 // --- Date / year helpers ---
 function getYearFromDate(dateStr: string | null | undefined): string | null {
@@ -22,28 +23,49 @@ export default function GamesPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedSport, setSelectedSport] = useState<SportFilterId>("all");
   const [yearFilter, setYearFilter] = useState<string>("all");
+  
 
-  // Fetch events + teams
-  useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        const [eventsRes, teamsRes] = await Promise.all([
-          api.events(),
-          api.teams(),
-        ]);
-        setEvents(eventsRes.items || []);
-        setTeams(teamsRes.items || []);
-      } catch (err: unknown) {
-        console.error(err);
-        const message =
-          err instanceof Error ? err.message : "Failed to load games";
-        setError(message);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+// 1) Fetch events + teams
+useEffect(() => {
+  (async () => {
+    try {
+      setLoading(true);
+      const [eventsRes, teamsRes] = await Promise.all([
+        api.events(),
+        api.teams(),
+      ]);
+      setEvents(eventsRes.items || []);
+      setTeams(teamsRes.items || []);
+    } catch (err: unknown) {
+      console.error(err);
+      const message =
+        err instanceof Error ? err.message : "Failed to load games";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  })();
+}, []);
+
+// 2) After events load, default to latest year (only once while filter is "all")
+useEffect(() => {
+  if (events.length === 0) return;
+  if (yearFilter !== "all") return;
+
+  const years = Array.from(
+    new Set(
+      events
+        .map((e) => getYearFromDate(e.date))
+        .filter((y): y is string => !!y)
+    )
+  ).sort(); // ["2015","2016",..., "2024"]
+
+  const latest = years[years.length - 1];
+  if (latest) {
+    setYearFilter(latest);
+  }
+}, [events, yearFilter]);
+  
 
   // Team lookup using shared helpers
   const teamsById = useMemo(() => buildTeamsById(teams), [teams]);
