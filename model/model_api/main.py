@@ -12,6 +12,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import sys
 
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+
+logger = logging.getLogger(__name__)
+
 
 
 # --- Create app ONCE and add CORS ---------------------------------
@@ -55,7 +64,7 @@ def load_games_table() -> pd.DataFrame:
     global GAMES_DF
     if GAMES_DF is None:
         path = PROCESSED_DIR / "processed_games_b2b_model.parquet"
-        print(f"Loading games table from {path} ...")
+        logger.info("Loading games table from %s ...", path)
         GAMES_DF = pd.read_parquet(path)
 
         # Ensure we have a stable game_id (if not already there)
@@ -66,6 +75,7 @@ def load_games_table() -> pd.DataFrame:
             )
             GAMES_DF["game_id"] = GAMES_DF.index.astype(int)
 
+        logger.info("Loaded games table with %d rows", len(GAMES_DF))
     return GAMES_DF
 
 
@@ -80,7 +90,7 @@ def build_team_lookups(df: pd.DataFrame) -> None:
     TEAM_NAME_TO_ID = {name: i + 1 for i, name in enumerate(sorted_names)}
     TEAM_ID_TO_NAME = {v: k for k, v in TEAM_NAME_TO_ID.items()}
 
-    print(f"Built team lookups for {len(TEAM_NAME_TO_ID)} NBA teams.")
+    logger.info("Built team lookups for %d NBA teams.", len(TEAM_NAME_TO_ID))
 
 def log_prediction_row(row: pd.Series, p_home: float, p_away: float) -> None:
     """Append a prediction to the in-memory log for admin/debug."""
@@ -128,6 +138,7 @@ class EventOut(BaseModel):
     venue: Optional[str] = None
     status: Optional[str] = None
     start_time: Optional[str] = None
+    has_prediction: bool = True
 
 
 class ListTeamsResponse(BaseModel):
@@ -163,9 +174,38 @@ class PredictionLogItem(BaseModel):
 class PredictionLogResponse(BaseModel):
     items: List[PredictionLogItem]
 
-# --- Insight helpers -----------------------------------------------
-import pandas as pd  # you already have this at the top
 
+class GameDebugRow(BaseModel):
+    game_id: int
+    data: Dict[str, Optional[float | str | int | bool]]
+
+@app.get("/debug/games/{game_id}", response_model=GameDebugRow)
+def debug_game_row(game_id: int) -> GameDebugRow:
+    games = load_games_table()
+    if "game_id" not in games.columns:
+        raise HTTPException(status_code=500, detail="game_id column missing in games table")
+
+    match = games[games["game_id"] == game_id]
+    if match.empty:
+        raise HTTPException(status_code=404, detail=f"No game found with game_id={game_id}")
+
+    row = match.iloc[0]
+
+    # convert to plain dict for JSON (strings, floats, etc.)
+    payload = {}
+    for col, val in row.items():
+        if isinstance(val, (pd.Timestamp, datetime)):
+            payload[col] = val.isoformat()
+        elif pd.isna(val):
+            payload[col] = None
+        else:
+            payload[col] = val.item() if hasattr(val, "item") else val
+
+    return GameDebugRow(
+        game_id=int(row["game_id"]),
+        data=payload,
+    )
+    
 
 # --- Insight helpers (NEW) -----------------------------------------
 
@@ -370,21 +410,27 @@ def startup_event():
     - Build team lookups
     - Load model artifact
     """
+    logger.info("Startup: loading games table, team lookups, and NBA model.")
     games = load_games_table()
     build_team_lookups(games)
     _ = load_nba_model()
-    print("Startup complete: games + model + lookups loaded.")
+    logger.info(
+        "Startup complete: games + model + lookups loaded (num_games=%d).",
+        len(games),
+    )
 
 
 # --- Core routes ---------------------------------------------------
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
+    logger.info("Health check requested.")
     games = load_games_table()
     try:
         artifact = load_nba_model()
         model_loaded = artifact is not None
     except Exception:
+        logger.exception("Error while loading NBA model during health check.")
         model_loaded = False
 
     return HealthResponse(
@@ -416,6 +462,7 @@ def list_events(limit: int = 50) -> ListEventsResponse:
         )
 
     subset = games.sort_values("date").head(limit)
+    logger.info("Listing %d events (requested limit=%d).", len(subset), limit)
 
     items: List[EventOut] = []
     for _, row in subset.iterrows():
@@ -429,6 +476,7 @@ def list_events(limit: int = 50) -> ListEventsResponse:
                 venue=None,
                 status="final",  # or use a real status column if you have one
                 start_time=None,
+                has_prediction=True,
             )
         )
 
@@ -467,9 +515,11 @@ def predict_by_game_id(game_id: int) -> PredictionResponse:
     """
     Predict home win probability for a game by its game_id.
     """
+    logger.info("Predict by game_id called for game_id=%s", game_id)
     games = load_games_table()
 
     if "game_id" not in games.columns:
+        logger.error("game_id column missing in games table during /predict_by_game_id.")
         raise HTTPException(
             status_code=500, detail="game_id column missing in games table"
         )
@@ -477,6 +527,7 @@ def predict_by_game_id(game_id: int) -> PredictionResponse:
     match = games[games["game_id"] == game_id]
 
     if match.empty:
+        logger.warning("No game found with game_id=%s", game_id)
         raise HTTPException(
             status_code=404,
             detail=f"No game found with game_id={game_id}",
@@ -485,6 +536,13 @@ def predict_by_game_id(game_id: int) -> PredictionResponse:
     row = match.iloc[0]
     p_home = predict_home_win_proba(row)
     p_away = 1.0 - p_home
+
+    logger.info(
+        "Prediction for game_id=%s -> p_home=%.3f, p_away=%.3f",
+        game_id,
+        p_home,
+        p_away,
+    )
 
     log_prediction_row(row, p_home, p_away)
 
@@ -509,6 +567,12 @@ def predict(
     Uses the pre-engineered features from the processed table.
     Also logs the prediction to RECENT_PREDICTIONS.
     """
+    logger.info(
+        "Predict by teams called for %s vs %s on %s",
+        home_team,
+        away_team,
+        game_date,
+    )
     games = load_games_table()
 
     # Filter by date and teams
@@ -521,6 +585,12 @@ def predict(
     candidates = games[mask]
 
     if candidates.empty:
+        logger.warning(
+            "No game found for %s %s vs %s",
+            game_date,
+            home_team,
+            away_team,
+        )
         raise HTTPException(
             status_code=404,
             detail=f"No game found for {game_date} {home_team} vs {away_team}",
@@ -531,6 +601,15 @@ def predict(
 
     p_home = predict_home_win_proba(row)
     p_away = 1.0 - p_home
+
+    logger.info(
+        "Prediction for %s vs %s on %s -> p_home=%.3f, p_away=%.3f",
+        home_team,
+        away_team,
+        game_date,
+        p_home,
+        p_away,
+    )
 
     # log it for the admin recent-predictions panel
     log_prediction_row(row, p_home, p_away)
@@ -558,15 +637,18 @@ def game_insights(game_id: int) -> InsightsResponse:
     - base win-probability insights (favorite / edge / home court)
     - feature-based insights from season, recent form, rest, B2B, last game
     """
+    logger.info("Insights requested for game_id=%s", game_id)
     games = load_games_table()
 
     if "game_id" not in games.columns:
+        logger.error("game_id column missing in games table during /insights.")
         raise HTTPException(
             status_code=500, detail="game_id column missing in games table"
         )
 
     match = games[games["game_id"] == game_id]
     if match.empty:
+        logger.warning("No game found with game_id=%s for /insights", game_id)
         raise HTTPException(
             status_code=404,
             detail=f"No game found with game_id={game_id}",
@@ -647,4 +729,9 @@ def game_insights(game_id: int) -> InsightsResponse:
 def list_predictions(limit: int = 20) -> PredictionLogResponse:
     """Return most recent logged predictions for admin/debug."""
     items = list(RECENT_PREDICTIONS)[:limit]
+    logger.info(
+        "Listing %d recent predictions (requested limit=%d).",
+        len(items),
+        limit,
+    )
     return PredictionLogResponse(items=items)
