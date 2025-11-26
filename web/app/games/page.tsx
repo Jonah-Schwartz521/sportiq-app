@@ -8,12 +8,20 @@ import { buildTeamsById, teamLabelFromMap } from "@/lib/teams";
 
 type SportFilterId = "all" | 1 | 2 | 3 | 4 | 5;
 
+// --- Date / year helpers ---
+function getYearFromDate(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
+  // assuming "YYYY-MM-DD" shape
+  return dateStr.slice(0, 4);
+}
+
 export default function GamesPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSport, setSelectedSport] = useState<SportFilterId>("all");
+  const [yearFilter, setYearFilter] = useState<string>("all");
 
   // Fetch events + teams
   useEffect(() => {
@@ -54,11 +62,32 @@ export default function GamesPage() {
     { id: 5, label: "UFC" },
   ];
 
-  // Apply selected sport filter
-  const visibleEvents =
-    selectedSport === "all"
-      ? events
-      : events.filter((e) => e.sport_id === selectedSport);
+  // Year options derived from events
+  const yearOptions = useMemo(() => {
+    const years = new Set<string>();
+    for (const e of events) {
+      const y = getYearFromDate(e.date);
+      if (y) years.add(y);
+    }
+    return Array.from(years).sort();
+  }, [events]);
+
+  // Apply sport + year filters
+  const visibleEvents = useMemo(() => {
+    let filtered = events;
+
+    if (selectedSport !== "all") {
+      filtered = filtered.filter((e) => e.sport_id === selectedSport);
+    }
+
+    if (yearFilter !== "all") {
+      filtered = filtered.filter(
+        (e) => getYearFromDate(e.date) === yearFilter,
+      );
+    }
+
+    return filtered;
+  }, [events, selectedSport, yearFilter]);
 
   return (
     <main className="min-h-screen bg-black text-white flex justify-center px-4 py-10">
@@ -88,24 +117,55 @@ export default function GamesPage() {
               </span>
             </>
           )}
+          {yearFilter !== "all" && (
+            <>
+              {" "}
+              in{" "}
+              <span className="uppercase tracking-[0.12em]">
+                {yearFilter}
+              </span>
+            </>
+          )}
         </p>
 
-        {/* Sport filter bar */}
-        <div className="flex flex-wrap gap-2 text-xs mb-2">
-          {sportFilters.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setSelectedSport(f.id)}
-              className={
-                "px-2 py-1 rounded-full border text-[11px] " +
-                (selectedSport === f.id
-                  ? "border-blue-500/80 bg-blue-500/10 text-blue-100"
-                  : "border-zinc-700 text-zinc-400 hover:border-zinc-500")
-              }
+        {/* Year + sport filters */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-2 text-xs">
+          {/* Year filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
+              Season
+            </span>
+            <select
+              value={yearFilter}
+              onChange={(e) => setYearFilter(e.target.value)}
+              className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs"
             >
-              {f.label}
-            </button>
-          ))}
+              <option value="all">All years</option>
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sport filter bar */}
+          <div className="flex flex-wrap gap-2 text-xs">
+            {sportFilters.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setSelectedSport(f.id)}
+                className={
+                  "px-2 py-1 rounded-full border text-[11px] " +
+                  (selectedSport === f.id
+                    ? "border-blue-500/80 bg-blue-500/10 text-blue-100"
+                    : "border-zinc-700 text-zinc-400 hover:border-zinc-500")
+                }
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Status */}
@@ -123,14 +183,15 @@ export default function GamesPage() {
             <Link
               key={e.event_id}
               href={`/games/${e.event_id}`}
+              prefetch={false}
               className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 flex flex-col gap-1 space-y-1 hover:border-zinc-600 hover:bg-zinc-900/60 hover:-translate-y-[1px] transition-all"
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-medium text-zinc-100 flex-1 min-w-0">
-                  <span className="block trunate">
+                  <span className="block truncate">
                     {teamLabel(e.home_team_id)} vs {teamLabel(e.away_team_id)}
+                  </span>
                 </span>
-              </span>
 
                 <span className="flex flex-wrap items-center gap-2 text-[10px] text-zinc-500 uppercase tracking-[0.16em] shrink-0">
                   <span>{sportIconFromId(e.sport_id)}</span>
