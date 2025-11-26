@@ -13,6 +13,11 @@ from pydantic import BaseModel
 import sys
 
 import logging
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+from model_api.db import SessionLocal
+from model_api.schemas import Event
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -452,20 +457,35 @@ def list_teams(limit: int = 100) -> ListTeamsResponse:
 
 
 @app.get("/events", response_model=ListEventsResponse)
-def list_events(limit: int = 50) -> ListEventsResponse:
-    """Return games as EventOut objects."""
+def list_events(
+    limit: int = 50,
+    year: int | None = None,
+) -> ListEventsResponse:
+    """Return a list of NBA events derived from the processed games table.
+
+    We ignore the Event ORM here and instead:
+    - pull games from the parquet via load_games_table()
+    - optionally filter by calendar year
+    - sort newest first
+    - map home/away team names to IDs using TEAM_NAME_TO_ID
+    """
     games = load_games_table()
 
-    if "game_id" not in games.columns:
-        raise HTTPException(
-            status_code=500, detail="game_id column missing in games table"
-        )
+    df = games
 
-    subset = games.sort_values("date").head(limit)
-    logger.info("Listing %d events (requested limit=%d).", len(subset), limit)
+    # Ensure date column is datetime-like
+    if not hasattr(df["date"], "dt"):
+        df = df.copy()
+        df["date"] = pd.to_datetime(df["date"])
+
+    if year is not None:
+        df = df[df["date"].dt.year == year]
+
+    # Newest games first, limited
+    df = df.sort_values(["date", "game_id"], ascending=[False, False]).head(limit)
 
     items: List[EventOut] = []
-    for _, row in subset.iterrows():
+    for _, row in df.iterrows():
         items.append(
             EventOut(
                 event_id=int(row["game_id"]),
@@ -474,13 +494,14 @@ def list_events(limit: int = 50) -> ListEventsResponse:
                 home_team_id=TEAM_NAME_TO_ID.get(str(row["home_team"])),
                 away_team_id=TEAM_NAME_TO_ID.get(str(row["away_team"])),
                 venue=None,
-                status="final",  # or use a real status column if you have one
+                status="final",
                 start_time=None,
-                has_prediction=True,
             )
         )
 
     return ListEventsResponse(items=items)
+    
+
 
 
 @app.get("/events/{event_id}", response_model=EventOut)

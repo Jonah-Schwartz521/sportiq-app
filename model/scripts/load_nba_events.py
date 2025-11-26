@@ -1,83 +1,104 @@
-# model/scripts/load_nba_events.py
+"""
+Load NBA events into the events table from data/processed/nba_schedule.csv.
 
-import csv
+This expects a CSV with at least:
+  - date
+  - sport_id
+
+Optionally:
+  - game_id (we'll reuse this as event_id if event_id is missing)
+  - event_id
+  - venue
+  - status
+"""
+
+from __future__ import annotations
+
 import sys
 from pathlib import Path
-from typing import Optional
 
-from sqlalchemy import delete
-from sqlalchemy.orm import Session
-
-# --- make sure the project root is on sys.path ---
-ROOT = Path(__file__).resolve().parent.parent
+# Ensure project root (the directory that contains model_api/) is on sys.path
+ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# ⬇️ import SessionLocal + Base + engine from your db module
-from model_api.db import SessionLocal, Base, engine
+import pandas as pd
+from sqlalchemy import delete
+
+from model_api.db import SessionLocal
 from model_api.schemas import Event
 
-
-# NOTE: your schedule file lives in data/processed/nba_schedule.csv
+# Path to the schedule CSV
 DATA_PATH = (
     Path(__file__)
     .resolve()
-    .parent
-    .parent
+    .parents[1]
     / "data"
     / "processed"
     / "nba_schedule.csv"
 )
 
-NBA_SPORT_ID = 1  # adjust if your NBA sport_id is different
 
-
-def clear_existing_nba_events(db: Session) -> None:
-  """Delete existing NBA events so we can reload fresh."""
-  stmt = delete(Event).where(Event.sport_id == NBA_SPORT_ID)
-  db.execute(stmt)
-  db.commit()
-
-
-def parse_int(value: str) -> Optional[int]:
-  value = value.strip()
-  if not value:
-    return None
-  return int(value)
+def clear_existing_nba_events(db) -> None:
+    """Delete existing NBA events (sport_id = 1) so we can reload cleanly."""
+    stmt = delete(Event).where(Event.sport_id == 1)
+    db.execute(stmt)
+    db.commit()
 
 
 def load_nba_events() -> None:
-  if not DATA_PATH.exists():
-    raise FileNotFoundError(f"Schedule file not found: {DATA_PATH}")
+    """Load NBA events from CSV into the events table."""
+    if not DATA_PATH.exists():
+        raise FileNotFoundError(f"Schedule file not found: {DATA_PATH}")
 
-  # ✅ make sure tables exist in the database
-  Base.metadata.create_all(bind=engine)
+    df = pd.read_csv(DATA_PATH)
+    print(f"Loaded {len(df)} rows from {DATA_PATH}")
 
-  db = SessionLocal()
-  try:
-    clear_existing_nba_events(db)
+    # Required columns for our CSV
+    required_cols = ["date", "sport_id"]
+    missing = [c for c in required_cols if c not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns in {DATA_PATH}: {missing}")
 
-    with DATA_PATH.open("r", newline="") as f:
-      reader = csv.DictReader(f)
-      rows = list(reader)
+    # Optional columns we might want for display/debug
+    for opt_col in ["venue", "status"]:
+        if opt_col not in df.columns:
+            df[opt_col] = ""
 
-    for row in rows:
-      event = Event(
-        event_id=int(row["event_id"]),
-        sport_id=int(row["sport_id"]),
-        date=row["date"],
-        home_team_id=parse_int(row["home_team_id"]),
-        away_team_id=parse_int(row["away_team_id"]),
-        venue=row.get("venue") or None,
-        status=row.get("status") or None,
-      )
-      db.add(event)
+    session = SessionLocal()
+    try:
+        clear_existing_nba_events(session)
 
-    db.commit()
-    print(f"Loaded {len(rows)} NBA events from {DATA_PATH}")
-  finally:
-    db.close()
+        count = 0
+        for _, row in df.iterrows():
+            # Decide what to use for event_id:
+            # 1) If CSV has event_id, use it.
+            # 2) Else, if CSV has game_id, use that.
+            # 3) Else, pass None and let DB autogenerate.
+            event_id_val = None
+            if "event_id" in df.columns and not pd.isna(row.get("event_id")):
+                event_id_val = int(row["event_id"])
+            elif "game_id" in df.columns and not pd.isna(row.get("game_id")):
+                event_id_val = int(row["game_id"])
+
+            ev = Event(
+                event_id=event_id_val,
+                sport_id=int(row["sport_id"]),
+                date=str(row["date"]),
+                home_team_id=None,  # you can wire IDs later if you add them
+                away_team_id=None,
+                venue=str(row.get("venue") or ""),
+                status=str(row.get("status") or ""),
+            )
+
+            session.add(ev)
+            count += 1
+
+        session.commit()
+        print(f"Loaded {count} NBA events from {DATA_PATH}")
+    finally:
+        session.close()
 
 
 if __name__ == "__main__":
-  load_nba_events()
+    load_nba_events()
