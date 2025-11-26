@@ -1,6 +1,15 @@
-# model_api/schemas.py
 
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import(
+    Column,
+    Integer, 
+    String, 
+    Boolean, 
+    Date, 
+    DateTime, 
+    ForeignKey, 
+    Float,
+) 
+
 from model_api.db import Base
 
 class Event(Base):
@@ -9,7 +18,11 @@ class Event(Base):
     event_id = Column(Integer, primary_key=True, index=True)
     sport_id = Column(Integer, index=True)
     date = Column(String)
-    home_team_id = Column(Integer, nullable=True)
-    away_team_id = Column(Integer, nullable=True)
+    home_team_id = Column(Integer, ForeignKey("teams.teams_id"), nullable=True)
+    away_team_id = Column(Integer, ForeignKey("teams.teams_id"), nullable=True)
     venue = Column(String, nullable=True)
     status = Column(String, nullable=True)
+
+    home_scores = Column(Integer, nullable=True)
+    away_scores = Column(Integer, nullable=True)
+    home_win = Column(Boolean, nullable=True)

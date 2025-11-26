@@ -10,6 +10,7 @@ Optionally:
   - event_id
   - venue
   - status
+  - home_pts / away_pts OR home_win
 """
 
 from __future__ import annotations
@@ -23,9 +24,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import pandas as pd
-from sqlalchemy import delete
+from sqlalchemy import delete, Table, Column, Integer
 
-from model_api.db import SessionLocal
+from model_api.db import SessionLocal, Base, engine
 from model_api.schemas import Event
 
 # Path to the schedule CSV
@@ -37,6 +38,27 @@ DATA_PATH = (
     / "processed"
     / "nba_schedule.csv"
 )
+
+
+def ensure_db_schema() -> None:
+    """Ensure the database schema (including events) exists.
+
+    We register a minimal `teams` table into the shared metadata so that
+    the foreign keys on Event.home_team_id / Event.away_team_id can
+    resolve cleanly, even though we are not yet populating a real
+    teams table. This lets SQLAlchemy create the events table without
+    raising NoReferencedTableError.
+    """
+    # If the teams table is not in metadata, register a minimal version.
+    if "teams" not in Base.metadata.tables:
+        Table(
+            "teams",
+            Base.metadata,
+            Column("teams_id", Integer, primary_key=True),
+        )
+
+    # Now create all tables known to this metadata (including events).
+    Base.metadata.create_all(bind=engine)
 
 
 def clear_existing_nba_events(db) -> None:
@@ -65,6 +87,8 @@ def load_nba_events() -> None:
         if opt_col not in df.columns:
             df[opt_col] = ""
 
+    # Make sure the events table (and others) exist before we try to delete/insert.
+    ensure_db_schema()
     session = SessionLocal()
     try:
         clear_existing_nba_events(session)
@@ -85,12 +109,11 @@ def load_nba_events() -> None:
                 event_id=event_id_val,
                 sport_id=int(row["sport_id"]),
                 date=str(row["date"]),
-                home_team_id=None,  # you can wire IDs later if you add them
+                home_team_id=None,  # can be wired later if you add team IDs
                 away_team_id=None,
                 venue=str(row.get("venue") or ""),
                 status=str(row.get("status") or ""),
             )
-
             session.add(ev)
             count += 1
 
