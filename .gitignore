@@ -35,4 +35,4 @@ env*/
 # Web
 web/.next/
 web/node_modules/
-web/.env.local
+web/.env.localmodel_api_db
