@@ -62,6 +62,12 @@ export type PredictionLogResponse = {
   items: PredictionLogItem[];
 };
 
+export type Metrics = {
+  num_games: number; 
+  accuracy: number; 
+  brier_score: number;
+};
+
 // -------------------------------------------------------------------
 
 async function getJSON<T>(path: string): Promise<T> {
@@ -120,6 +126,9 @@ export const api = {
   // recent-predictions endpoint for admin surface
   predictions: (limit: number = 20) =>
     getJSON<PredictionLogResponse>(`/predictions?limit=${limit}`),
+
+  // --- metrics ---
+  metrics: () => getJSON<Metrics>("/metrics"),
 
   // --- insights ---
   // wired to GET /insights/{event_id}
