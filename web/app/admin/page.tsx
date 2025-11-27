@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { api, type Team, type Event } from "@/lib/api";
+import { api, type Team, type Event, type Metrics } from "@/lib/api";
 import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
 import { buildTeamsById, teamLabelFromMap } from "@/lib/teams";
 import PredictPanel from "@/components/PredictPanel";
@@ -16,10 +16,32 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+  // Load model metrics (accuracy, Brier score, etc.)
+  useEffect(() => {
+    (async () => {
+      try {
+        const m = await api.metrics();
+        setMetrics(m);
+      } catch (err: unknown) {
+        console.error(err);
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Failed to load model metrics";
+        setMetricsError(message);
+      }
+    })();
+  }, []);
+
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [loadingEventDetail, setLoadingEventDetail] = useState(false);
   const [eventDetailError, setEventDetailError] = useState<string | null>(null);
+
+  const[showAll, setShowAll] = useState(false);
+  const MAX_PREVIEW = 20;
 
   // Load health, teams, events
   useEffect(() => {
@@ -44,6 +66,13 @@ export default function Home() {
       }
     })();
   }, []);
+
+  const visibleEvents = useMemo(() => {
+  if (!events) return [];
+    return showAll ? events : events.slice(0, MAX_PREVIEW);
+  }, [events, showAll]);
+
+
 
   // 🔹 Build team lookup + label helper (shared pattern with /games)
   const teamsById = useMemo(() => buildTeamsById(teams), [teams]);
@@ -86,41 +115,90 @@ export default function Home() {
           </p>
         </header>
 
-        {/* HEALTH */}
-        <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-5 py-4 flex items-center justify-between">
-          <div>
-            <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">
-              API Health
+        {/* HEALTH + MODEL METRICS */}
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-5 py-4 space-y-3">
+          {/* API health row */}
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">
+                API Health
+              </div>
+
+              {error ? (
+                <div className="text-red-400 text-sm mt-1">{error}</div>
+              ) : (
+                <div className="text-sm mt-1">
+                  /health →
+                  <span
+                    className={
+                      health === "ok"
+                        ? "text-emerald-400 font-medium ml-1"
+                        : "text-yellow-400 ml-1"
+                    }
+                  >
+                    {loading ? "loading..." : health}
+                  </span>
+                </div>
+              )}
             </div>
 
-            {error ? (
-              <div className="text-red-400 text-sm mt-1">{error}</div>
-            ) : (
-              <div className="text-sm mt-1">
-                /health →
-                <span
-                  className={
-                    health === "ok"
-                      ? "text-emerald-400 font-medium ml-1"
-                      : "text-yellow-400 ml-1"
-                  }
-                >
-                  {loading ? "loading..." : health}
-                </span>
-              </div>
-            )}
+            <span
+              className={
+                "h-2.5 w-2.5 rounded-full " +
+                (error
+                  ? "bg-red-500"
+                  : health === "ok"
+                  ? "bg-emerald-400"
+                  : "bg-zinc-500")
+              }
+            />
           </div>
 
-          <span
-            className={
-              "h-2.5 w-2.5 rounded-full " +
-              (error
-                ? "bg-red-500"
-                : health === "ok"
-                ? "bg-emerald-400"
-                : "bg-zinc-500")
-            }
-          />
+          {/* Model metrics row */}
+          <div className="border-t border-zinc-800 pt-3">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+              Model metrics
+            </div>
+
+            {metrics ? (
+              <div className="mt-2 grid grid-cols-3 gap-3 text-xs text-zinc-300">
+                <div>
+                  <div className="text-[10px] text-zinc-500 uppercase">
+                    Games evaluated
+                  </div>
+                  <div className="font-mono">
+                    {metrics.num_games.toLocaleString()}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[10px] text-zinc-500 uppercase">
+                    Accuracy
+                  </div>
+                  <div className="font-mono">
+                    {(metrics.accuracy * 100).toFixed(1)}%
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[10px] text-zinc-500 uppercase">
+                    Brier score
+                  </div>
+                  <div className="font-mono">
+                    {metrics.brier_score.toFixed(3)}
+                  </div>
+                </div>
+              </div>
+            ) : metricsError ? (
+              <p className="mt-2 text-xs text-zinc-500">
+                Metrics unavailable: {metricsError}
+              </p>
+            ) : (
+              <p className="mt-2 text-xs text-zinc-500">
+                Loading model metrics…
+              </p>
+            )}
+          </div>
         </section>
 
         {/* TEAMS + EVENTS */}
@@ -179,53 +257,68 @@ export default function Home() {
                 No events returned from API.
               </p>
             ) : (
-              <ul className="space-y-1.5 text-xs text-zinc-300">
-                {events.map((e) => (
-                  <li key={e.event_id}>
-                    <div className="flex flex-col border-b border-zinc-900/60 pb-1 last:border-b-0 rounded-lg px-2 py-1 hover:bg-zinc-900/60 transition-colors">
-                      <div className="flex justify-between items-center">
-                        <span className="flex items-center gap-2">
-                          <span className="flex items-center gap-1 text-[10px] text-zinc-500">
-                            <span>{sportIconFromId(e.sport_id)}</span>
-                            <span className="uppercase tracking-[0.16em]">
-                              {sportLabelFromId(e.sport_id)}
+              <>
+                <ul className="space-y-1.5 text-xs text-zinc-300">
+                  {visibleEvents.map((e) => (
+                    <li key={e.event_id}>
+                      <div className="flex flex-col border-b border-zinc-900/60 pb-1 last:border-b-0 rounded-lg px-2 py-1 hover:bg-zinc-900/60 transition-colors">
+                        <div className="flex justify-between items-center">
+                          <span className="flex items-center gap-2">
+                            <span className="flex items-center gap-1 text-[10px] text-zinc-500">
+                              <span>{sportIconFromId(e.sport_id)}</span>
+                              <span className="uppercase tracking-[0.16em]">
+                                {sportLabelFromId(e.sport_id)}
+                              </span>
+                            </span>
+  
+                            <span className="truncate max-w-[120px] sm:max-w-[200px] block">
+                              {teamLabel(e.away_team_id)} @ {teamLabel(e.home_team_id)}
                             </span>
                           </span>
-                          
-                          <span className="truncate max-w-[120px] sm:max-w-[200px] block">
-                            {teamLabel(e.away_team_id)} @ {teamLabel(e.home_team_id)}
-                          </span>
-                        </span>
-
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-zinc-500">
-                            {e.status || "scheduled"}
-                          </span>
-                          <button
-                            className="text-[10px] px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700"
-                            onClick={() => handleViewEvent(e.event_id)}
-                          >
-                            View
-                          </button>
+  
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-zinc-500">
+                              {e.status || "scheduled"}
+                            </span>
+                            <button
+                              className="text-[10px] px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700"
+                              onClick={() => handleViewEvent(e.event_id)}
+                            >
+                              View
+                            </button>
+                          </div>
+                        </div>
+  
+                        <a
+                          href={`/games/${e.event_id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] text-blue-400 hover:text-blue-300 underline-offset-2 hover:underline"
+                        >
+                          Open fan view
+                        </a>
+  
+                        <div className="text-[10px] text-zinc-500">
+                          {e.date} · {e.venue || "TBD"}
                         </div>
                       </div>
-
-                      <a 
-                        href={`/games/${e.event_id}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[10px] text-blue-400 hover:text-blue-300 underline-offset-2 hover:underline"
-                      >
-                        Open fan view 
-                      </a>
-
-                      <div className="text-[10px] text-zinc-500">
-                        {e.date} · {e.venue || "TBD"}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                    </li>
+                  ))}
+                </ul>
+                {events.length > MAX_PREVIEW && (
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAll((prev) => !prev)}
+                      className="text-[11px] text-blue-400 hover:text-blue-300 underline underline-offset-2"
+                    >
+                      {showAll
+                        ? "Collapse to recent games"
+                        : `View all ${events.length.toLocaleString()} games`}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </section>
