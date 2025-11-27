@@ -16,7 +16,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from model_api.db import SessionLocal
-from model_api.schemas import Event
+from model_api.schemas import Event, Prediction
 
 
 logging.basicConfig(
@@ -176,13 +176,36 @@ class PredictionLogItem(BaseModel):
     p_away: float
     created_at: str
 
+
 class PredictionLogResponse(BaseModel):
     items: List[PredictionLogItem]
+
+
+# --- Prediction History Models ---
+class PredictionHistoryItem(BaseModel):
+    game_id: int
+    date: str
+    home_team: str
+    away_team: str
+    p_home: float
+    p_away: float
+    home_win: int
+    model_pick: str  # "home" or "away"
+    is_correct: bool
+    edge: float
+
+class PredictionHistoryResponse(BaseModel):
+    items: List[PredictionHistoryItem]
 
 
 class GameDebugRow(BaseModel):
     game_id: int
     data: Dict[str, Optional[float | str | int | bool]]
+
+class MetricsResponse(BaseModel):
+    num_games: int
+    accuracy: float
+    brier_score: float
 
 @app.get("/debug/games/{game_id}", response_model=GameDebugRow)
 def debug_game_row(game_id: int) -> GameDebugRow:
@@ -567,6 +590,23 @@ def predict_by_game_id(game_id: int) -> PredictionResponse:
 
     log_prediction_row(row, p_home, p_away)
 
+    session: Session = SessionLocal()
+    try:
+        pred_row = Prediction(
+            game_id=int(row["game_id"]),
+            model_key="nba_logreg_b2b_v1",
+            p_home=float(p_home),
+            p_away=float(p_away),
+        )
+        session.add(pred_row)
+        session.commit()
+    except Exception:
+        # Don't blow up the API if logging fails; just log the error.
+        logger.exception("Failed to log prediction to DB for game_id=%s", game_id)
+        session.rollback()
+    finally:
+        session.close()
+
     return PredictionResponse(
         game_id=int(row["game_id"]),
         date=str(row["date"].date()),
@@ -756,3 +796,154 @@ def list_predictions(limit: int = 20) -> PredictionLogResponse:
         limit,
     )
     return PredictionLogResponse(items=items)
+
+
+@app.get("/prediction_history", response_model=PredictionHistoryResponse)
+def prediction_history(limit: int = 200) -> PredictionHistoryResponse:
+    """
+    Return per-game prediction history joined with ground truth.
+
+    For each game where:
+      - we have a logged prediction in the DB, and
+      - the games table has a home_win label,
+    we return the matchup, probabilities, actual result, and a correctness flag.
+    """
+    games = load_games_table()
+
+    if "game_id" not in games.columns or "home_win" not in games.columns:
+        raise HTTPException(
+            status_code=500,
+            detail="games table must include game_id and home_win columns for prediction history",
+        )
+
+    # index games by game_id for fast lookups
+    games_by_id = games.set_index("game_id")
+
+    session: Session = SessionLocal()
+    try:
+        # order by game_id descending as a simple proxy for recency,
+        # and cap to `limit` rows
+        preds: List[Prediction] = (
+            session.query(Prediction)
+            .order_by(Prediction.game_id.desc())
+            .limit(limit)
+            .all()
+        )
+    finally:
+        session.close()
+
+    items: List[PredictionHistoryItem] = []
+
+    for p in preds:
+        gid = p.game_id
+        if gid not in games_by_id.index:
+            continue
+
+        row = games_by_id.loc[gid]
+
+        # ground truth: 1 if home actually won, 0 otherwise
+        home_win = int(row["home_win"])
+
+        # predicted probabilities
+        p_home = float(p.p_home)
+        p_away = float(p.p_away)
+
+        # model pick at a 0.5 threshold
+        model_pick = "home" if p_home >= 0.5 else "away"
+        predicted_label = 1 if model_pick == "home" else 0
+        is_correct = predicted_label == home_win
+
+        edge = abs(p_home - p_away)
+
+        # date handling: if it's a Timestamp, convert to date string
+        date_val = row["date"]
+        if hasattr(date_val, "date"):
+            date_str = str(date_val.date())
+        else:
+            date_str = str(date_val)
+
+        items.append(
+            PredictionHistoryItem(
+                game_id=int(gid),
+                date=date_str,
+                home_team=str(row["home_team"]),
+                away_team=str(row["away_team"]),
+                p_home=p_home,
+                p_away=p_away,
+                home_win=home_win,
+                model_pick=model_pick,
+                is_correct=is_correct,
+                edge=edge,
+            )
+        )
+
+    return PredictionHistoryResponse(items=items)
+
+
+@app.get("/metrics", response_model=MetricsResponse)
+def metrics() -> MetricsResponse:
+    """
+    Compute simple accuracy + Brier score for all games
+    where we have both:
+      - a logged prediction in the DB
+      - a ground-truth home_win label in the games table
+    """
+    games = load_games_table()
+
+    if "game_id" not in games.columns or "home_win" not in games.columns:
+        raise HTTPException(
+            status_code=500,
+            detail="games table must include game_id and home_win columns for metrics",
+        )
+
+    # index games by game_id for fast lookups
+    games_by_id = games.set_index("game_id")
+
+    session: Session = SessionLocal()
+    try:
+        preds: List[Prediction] = session.query(Prediction).all()
+    finally:
+        session.close()
+
+    if not preds:
+        return MetricsResponse(num_games=0, accuracy=0.0, brier_score=0.0)
+
+    total = 0
+    num_correct = 0
+    brier_sum = 0.0
+
+    for p in preds:
+        gid = p.game_id
+        if gid not in games_by_id.index:
+            continue
+
+        row = games_by_id.loc[gid]
+
+        # ground truth: 1 if home actually won, 0 otherwise
+        home_win = int(row["home_win"])  # assumes 0/1 in your parquet
+
+        # predicted probability of home win
+        p_home = float(p.p_home)
+
+        # classification accuracy: did we pick the right side at 0.5 threshold?
+        predicted_label = 1 if p_home >= 0.5 else 0
+        if predicted_label == home_win:
+          num_correct += 1
+
+        # Brier score contribution
+        brier_sum += (p_home - home_win) ** 2
+
+        total += 1
+
+    if total == 0:
+        return MetricsResponse(num_games=0, accuracy=0.0, brier_score=0.0)
+
+    accuracy = num_correct / total
+    brier_score = brier_sum / total
+
+    return MetricsResponse(
+        num_games=total,
+        accuracy=accuracy,
+        brier_score=brier_score,
+    )
+

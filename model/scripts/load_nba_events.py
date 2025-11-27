@@ -27,7 +27,7 @@ import pandas as pd
 from sqlalchemy import delete, Table, Column, Integer
 
 from model_api.db import SessionLocal, Base, engine
-from model_api.schemas import Event
+from model_api.schemas import Event, Prediction
 
 # Path to the schedule CSV
 DATA_PATH = (
@@ -49,6 +49,9 @@ def ensure_db_schema() -> None:
     teams table. This lets SQLAlchemy create the events table without
     raising NoReferencedTableError.
     """
+    Event.__table__.create(bind=engine, checkfirst=True)
+    Prediction.__table__.create(bind=engine, checkfirst=True)
+
     # If the teams table is not in metadata, register a minimal version.
     if "teams" not in Base.metadata.tables:
         Table(
