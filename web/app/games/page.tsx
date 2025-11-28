@@ -7,7 +7,6 @@ import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
 import { buildTeamsById, teamLabelFromMap } from "@/lib/teams";
 
 type SportFilterId = "all" | 1 | 2 | 3 | 4 | 5;
-const YEARS = [2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015];
 
 // --- Date / year helpers ---
 function getYearFromDate(dateStr: string | null | undefined): string | null {
@@ -23,49 +22,47 @@ export default function GamesPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedSport, setSelectedSport] = useState<SportFilterId>("all");
   const [yearFilter, setYearFilter] = useState<string>("all");
-  
 
-// 1) Fetch events + teams
-useEffect(() => {
-  (async () => {
-    try {
-      setLoading(true);
-      const [eventsRes, teamsRes] = await Promise.all([
-        api.events(),
-        api.teams(),
-      ]);
-      setEvents(eventsRes.items || []);
-      setTeams(teamsRes.items || []);
-    } catch (err: unknown) {
-      console.error(err);
-      const message =
-        err instanceof Error ? err.message : "Failed to load games";
-      setError(message);
-    } finally {
-      setLoading(false);
+  // 1) Fetch events + teams
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        const [eventsRes, teamsRes] = await Promise.all([
+          api.events(),
+          api.teams(),
+        ]);
+        setEvents(eventsRes.items || []);
+        setTeams(teamsRes.items || []);
+      } catch (err: unknown) {
+        console.error(err);
+        const message =
+          err instanceof Error ? err.message : "Failed to load games";
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  // 2) After events load, default to latest year (only once while filter is "all")
+  useEffect(() => {
+    if (events.length === 0) return;
+    if (yearFilter !== "all") return;
+
+    const years = Array.from(
+      new Set(
+        events
+          .map((e) => getYearFromDate(e.date))
+          .filter((y): y is string => !!y),
+      ),
+    ).sort(); // ["2015","2016",..., "2024"]
+
+    const latest = years[years.length - 1];
+    if (latest) {
+      setYearFilter(latest);
     }
-  })();
-}, []);
-
-// 2) After events load, default to latest year (only once while filter is "all")
-useEffect(() => {
-  if (events.length === 0) return;
-  if (yearFilter !== "all") return;
-
-  const years = Array.from(
-    new Set(
-      events
-        .map((e) => getYearFromDate(e.date))
-        .filter((y): y is string => !!y)
-    )
-  ).sort(); // ["2015","2016",..., "2024"]
-
-  const latest = years[years.length - 1];
-  if (latest) {
-    setYearFilter(latest);
-  }
-}, [events, yearFilter]);
-  
+  }, [events, yearFilter]);
 
   // Team lookup using shared helpers
   const teamsById = useMemo(() => buildTeamsById(teams), [teams]);
@@ -143,9 +140,7 @@ useEffect(() => {
             <>
               {" "}
               in{" "}
-              <span className="uppercase tracking-[0.12em]">
-                {yearFilter}
-              </span>
+              <span className="uppercase tracking-[0.12em]">{yearFilter}</span>
             </>
           )}
         </p>
@@ -201,40 +196,67 @@ useEffect(() => {
 
         {/* Cards */}
         <div className="grid gap-4 sm:grid-cols-2">
-          {visibleEvents.map((e) => (
-            <Link
-              key={e.event_id}
-              href={`/games/${e.event_id}`}
-              prefetch={false}
-              className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 flex flex-col gap-1 space-y-1 hover:border-zinc-600 hover:bg-zinc-900/60 hover:-translate-y-[1px] transition-all"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium text-zinc-100 flex-1 min-w-0">
-                  <span className="block truncate">
-                    {teamLabel(e.home_team_id)} vs {teamLabel(e.away_team_id)}
+          {visibleEvents.map((e) => {
+            const isFinal =
+              e.home_score != null &&
+              e.away_score != null &&
+              e.home_win != null;
+
+            return (
+              <Link
+                key={e.event_id}
+                href={`/games/${e.event_id}`}
+                prefetch={false}
+                className="rounded-2xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 flex flex-col gap-1 space-y-1 hover:border-zinc-600 hover:bg-zinc-900/60 hover:-translate-y-[1px] transition-all"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-zinc-100 flex-1 min-w-0">
+                    <span className="block truncate">
+                      {teamLabel(e.away_team_id)} @ {teamLabel(e.home_team_id)}
+                    </span>
                   </span>
-                </span>
 
-                <span className="flex flex-wrap items-center gap-2 text-[10px] text-zinc-500 uppercase tracking-[0.16em] shrink-0">
-                  <span>{sportIconFromId(e.sport_id)}</span>
-                  <span>{sportLabelFromId(e.sport_id)}</span>
-                </span>
-              </div>
+                  <span className="flex flex-wrap items-center gap-2 text-[10px] text-zinc-500 uppercase tracking-[0.16em] shrink-0">
+                    <span>{sportIconFromId(e.sport_id)}</span>
+                    <span>{sportLabelFromId(e.sport_id)}</span>
+                  </span>
+                </div>
 
-              <div className="flex items-center justify-between text-[11px] text-zinc-400">
-                <span>
-                  {e.date} · {e.venue || "TBD"}
-                </span>
-                <span className="inline-flex items-center rounded-full border border-zinc-700 px-2 py-0.5 uppercase tracking-[0.16em] text-[9px] text-zinc-400">
-                  {e.status || "scheduled"}
-                </span>
-              </div>
+                {/* Date + status / final */}
+                <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                  <span>
+                    {e.date} ·{" "}
+                    {isFinal && e.away_score != null && e.home_score != null
+                      ? `${e.away_score}–${e.home_score}`
+                      : "TBD"}
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-zinc-700 px-2 py-0.5 uppercase tracking-[0.16em] text-[9px] text-zinc-400">
+                    {isFinal ? "final" : e.status || "scheduled"}
+                  </span>
+                </div>
 
-              <div className="mt-2 text-[11px] text-blue-400">
-                View win probability →
-              </div>
-            </Link>
-          ))}
+                {/* Final score strip for completed games */}
+                {isFinal && (
+                  <div className="mt-1 text-[11px] text-zinc-200 flex items-center justify-between gap-2">
+                    <span className="font-semibold truncate">
+                      {teamLabel(e.away_team_id)} {e.away_score} @{" "}
+                      {teamLabel(e.home_team_id)} {e.home_score}
+                    </span>
+                    <span className="inline-flex items-center rounded-full border border-zinc-700 px-2 py-0.5 uppercase tracking-[0.16em] text-[9px] text-zinc-300">
+                      {e.home_win ? "Home win" : "Away win"}
+                    </span>
+                  </div>
+                )}
+
+                {/* CTA */}
+                <div className="mt-2 text-[11px] text-blue-400">
+                  {isFinal
+                    ? "View box score + model view →"
+                    : "View win probability →"}
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </div>
     </main>

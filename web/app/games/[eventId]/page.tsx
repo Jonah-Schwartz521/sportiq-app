@@ -61,6 +61,11 @@ export default function GameDetailPage() {
 
   const [generatedAt] = useState(() => new Date().toISOString());
 
+  const isFinal =
+  event?.home_score != null &&
+  event?.away_score != null &&
+  event?.home_win != null;
+
   // ---------- Derived helpers ----------
 
   const edgeCategory = useMemo(() => {
@@ -118,12 +123,12 @@ export default function GameDetailPage() {
     return sorted.slice(0, 3);
   }, [insights]);
 
-  function impliedOdds(prob: number | null | undefined) {
-    if (!prob || prob <= 0) return "-";
-    return `${(1 / prob).toFixed(2)}x`;
-  }
+function impliedOdds(prob: number | null | undefined) {
+  if (!prob || prob <= 0) return "-";
+  return `${(1 / prob).toFixed(2)}x`;
+}
 
-  // ---------- Load event & teams ----------
+// ---------- Load event & teams ----------
 
   useEffect(() => {
     if (!eventIdParam || Number.isNaN(eventId)) return;
@@ -234,6 +239,21 @@ export default function GameDetailPage() {
   const edgeWidthPct =
     edge !== null ? Math.min(Math.max(edge * 200, 5), 100) : 0;
 
+  const predictionOutcome = useMemo(() => {
+    if (!event || !isFinal || !prediction) return null;
+    if (!isValidProb(prediction.p_home) || !isValidProb(prediction.p_away)) {
+      return null;
+    }
+
+    const modelHomeWin = prediction.p_home >= prediction.p_away;
+    const correct = modelHomeWin === !!event.home_win;
+
+    return {
+      correct,
+      favoredSide: modelHomeWin ? "home" : "away",
+    } as const;
+  }, [event, isFinal, prediction]);
+
   // ---------- Render ----------
 
   return (
@@ -314,6 +334,28 @@ export default function GameDetailPage() {
                 </div>
               )}
             </section>
+
+            {/* Final score summary for completed games */}
+            {isFinal && (
+              <section className="rounded-2xl border border-zinc-800 bg-zinc-950/70 px-4 py-3 sm:px-6 sm:py-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+                    Final score
+                  </div>
+                  <span className="inline-flex items-center rounded-full border border-zinc-700 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-zinc-300">
+                    {event.home_win ? "Home win" : "Away win"}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between text-sm sm:text-base">
+                  <span className="font-medium text-zinc-100">
+                    {awayName}{" "}
+                    <span className="font-mono">{event.away_score}</span> @{" "}
+                    {homeName}{" "}
+                    <span className="font-mono">{event.home_score}</span>
+                  </span>
+                </div>
+              </section>
+            )}
 
             {/* Prediction + insights grid */}
             <section className="grid gap-4 md:grid-cols-[1.4fr,1fr]">
@@ -436,6 +478,34 @@ export default function GameDetailPage() {
                       <span className="hidden sm:inline">·</span>
                       <span>Model: {fallbackModelKey}</span>
                     </div>
+                    {isFinal && predictionOutcome && (
+                      <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/80 px-3 py-2 text-[11px] text-zinc-300">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="uppercase tracking-[0.16em] text-[10px] text-zinc-500">
+                            Outcome vs model
+                          </span>
+                          <span
+                            className={
+                              "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] " +
+                              (predictionOutcome.correct
+                                ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/60"
+                                : "bg-red-500/10 text-red-300 border border-red-500/60")
+                            }
+                          >
+                            {predictionOutcome.correct
+                              ? "Model was correct"
+                              : "Model was wrong"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-zinc-400">
+                          Pre-game, the model favored{" "}
+                          <span className="text-zinc-100 font-medium">
+                            {predictionOutcome.favoredSide === "home" ? homeName : awayName}
+                          </span>
+                          .
+                        </p>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

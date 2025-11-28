@@ -15,8 +15,9 @@ import sys
 import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from model_api.db import SessionLocal
-from model_api.schemas import Event, Prediction
+from sqlalchemy.exc import OperationalError
+from .db import SessionLocal
+from .schemas import Event, Prediction
 
 
 logging.basicConfig(
@@ -61,7 +62,8 @@ TEAM_NAME_TO_ID: Dict[str, int] = {}
 TEAM_ID_TO_NAME: Dict[int, str] = {}
 SPORT_ID_NBA = 1
 
-RECENT_PREDICTIONS: deque[PredictionLogItem] = deque(maxlen=200)
+# Will be assigned after PredictionLogItem is defined
+RECENT_PREDICTIONS = deque(maxlen=200)
 
 
 def load_games_table() -> pd.DataFrame:
@@ -145,6 +147,10 @@ class EventOut(BaseModel):
     start_time: Optional[str] = None
     has_prediction: bool = True
 
+    home_score: Optional[int] = None
+    away_score: Optional[int] = None
+    home_win: Optional[bool] = None
+
 
 class ListTeamsResponse(BaseModel):
     items: List[TeamOut]
@@ -175,6 +181,8 @@ class PredictionLogItem(BaseModel):
     p_home: float
     p_away: float
     created_at: str
+
+RECENT_PREDICTIONS: deque[PredictionLogItem]  # type: ignore
 
 
 class PredictionLogResponse(BaseModel):
@@ -481,19 +489,20 @@ def list_teams(limit: int = 100) -> ListTeamsResponse:
 
 @app.get("/events", response_model=ListEventsResponse)
 def list_events(
-    limit: int = 50,
+    limit: int | None = None,
     year: int | None = None,
 ) -> ListEventsResponse:
-    """Return a list of NBA events derived from the processed games table.
+    """
+    Return a list of NBA events derived from the processed games table.
 
     We ignore the Event ORM here and instead:
     - pull games from the parquet via load_games_table()
     - optionally filter by calendar year
     - sort newest first
     - map home/away team names to IDs using TEAM_NAME_TO_ID
+    - surface final scores + home_win flag when available
     """
     games = load_games_table()
-
     df = games
 
     # Ensure date column is datetime-like
@@ -505,10 +514,27 @@ def list_events(
         df = df[df["date"].dt.year == year]
 
     # Newest games first, limited
-    df = df.sort_values(["date", "game_id"], ascending=[False, False]).head(limit)
+    df = df.sort_values(["date", "game_id"], ascending=[False, False])
+    if limit is not None: 
+        df = df.head(limit)
 
     items: List[EventOut] = []
     for _, row in df.iterrows():
+        # Safely pull score + outcome columns if present
+        home_score = None
+        away_score = None
+        home_win = None
+
+        if "home_pts" in row and pd.notna(row["home_pts"]):
+            home_score = int(row["home_pts"])
+        if "away_pts" in row and pd.notna(row["away_pts"]):
+            away_score = int(row["away_pts"])
+        if "home_win" in row and not pd.isna(row["home_win"]):
+            try:
+                home_win = bool(int(row["home_win"]))
+            except (ValueError, TypeError):
+                home_win = None
+
         items.append(
             EventOut(
                 event_id=int(row["game_id"]),
@@ -519,6 +545,9 @@ def list_events(
                 venue=None,
                 status="final",
                 start_time=None,
+                home_score=home_score,
+                away_score=away_score,
+                home_win=home_win,
             )
         )
 
@@ -529,7 +558,7 @@ def list_events(
 
 @app.get("/events/{event_id}", response_model=EventOut)
 def get_event(event_id: int) -> EventOut:
-    """Return a single event by its id."""
+    """Return a single event by its id, including final score + outcome when available."""
     games = load_games_table()
 
     if "game_id" not in games.columns:
@@ -542,6 +571,21 @@ def get_event(event_id: int) -> EventOut:
         raise HTTPException(status_code=404, detail=f"No event found with id={event_id}")
 
     row = match.iloc[0]
+
+    home_score = None
+    away_score = None
+    home_win = None
+
+    if "home_pts" in row and pd.notna(row["home_pts"]):
+        home_score = int(row["home_pts"])
+    if "away_pts" in row and pd.notna(row["away_pts"]):
+        away_score = int(row["away_pts"])
+    if "home_win" in row and not pd.isna(row["home_win"]):
+        try:
+            home_win = bool(int(row["home_win"]))
+        except (ValueError, TypeError):
+            home_win = None
+
     return EventOut(
         event_id=int(row["game_id"]),
         sport_id=SPORT_ID_NBA,
@@ -551,6 +595,9 @@ def get_event(event_id: int) -> EventOut:
         venue=None,
         status="final",
         start_time=None,
+        home_score=home_score,
+        away_score=away_score,
+        home_win=home_win,
     )
 
 
@@ -887,13 +934,18 @@ def metrics() -> MetricsResponse:
     where we have both:
       - a logged prediction in the DB
       - a ground-truth home_win label in the games table
+
+    If the predictions table doesn't exist yet, we just return zeros
+    instead of throwing a 500.
     """
     games = load_games_table()
 
     if "game_id" not in games.columns or "home_win" not in games.columns:
         raise HTTPException(
             status_code=500,
-            detail="games table must include game_id and home_win columns for metrics",
+            detail=(
+                "games table must include game_id and home_win columns for metrics"
+            ),
         )
 
     # index games by game_id for fast lookups
@@ -901,7 +953,13 @@ def metrics() -> MetricsResponse:
 
     session: Session = SessionLocal()
     try:
-        preds: List[Prediction] = session.query(Prediction).all()
+        try:
+            preds: List[Prediction] = session.query(Prediction).all()
+        except OperationalError:
+            logger.exception(
+                "metrics(): predictions table missing; returning empty metrics."
+            )
+            return MetricsResponse(num_games=0, accuracy=0.0, brier_score=0.0)
     finally:
         session.close()
 
@@ -928,7 +986,7 @@ def metrics() -> MetricsResponse:
         # classification accuracy: did we pick the right side at 0.5 threshold?
         predicted_label = 1 if p_home >= 0.5 else 0
         if predicted_label == home_win:
-          num_correct += 1
+            num_correct += 1
 
         # Brier score contribution
         brier_sum += (p_home - home_win) ** 2

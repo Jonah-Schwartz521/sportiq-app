@@ -10,7 +10,7 @@ from sqlalchemy import(
     Float,
 ) 
 
-from model_api.db import Base
+from .db import Base
 from datetime import datetime
 
 class Event(Base):

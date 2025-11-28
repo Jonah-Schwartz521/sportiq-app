@@ -18,6 +18,9 @@ export type Event = {
   venue: string | null;
   status: string | null;
   start_time?: string | null;
+  home_score?: number | null;
+  away_score?: number | null;
+  home_win?: boolean | null;
 };
 
 // For places that just need a lightweight event (like pickers)
@@ -82,18 +85,17 @@ async function getJSON<T>(path: string): Promise<T> {
   return res.json();
 }
 
-async function postJSON<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+function buildQueryString(params?: Record<string, string | number | undefined>): string {
+  if (!params) return "";
+  const search = new URLSearchParams();
 
-  if (!res.ok) {
-    throw new Error(`API ${path} failed: ${res.status}`);
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null) continue;
+    search.set(key, String(value));
   }
 
-  return res.json();
+  const qs = search.toString();
+  return qs ? `?${qs}` : "";
 }
 
 export const api = {
@@ -108,12 +110,31 @@ export const api = {
   // --- teams ---
   teams: () => getJSON<{ items: Team[] }>("/teams?limit=100"),
 
-  // --- events (for games list, admin, etc.) ---
-  events: () => getJSON<{ items: Event[] }>("/events?limit=20000"),
+    // --- events (for games list, admin, etc.) ---
+  events: (opts?: { limit?: number; sport_id?: number; season?: number }) => {
+    const query = buildQueryString({
+      // if caller doesn't pass a limit, pull a big slice so we get all seasons
+      limit: opts?.limit ?? 20000,
+      sport_id: opts?.sport_id,
+      // map our front-end `season` option to the backend's `year` query param
+      year: opts?.season,
+    });
+
+    return getJSON<{ items: Event[] }>(`/events${query}`);
+  },
 
   // used by PredictPanel and PredictionsPanel as a “picker” source
-  eventsForPicker: () =>
-    getJSON<{ items: EventForPicker[] }>("/events?limit=50"),
+  eventsForPicker: (opts?: { limit?: number; sport_id?: number; season?: number }) => {
+    const query = buildQueryString({
+      // keep a small default limit for picker dropdowns
+      limit: opts?.limit ?? 50,
+      sport_id: opts?.sport_id,
+      // again, translate `season` to backend `year`
+      year: opts?.season,
+    });
+
+    return getJSON<{ items: EventForPicker[] }>(`/events${query}`);
+  },
 
   // --- single event ---
   eventById: (eventId: number) => getJSON<Event>(`/events/${eventId}`),
