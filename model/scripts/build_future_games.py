@@ -1,7 +1,10 @@
 # model/scripts/build_future_games.py
 
+from __future__ import annotations
+
 from pathlib import Path
 import sys
+
 import pandas as pd
 
 # Ensure project root is on sys.path so `import model...` works when running this file directly
@@ -9,15 +12,17 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
-from model.src.paths import PROCESSED_DIR
+from model.src.paths import PROCESSED_DIR  # type: ignore  # noqa
 
 RAW_ROOT = PROCESSED_DIR.parent / "raw" / "NBA_schedule_results"
 
 # Only treat these as "future" schedule seasons
 FUTURE_SEASONS = {"2025-26_NBA"}
 
+
 def load_future_schedule() -> pd.DataFrame:
-    all_rows = []
+    """Load the raw 2025-26 schedule from the HTML/.xls files."""
+    all_rows: list[pd.DataFrame] = []
 
     for season_dir in RAW_ROOT.iterdir():
         if not season_dir.is_dir():
@@ -38,7 +43,6 @@ def load_future_schedule() -> pd.DataFrame:
                     raise RuntimeError(f"No tables found in {xls_path}")
                 df_raw = tables[0]
 
-            # attach the season label, e.g. "2024-25_NBA"
             df_raw["_season_label"] = season_dir.name
             all_rows.append(df_raw)
 
@@ -70,8 +74,104 @@ def load_future_schedule() -> pd.DataFrame:
     return schedule
 
 
-def main():
-    # 1) Load existing processed games (with scores)
+def build_team_baselines(base: pd.DataFrame) -> pd.DataFrame:
+    """
+    Build a simple baseline win% per team using all historical games in `base`.
+
+    We compute:
+      - total games
+      - total wins (home + away)
+      - baseline_win_pct  (wins / games)
+
+    This will be used as a proxy for:
+      - home_season_win_pct / away_season_win_pct
+      - home_recent_win_pct_20g / away_recent_win_pct_20g
+    for purely future schedule rows.
+    """
+    hist = base.copy()
+
+    if "home_win" not in hist.columns:
+        raise RuntimeError("Expected 'home_win' column in base parquet.")
+
+    # Home side stats
+    home_stats = (
+        hist.groupby("home_team")["home_win"]
+        .agg(games_home="count", wins_home="sum")
+    )
+
+    # Away side stats: define away_win = 1 - home_win, grouped by away_team
+    hist["away_win"] = 1 - hist["home_win"]
+    away_stats = (
+        hist.groupby("away_team")["away_win"]
+        .agg(games_away="count", wins_away="sum")
+    )
+
+    # Combine home + away stats per franchise
+    team_stats = home_stats.join(away_stats, how="outer").fillna(0)
+
+    team_stats["games_total"] = team_stats["games_home"] + team_stats["games_away"]
+    team_stats["wins_total"] = team_stats["wins_home"] + team_stats["wins_away"]
+
+    # Avoid division by zero
+    team_stats["baseline_wp"] = 0.5  # default neutral
+    mask = team_stats["games_total"] > 0
+    team_stats.loc[mask, "baseline_wp"] = (
+        team_stats.loc[mask, "wins_total"] / team_stats.loc[mask, "games_total"]
+    )
+
+    print("Built team baselines for", len(team_stats), "teams.")
+    return team_stats[["baseline_wp"]]
+
+
+def add_rest_features(future: pd.DataFrame) -> pd.DataFrame:
+    """
+    For future schedule games, compute:
+      - home_days_rest / away_days_rest
+      - home_b2b / away_b2b
+    based purely on the schedule spacing.
+
+    For the first game of a season for a team, we just give them 5 'rest' days.
+    """
+    future = future.copy()
+    future["date"] = pd.to_datetime(future["date"])
+
+    future["home_days_rest"] = pd.NA
+    future["away_days_rest"] = pd.NA
+    future["home_b2b"] = 0
+    future["away_b2b"] = 0
+
+    teams = pd.unique(pd.concat([future["home_team"], future["away_team"]]))
+
+    for team in teams:
+        mask_team = (future["home_team"] == team) | (future["away_team"] == team)
+        sub = future.loc[mask_team].sort_values("date")
+
+        prev_date = None
+        for idx, row in sub.iterrows():
+            if prev_date is None:
+                days_rest = 5  # neutral default for first game
+            else:
+                days_rest = (row["date"] - prev_date).days
+
+            # Assign to home or away side for this game
+            if row["home_team"] == team:
+                future.at[idx, "home_days_rest"] = days_rest
+                future.at[idx, "home_b2b"] = 1 if days_rest <= 1 else 0
+            if row["away_team"] == team:
+                future.at[idx, "away_days_rest"] = days_rest
+                future.at[idx, "away_b2b"] = 1 if days_rest <= 1 else 0
+
+            prev_date = row["date"]
+
+    # Fill any remaining NA with a neutral value
+    future["home_days_rest"] = future["home_days_rest"].fillna(5)
+    future["away_days_rest"] = future["away_days_rest"].fillna(5)
+
+    return future
+
+
+def main() -> None:
+    # 1) Load existing processed games (with scores and full features)
     base_path = PROCESSED_DIR / "processed_games_with_scores.parquet"
     print("Loading base games from:", base_path)
     base = pd.read_parquet(base_path)
@@ -79,40 +179,87 @@ def main():
     print("Base seasons:", sorted(base["season"].unique()))
     print("Base date range:", base["date"].min(), "→", base["date"].max())
 
-    # Ensure date is datetime.date for consistent comparisons
-    base["date"] = pd.to_datetime(base["date"]).dt.date
+    base["date"] = pd.to_datetime(base["date"])
 
     # 2) Load future schedule
     future = load_future_schedule()
 
-    # Only keep games after the last historical date to avoid duplicates
-    last_hist_date = base["date"].max()
+    # Only keep games strictly after the last historical date
+    last_hist_date = base["date"].max().date()
     future = future[future["date"] > last_hist_date].copy()
     print("Future rows AFTER filtering > last_hist_date:", future.shape)
 
-    # 3) Align columns to base schema
+    if future.empty:
+        print("No future rows after last_hist_date; nothing to do.")
+        return
 
-    # existing columns in base
+    # 3) Build team baselines from historical data
+    team_baselines = build_team_baselines(base)
+
+    # 4) Start filling modeling features for future rows
+
+    # Represent date as datetime for consistency with base
+    future["date"] = pd.to_datetime(future["date"])
+
+    # Outcome columns: unknown for future games
+    future["home_pts"] = pd.NA
+    future["away_pts"] = pd.NA
+    future["home_win"] = pd.NA
+
+    # Season strength and recent form (use same baseline)
+    future = future.merge(
+        team_baselines.rename(columns={"baseline_wp": "home_season_win_pct"}),
+        left_on="home_team",
+        right_index=True,
+        how="left",
+    )
+    future = future.merge(
+        team_baselines.rename(columns={"baseline_wp": "away_season_win_pct"}),
+        left_on="away_team",
+        right_index=True,
+        how="left",
+    )
+
+    # Use same baseline as a proxy for "recent" 20-game form
+    future["home_recent_win_pct_20g"] = future["home_season_win_pct"]
+    future["away_recent_win_pct_20g"] = future["away_season_win_pct"]
+
+    # Last-game point differential is unknown → neutral 0
+    future["home_last_pd"] = 0.0
+    future["away_last_pd"] = 0.0
+
+    # 5) Rest and back-to-back flags from schedule spacing
+    future = add_rest_features(future)
+
+    # 6) Align columns to base schema
+
     base_cols = list(base.columns)
 
-    # We'll fill missing modeling features with NaN/None for now.
+    # Make sure all base columns exist in `future`
     for col in base_cols:
-        if col in {"game_id", "date", "start_et", "away_team", "home_team", "arena", "season"}:
-            continue
         if col not in future.columns:
-            future[col] = None
+            future[col] = pd.NA
 
-    # 4) Assign new game_ids
+    # 7) Assign new game_ids
+    if "game_id" not in base.columns:
+        # If base has no game_id yet, create one deterministically
+        base = base.sort_values(["date", "home_team", "away_team"]).reset_index(drop=True)
+        base["game_id"] = base.index.astype(int)
+        print("Assigned game_id to base rows.")
     max_game_id = int(base["game_id"].max())
     future["game_id"] = range(max_game_id + 1, max_game_id + 1 + len(future))
 
-    # Reorder columns to match base
+    # Ensure `game_id` is in columns list (in case it wasn't originally)
+    if "game_id" not in base_cols:
+        base_cols.append("game_id")
+
+    # Reorder to match base
     future = future[base_cols]
 
     print("Future sample:")
     print(future.head().to_dict(orient="records"))
 
-    # 5) Concatenate and write out
+    # 8) Concatenate and write out
     combined = pd.concat([base, future], ignore_index=True)
     combined["date"] = pd.to_datetime(combined["date"])
     out_path = PROCESSED_DIR / "games_with_scores_and_future.parquet"

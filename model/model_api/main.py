@@ -625,7 +625,18 @@ def predict_by_game_id(game_id: int) -> PredictionResponse:
         )
 
     row = match.iloc[0]
-    p_home = predict_home_win_proba(row)
+    row_for_model = row.fillna(0)
+
+    # Protect the model call so we see useful errors instead of a generic 500
+    try:
+        p_home = predict_home_win_proba(row_for_model)
+    except Exception as e:
+        logger.exception("Model prediction failed for game_id=%s", game_id)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Model prediction failed for game_id={game_id}: {e}",
+        )
+
     p_away = 1.0 - p_home
 
     logger.info(
@@ -706,8 +717,25 @@ def predict(
 
     # If multiple rows match, just pick the first for now
     row = candidates.iloc[0]
+    row_for_model = row.fillna(0)
 
-    p_home = predict_home_win_proba(row)
+    try:
+        p_home = predict_home_win_proba(row_for_model)
+    except Exception as e:
+        logger.exception(
+            "Model prediction failed for %s vs %s on %s",
+            home_team,
+            away_team,
+            game_date,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Model prediction failed for {game_date} "
+                f"{home_team} vs {away_team}: {e}"
+            ),
+        )
+
     p_away = 1.0 - p_home
 
     logger.info(
@@ -732,6 +760,23 @@ def predict(
         p_home=float(p_home),
         p_away=float(p_away),
     )
+
+# --- NBA-specific convenience routes for the web app ---------------
+
+class NBAPredictRequest(BaseModel):
+    game_id: int
+
+
+@app.post("/predict/nba", response_model=PredictionResponse)
+def predict_nba(req: NBAPredictRequest) -> PredictionResponse:
+    """
+    Thin wrapper so the web app can POST /predict/nba with a JSON body:
+      { "game_id": 12171 }
+
+    Internally just calls the existing predict_by_game_id() logic.
+    """
+    return predict_by_game_id(req.game_id)
+
 
 
 # --- Insights ------------------------------------------------------
@@ -763,9 +808,18 @@ def game_insights(game_id: int) -> InsightsResponse:
         )
 
     row = match.iloc[0]
+    row_for_model = row.fillna(0)
 
     # Use the same model as /predict_by_game_id
-    p_home = float(predict_home_win_proba(row))
+    try:
+        p_home = float(predict_home_win_proba(row_for_model))
+    except Exception as e:
+        logger.exception("Model prediction (for insights) failed for game_id=%s", game_id)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Model prediction failed for game_id={game_id} while building insights: {e}",
+        )
+
     p_away = float(1.0 - p_home)
 
     home_team = str(row["home_team"])
@@ -832,6 +886,16 @@ def game_insights(game_id: int) -> InsightsResponse:
         generated_at=datetime.utcnow().isoformat() + "Z",
         insights=insights,
     )
+
+
+@app.get("/insights/nba/{event_id}", response_model=InsightsResponse)
+def game_insights_nba(event_id: int) -> InsightsResponse:
+    """
+    Convenience wrapper for the web app expecting GET /insights/nba/{event_id}.
+    Reuses the core game_insights() implementation.
+    """
+    return game_insights(event_id)
+
 
 @app.get("/predictions", response_model=PredictionLogResponse)
 def list_predictions(limit: int = 20) -> PredictionLogResponse:
@@ -925,6 +989,8 @@ def prediction_history(limit: int = 200) -> PredictionHistoryResponse:
         )
 
     return PredictionHistoryResponse(items=items)
+
+
 
 
 @app.get("/metrics", response_model=MetricsResponse)
