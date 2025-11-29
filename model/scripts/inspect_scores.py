@@ -74,20 +74,20 @@ def main() -> None:
     print("\nAll columns:")
     print(raw.columns.tolist())
 
-    # Show a couple of sample rows
+    # Show a couple of sample rows:
     print("\nSample rows:")
     print(raw.head(5).to_dict(orient="records"))
 
-        # ---- Build a clean scores table from raw ----
+    # ---- Build a clean scores table from raw ----
     scores = raw.rename(
         columns={
             "Date": "date",
             "Visitor/Neutral": "away_team",
             "Home/Neutral": "home_team",
-            "PTS": "away_pts",
-            "PTS.1": "home_pts",
+            "PTS": "away_score",
+            "PTS.1": "home_score",
         }
-    )[["date", "away_team", "home_team", "away_pts", "home_pts"]].copy()
+    )[["date", "away_team", "home_team", "away_score", "home_score"]].copy()
 
     # Normalize date to just the calendar date (not weekday string)
     scores["date"] = pd.to_datetime(scores["date"]).dt.date
@@ -114,7 +114,7 @@ def main() -> None:
 
     # Merge scores into the processed table
     merged = processed.merge(
-        scores[["date_key", "home_team", "away_team", "home_pts", "away_pts"]],
+        scores[["date_key", "home_team", "away_team", "home_score", "away_score"]],
         on=["date_key", "home_team", "away_team"],
         how="left",
     )
@@ -123,7 +123,8 @@ def main() -> None:
     merged = merged.drop(columns=["date_key"])
 
     print("\nProcessed shape AFTER merge:", merged.shape)
-    print("Non-null home_pts rows:", merged["home_pts"].notna().sum())
+    print("Non-null home_score rows:", merged["home_score"].notna().sum())
+    print("Non-null away_score rows:", merged["away_score"].notna().sum())
 
     # Save to a new parquet so we don't destroy the original yet
     out_path = PROCESSED_DIR / "processed_games_with_scores.parquet"
@@ -133,5 +134,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
