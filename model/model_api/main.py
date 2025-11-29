@@ -70,7 +70,7 @@ def load_games_table() -> pd.DataFrame:
     """Load the processed B2B modeling table once."""
     global GAMES_DF
     if GAMES_DF is None:
-        path = PROCESSED_DIR / "processed_games_b2b_model.parquet"
+        path = PROCESSED_DIR / "games_with_scores_and_future.parquet"
         logger.info("Loading games table from %s ...", path)
         GAMES_DF = pd.read_parquet(path)
 
