@@ -127,45 +127,48 @@ export default async function HomePage() {
   const todayGames = await fetchTodayGames();
 
   return (
+    // Global layout: keep dark theme, add subtle vertical structure
     <main className="min-h-screen bg-black text-slate-100 flex flex-col">
       <div className="flex-1">
         {/* =========================
-            HERO SECTION (upgraded)
-           ========================= */}
-        <section className="relative pt-20 pb-16 sm:pt-24 sm:pb-20">
-          {/* Background glow + radial gradient */}
+            1. HERO SECTION
+            ========================= */}
+        <section className="relative pt-24 pb-20 sm:pt-28 sm:pb-24">
+          {/* Hero background: subtle radial + vertical gradient for premium AI feel */}
           <div
-            className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.25)_0,_rgba(15,23,42,0.1)_45%,_transparent_70%)]"
+            className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.25)_0,_rgba(15,23,42,0.3)_40%,_transparent_75%)]"
             aria-hidden="true"
           />
 
           <div className="relative mx-auto flex max-w-6xl flex-col gap-10 px-4 lg:flex-row lg:items-center lg:justify-between">
-            {/* Left: text */}
+            {/* Left: headline + copy */}
             <div className="max-w-xl text-center lg:text-left">
               <StatusPill />
 
-              <h1 className="mt-6 text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight">
+              {/* Headline hierarchy: bolder + more breathing room */}
+              <h1 className="mt-7 text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-tight">
                 <span className="bg-gradient-to-r from-slate-50 via-slate-100 to-slate-400 bg-clip-text text-transparent">
                   AI-powered sports predictions
                 </span>
               </h1>
 
-              <p className="mt-4 text-base sm:text-lg text-slate-400 max-w-xl mx-auto lg:mx-0">
+              <p className="mt-4 text-base sm:text-lg text-slate-400 max-w-xl mx-auto lg:mx-0 leading-relaxed">
                 Real-time win probabilities and model insights across NBA and
                 more. Built for fans, bettors, and data nerds who want the
                 numbers behind the game.
               </p>
 
+              {/* Primary + secondary CTAs with clear hierarchy */}
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
                 <Link
                   href="/games"
-                  className="rounded-full bg-blue-500 px-6 py-2.5 text-sm font-medium text-white shadow-[0_18px_45px_rgba(59,130,246,0.55)] transition hover:bg-blue-400 hover:shadow-[0_20px_55px_rgba(59,130,246,0.75)]"
+                  className="rounded-full bg-blue-500 px-7 py-3 text-sm font-semibold text-white shadow-[0_18px_45px_rgba(59,130,246,0.55)] transition hover:bg-blue-400 hover:shadow-[0_20px_55px_rgba(59,130,246,0.75)]"
                 >
                   View games
                 </Link>
                 <Link
                   href="/admin"
-                  className="rounded-full border border-slate-600 bg-slate-900/60 px-6 py-2.5 text-sm font-medium text-slate-100 transition hover:border-slate-400 hover:bg-slate-900"
+                  className="rounded-full border border-slate-600 bg-slate-950/70 px-7 py-3 text-sm font-medium text-slate-100 transition hover:border-slate-400 hover:bg-slate-900"
                 >
                   Admin surface
                 </Link>
@@ -177,23 +180,23 @@ export default async function HomePage() {
               </p>
             </div>
 
-            {/* Right: simple "data + sports" visual */}
+            {/* Right: refined "model snapshot" card with cleaner glow + spacing */}
             <div className="mx-auto w-full max-w-sm lg:mx-0">
-              <div className="relative rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-black to-slate-950 p-4 shadow-[0_30px_80px_rgba(15,23,42,0.9)]">
+              <div className="relative rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-black to-slate-950 p-5 shadow-[0_28px_70px_rgba(15,23,42,0.9)]">
                 {/* subtle overlay grid / glow */}
                 <div
-                  className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.2)_0,_transparent_55%),linear-gradient(to_bottom,_rgba(15,23,42,0.4),_rgba(15,23,42,0.9))]"
+                  className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.22)_0,_transparent_60%),linear-gradient(to_bottom,_rgba(15,23,42,0.5),_rgba(15,23,42,0.95))]"
                   aria-hidden="true"
                 />
 
                 <div className="relative space-y-4">
-                  {/* Mini win probability card */}
-                  <div className="rounded-2xl bg-black/70 p-3 border border-slate-800/80">
+                  {/* Mini win probability card – tighter spacing + clearer type */}
+                  <div className="rounded-2xl bg-black/80 p-3 border border-slate-800/80">
                     <div className="flex items-center justify-between text-[11px] text-slate-400">
                       <span>Tonight&apos;s edge</span>
                       <span className="text-sky-300">Model snapshot</span>
                     </div>
-                    <div className="mt-2 flex items-center justify-between text-xs text-slate-200">
+                    <div className="mt-2 flex items-center justify-between text-xs text-slate-100">
                       <span className="font-medium">Nuggets</span>
                       <span className="font-semibold text-sky-300">
                         64.5% win
@@ -202,15 +205,15 @@ export default async function HomePage() {
                     <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-900">
                       <div className="h-full w-[64%] rounded-full bg-gradient-to-r from-sky-400 to-emerald-400" />
                     </div>
-                    <p className="mt-1 text-[10px] text-slate-500">
-                      Implied odds:{" "}
-                      <span className="text-slate-200">1.55x</span>
+                    <p className="mt-1.5 text-[10px] text-slate-500">
+                      Implied edge:{" "}
+                      <span className="text-slate-200">+5–7% vs. 50/50</span>
                     </p>
                   </div>
 
-                  {/* Central IQ chip + sports icons */}
+                  {/* Central IQ chip + orbiting sport icons – cleaned up spacing */}
                   <div className="relative flex items-center justify-center py-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-sky-400/50 bg-slate-950 shadow-[0_0_35px_rgba(56,189,248,0.9)]">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-sky-400/60 bg-slate-950 shadow-[0_0_36px_rgba(56,189,248,0.9)]">
                       <span className="text-[11px] font-semibold tracking-tight text-sky-100">
                         IQ
                       </span>
@@ -218,13 +221,13 @@ export default async function HomePage() {
 
                     {/* orbiting emojis */}
                     <div className="pointer-events-none absolute inset-0">
-                      <div className="absolute -top-1 left-1/2 h-8 w-8 -translate-x-1/2 rounded-full border border-white/10 bg-black/70 text-[10px] text-center leading-8">
+                      <div className="absolute -top-1 left-1/2 h-8 w-8 -translate-x-1/2 rounded-full border border-white/10 bg-black/80 text-[11px] text-center leading-8">
                         🏀
                       </div>
-                      <div className="absolute left-1 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full border border-white/10 bg-black/70 text-[10px] text-center leading-8">
+                      <div className="absolute left-1 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full border border-white/10 bg-black/80 text-[11px] text-center leading-8">
                         🏈
                       </div>
-                      <div className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full border border-white/10 bg-black/70 text-[10px] text-center leading-8">
+                      <div className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full border border-white/10 bg-black/80 text-[11px] text-center leading-8">
                         🥊
                       </div>
                     </div>
@@ -246,10 +249,10 @@ export default async function HomePage() {
         </section>
 
         {/* =========================
-            FEATURES + BOARD + NEWS
-           ========================= */}
-        <section className="relative border-t border-slate-800/60 bg-gradient-to-b from-black to-slate-950/80">
-          <div className="mx-auto max-w-6xl px-4 py-10 space-y-10">
+            3–5. FEATURES + BOARD + NEWS
+            ========================= */}
+        <section className="relative border-t border-slate-800/70 bg-gradient-to-b from-black to-slate-950/85">
+          <div className="mx-auto max-w-6xl px-4 py-12 space-y-10 md:space-y-12">
             <FeatureRow />
 
             <div className="grid gap-8 items-start lg:grid-cols-[2fr,1.1fr]">
@@ -264,6 +267,7 @@ export default async function HomePage() {
 }
 
 function StatusPill() {
+  // Small live-status pill with subtle glow
   return (
     <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.4)]">
       <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -273,6 +277,7 @@ function StatusPill() {
 }
 
 function FeatureRow() {
+  // 3. Feature cards: consistent icons, padding, shadows, hover
   const features = [
     {
       title: "Accurate win probabilities",
@@ -375,13 +380,17 @@ function FeatureRow() {
       {features.map((f) => (
         <div
           key={f.title}
-          className="group rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-4 text-sm shadow-sm shadow-black/40 transition hover:border-sky-500/40 hover:shadow-[0_20px_40px_rgba(15,23,42,0.9)]"
+          className="group rounded-2xl border border-slate-800 bg-slate-950/75 px-5 py-5 text-sm shadow-sm shadow-black/40 transition hover:border-sky-500/50 hover:shadow-[0_20px_40px_rgba(15,23,42,0.95)]"
         >
-          <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-900/80">
+          <div className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-900/80">
             <span className={f.iconColor}>{f.icon}</span>
           </div>
-          <h3 className="text-slate-100 font-medium mb-1.5">{f.title}</h3>
-          <p className="text-slate-400 text-xs leading-relaxed">{f.body}</p>
+          <h3 className="text-slate-100 font-medium mb-1.5 text-[14px]">
+            {f.title}
+          </h3>
+          <p className="text-slate-400 text-[12px] leading-relaxed">
+            {f.body}
+          </p>
         </div>
       ))}
     </div>
@@ -391,11 +400,12 @@ function FeatureRow() {
 function TodayGamesPanel({ games }: { games: TodayGame[] }) {
   const hasGames = games && games.length > 0;
 
+  // 4. Today's board: feels like an analytics module with structured container
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 shadow-sm shadow-black/40">
-      <div className="flex items-center justify-between mb-3">
+    <div className="rounded-2xl border border-slate-800 bg-slate-950/85 p-5 shadow-sm shadow-black/40">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-sm font-medium text-slate-100">
+          <h2 className="text-sm font-semibold text-slate-100">
             Today&apos;s board
           </h2>
           <p className="text-xs text-slate-500">
@@ -411,14 +421,15 @@ function TodayGamesPanel({ games }: { games: TodayGame[] }) {
       </div>
 
       {!hasGames && (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-700 bg-black/60 px-4 py-6 text-center">
-          <div className="mb-2 text-2xl">📊</div>
-          <p className="text-xs text-slate-400">
+        // Improved empty state: icon + dotted border + better spacing
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-700 bg-black/70 px-5 py-7 text-center">
+          <div className="mb-3 text-2xl">📊</div>
+          <p className="text-xs text-slate-300">
             No games on today&apos;s slate yet.
           </p>
-          <p className="mt-1 text-[11px] text-slate-500">
-            Once there are games on the schedule, this board will auto-populate
-            from your API.
+          <p className="mt-1.5 text-[11px] text-slate-500 max-w-xs">
+            As soon as there are games on the calendar, this module will
+            auto-populate from your API.
           </p>
         </div>
       )}
@@ -435,7 +446,7 @@ function TodayGamesPanel({ games }: { games: TodayGame[] }) {
             return (
               <li
                 key={g.gameId}
-                className="rounded-xl border border-slate-800/80 bg-black/70 px-3 py-2.5 text-xs transition hover:border-sky-500/40 hover:bg-black/80"
+                className="rounded-xl border border-slate-800/80 bg-black/75 px-3 py-2.5 text-xs transition hover:border-sky-500/50 hover:bg-black/85"
               >
                 <Link href={`/games/${g.gameId}`} className="block">
                   <div className="flex items-center justify-between mb-1.5">
@@ -450,13 +461,14 @@ function TodayGamesPanel({ games }: { games: TodayGame[] }) {
                   </div>
 
                   <div className="flex gap-2 items-center">
+                    {/* Win probability bar */}
                     <div className="flex-1 h-1.5 rounded-full bg-slate-900 overflow-hidden">
                       <div
                         className="h-full bg-gradient-to-r from-sky-500 to-emerald-400"
                         style={{ width: `${homePct}%` }}
                       />
                     </div>
-                    <div className="flex flex-col items-end text-[11px] text-slate-400">
+                    <div className="flex flex-col items-end text-[11px] text-slate-400 leading-tight">
                       <span>Home {Math.round(pHome * 100)}%</span>
                       <span className="text-slate-600">
                         Away {Math.round(pAway * 100)}%
@@ -474,13 +486,22 @@ function TodayGamesPanel({ games }: { games: TodayGame[] }) {
 }
 
 function NewsPanel({ items }: { items: SportsNewsItem[] }) {
+  // Simple helper just for presentational league labels (still just styling)
+  const leagueLabel = (league: string) => {
+    if (league === "NBA") return "NBA • Hoops";
+    if (league === "NFL") return "NFL • Gridiron";
+    if (league === "UFC") return "UFC • Fight night";
+    return league;
+  };
+
+  // 5. Latest sports buzz: clean news widget with clearer hierarchy
   return (
-    <aside className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 shadow-sm shadow-black/40">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-medium text-slate-100">
+    <aside className="rounded-2xl border border-slate-800 bg-slate-950/85 p-5 shadow-sm shadow-black/40">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-semibold text-slate-100">
           Latest sports buzz
         </h2>
-        <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] text-slate-400">
+        <span className="rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] text-slate-400">
           Model stories
         </span>
       </div>
@@ -488,12 +509,18 @@ function NewsPanel({ items }: { items: SportsNewsItem[] }) {
         {items.map((item) => (
           <li
             key={item.id}
-            className="rounded-xl border border-slate-800/70 bg-black/70 px-3 py-2.5"
+            className="rounded-xl border border-slate-800/70 bg-black/75 px-3 py-2.5"
           >
-            <div className="mb-1 flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-wide text-slate-400">
-                {item.league}
-              </span>
+            <div className="mb-1.5 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                {/* Sport label with tiny icon-style feel */}
+                <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                  {item.league}
+                </span>
+                <span className="text-[9px] text-slate-500">
+                  {leagueLabel(item.league)}
+                </span>
+              </div>
               <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] text-slate-400">
                 {item.timestamp}
               </span>
