@@ -21,6 +21,10 @@ export type Event = {
   home_score?: number | null;
   away_score?: number | null;
   home_win?: boolean | null;
+  model_home_win_prob?: number | null;
+  model_away_win_prob?: number | null;
+  model_home_american_odds?: number | null;
+  model_away_american_odds?: number | null;
 };
 
 // For places that just need a lightweight event (like pickers)
