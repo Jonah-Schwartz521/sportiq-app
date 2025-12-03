@@ -150,6 +150,10 @@ class EventOut(BaseModel):
     home_score: Optional[int] = None
     away_score: Optional[int] = None
     home_win: Optional[bool] = None
+    model_home_win_prob: Optional[float] = None
+    model_away_win_prob: Optional[float] = None
+    model_home_american_odds: Optional[float] = None
+    model_away_american_odds: Optional[float] = None
 
 
 class ListTeamsResponse(BaseModel):
@@ -535,6 +539,27 @@ def list_events(
             except (ValueError, TypeError):
                 home_win = None
 
+        # Determine status based on whether we have final scores
+        if home_score is not None and away_score is not None:
+            status = "final"
+        else:
+            status = "scheduled"
+
+        # Safely pull model probability / odds columns if present
+        model_home_win_prob = None
+        model_away_win_prob = None
+        model_home_american_odds = None
+        model_away_american_odds = None
+
+        if "model_home_win_prob" in row and pd.notna(row["model_home_win_prob"]):
+            model_home_win_prob = float(row["model_home_win_prob"])
+        if "model_away_win_prob" in row and pd.notna(row["model_away_win_prob"]):
+            model_away_win_prob = float(row["model_away_win_prob"])
+        if "model_home_american_odds" in row and pd.notna(row["model_home_american_odds"]):
+            model_home_american_odds = float(row["model_home_american_odds"])
+        if "model_away_american_odds" in row and pd.notna(row["model_away_american_odds"]):
+            model_away_american_odds = float(row["model_away_american_odds"])
+
         items.append(
             EventOut(
                 event_id=int(row["game_id"]),
@@ -543,11 +568,15 @@ def list_events(
                 home_team_id=TEAM_NAME_TO_ID.get(str(row["home_team"])),
                 away_team_id=TEAM_NAME_TO_ID.get(str(row["away_team"])),
                 venue=None,
-                status="final",
+                status=status,
                 start_time=None,
                 home_score=home_score,
                 away_score=away_score,
                 home_win=home_win,
+                model_home_win_prob=model_home_win_prob,
+                model_away_win_prob=model_away_win_prob,
+                model_home_american_odds=model_home_american_odds,
+                model_away_american_odds=model_away_american_odds,
             )
         )
 
@@ -586,6 +615,27 @@ def get_event(event_id: int) -> EventOut:
         except (ValueError, TypeError):
             home_win = None
 
+    # Determine status based on whether we have final scores
+    if home_score is not None and away_score is not None:
+        status = "final"
+    else:
+        status = "scheduled"
+
+    # Safely pull model probability / odds columns if present
+    model_home_win_prob = None
+    model_away_win_prob = None
+    model_home_american_odds = None
+    model_away_american_odds = None
+
+    if "model_home_win_prob" in row and pd.notna(row["model_home_win_prob"]):
+        model_home_win_prob = float(row["model_home_win_prob"])
+    if "model_away_win_prob" in row and pd.notna(row["model_away_win_prob"]):
+        model_away_win_prob = float(row["model_away_win_prob"])
+    if "model_home_american_odds" in row and pd.notna(row["model_home_american_odds"]):
+        model_home_american_odds = float(row["model_home_american_odds"])
+    if "model_away_american_odds" in row and pd.notna(row["model_away_american_odds"]):
+        model_away_american_odds = float(row["model_away_american_odds"])
+
     return EventOut(
         event_id=int(row["game_id"]),
         sport_id=SPORT_ID_NBA,
@@ -593,11 +643,15 @@ def get_event(event_id: int) -> EventOut:
         home_team_id=TEAM_NAME_TO_ID.get(str(row["home_team"])),
         away_team_id=TEAM_NAME_TO_ID.get(str(row["away_team"])),
         venue=None,
-        status="final",
+        status=status,
         start_time=None,
         home_score=home_score,
         away_score=away_score,
         home_win=home_win,
+        model_home_win_prob=model_home_win_prob,
+        model_away_win_prob=model_away_win_prob,
+        model_home_american_odds=model_home_american_odds,
+        model_away_american_odds=model_away_american_odds,
     )
 
 
