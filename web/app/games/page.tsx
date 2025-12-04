@@ -7,6 +7,15 @@ import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
 import { buildTeamsById, teamLabelFromMap } from "@/lib/teams";
 import { TeamValueBadge } from "@/lib/logos";
 
+function getLocalISODate(date: Date = new Date()): string {
+  // Build YYYY-MM-DD using the local calendar date (no UTC conversion)
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+
 type SportFilterId = "all" | 1 | 2 | 3 | 4 | 5;
 
 // Format American odds for display (e.g. 182 -> "+182", -140 -> "-140")
@@ -22,11 +31,248 @@ function getYearFromDate(dateStr: string | null | undefined): string | null {
   return dateStr.slice(0, 4);
 }
 
+function formatReadableDate(dateStr: string | null): string | null {
+  if (!dateStr) return null;
+  const parts = dateStr.split("-").map((p) => parseInt(p, 10));
+  if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) {
+    return dateStr;
+  }
+  const [year, month, day] = parts;
+  const d = new Date(year, month - 1, day); // local date
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 // UI-only status helper, so we can style FINAL / LIVE / SCHEDULED
-function getEventStatus(e: Event, isFinal: boolean): "final" | "scheduled" | "live" {
+function getEventStatus(
+  e: Event,
+  isFinal: boolean,
+): "final" | "scheduled" | "live" {
   if (e.status === "in_progress" || e.status === "live") return "live";
   if (isFinal || e.status === "final") return "final";
   return "scheduled";
+}
+
+// Sport filter config shared by main page + summary
+const SPORT_FILTERS: { id: SportFilterId; label: string }[] = [
+  { id: "all", label: "All sports" },
+  { id: 1, label: "NBA" },
+  { id: 2, label: "MLB" },
+  { id: 3, label: "NFL" },
+  { id: 4, label: "NHL" },
+  { id: 5, label: "UFC" },
+];
+
+function getSportLabelFromFilterId(id: SportFilterId): string {
+  if (id === "all") return "All Sports";
+  const found = SPORT_FILTERS.find((f) => f.id === id);
+  return found?.label ?? "Sport";
+}
+
+// =========================
+// Subcomponent: SummaryBar
+// =========================
+interface SummaryBarProps {
+  selectedSport: SportFilterId;
+  visibleCount: number;
+  dateFilter: string | null;
+  yearFilter: string;
+}
+
+function SummaryBar({
+  selectedSport,
+  visibleCount,
+  dateFilter,
+  yearFilter,
+}: SummaryBarProps) {
+  const sportLabel = getSportLabelFromFilterId(selectedSport);
+
+  const dateLabel =
+    dateFilter != null
+      ? formatReadableDate(dateFilter)
+      : yearFilter !== "all"
+      ? `${yearFilter} season`
+      : "All dates";
+
+  return (
+    <section className="mt-1 rounded-2xl border border-zinc-900/80 bg-gradient-to-r from-zinc-950/90 via-black to-zinc-950/90 px-4 py-2.5 text-xs text-zinc-300 shadow-sm shadow-black/40">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-zinc-900/80 px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-zinc-300/90">
+            <span className="h-1.5 w-1.5 rounded-full bg-blue-400/80" />
+            {sportLabel}
+          </span>
+          <span className="text-[11px] text-zinc-400">
+            <span className="font-semibold text-zinc-100">
+              {visibleCount}
+            </span>{" "}
+            game{visibleCount === 1 ? "" : "s"}
+          </span>
+        </div>
+        <span className="text-[11px] text-zinc-500">
+          {dateLabel ?? ""}
+        </span>
+      </div>
+    </section>
+  );
+}
+
+// =========================
+// Subcomponent: Final score
+// =========================
+interface FinalScoreBlockProps {
+  homeTeam: string;
+  awayTeam: string;
+  homeScore: number;
+  awayScore: number;
+  homeIsWinner: boolean;
+  awayIsWinner: boolean;
+  homeWin: boolean | null;
+}
+
+function FinalScoreBlock({
+  homeTeam,
+  awayTeam,
+  homeScore,
+  awayScore,
+  homeIsWinner,
+  awayIsWinner,
+  homeWin,
+}: FinalScoreBlockProps) {
+  return (
+    <div className="mt-3 space-y-2 pl-1">
+      {/* Away row */}
+      <div
+        className={
+          "flex items-center justify-between gap-3 rounded-xl border px-3 py-2 transition-all duration-150 " +
+          (awayIsWinner
+            ? "border-emerald-500/70 bg-emerald-500/10 shadow-sm shadow-emerald-500/30"
+            : "border-zinc-800 bg-zinc-950/80")
+        }
+      >
+        <div className="flex flex-col">
+          <span className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">
+            Away
+          </span>
+          <span className="text-sm font-medium text-zinc-50">
+            {awayTeam}
+          </span>
+        </div>
+        <span className="text-2xl font-semibold text-zinc-50">
+          {awayScore}
+        </span>
+      </div>
+
+      {/* Home row */}
+      <div
+        className={
+          "flex items-center justify-between gap-3 rounded-xl border px-3 py-2 transition-all duration-150 " +
+          (homeIsWinner
+            ? "border-emerald-500/70 bg-emerald-500/10 shadow-sm shadow-emerald-500/30"
+            : "border-zinc-800 bg-zinc-950/80")
+        }
+      >
+        <div className="flex flex-col">
+          <span className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">
+            Home
+          </span>
+          <span className="text-sm font-medium text-zinc-50">
+            {homeTeam}
+          </span>
+        </div>
+        <span className="text-2xl font-semibold text-zinc-50">
+          {homeScore}
+        </span>
+      </div>
+
+      {homeWin !== null && (
+        <div className="flex justify-end">
+          <span className="inline-flex items-center gap-1 rounded-full border border-zinc-700/80 bg-zinc-900/80 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.16em] text-zinc-200">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            {homeWin ? "Home team won" : "Away team won"}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =========================
+// Subcomponent: Odds block
+// =========================
+interface OddsBlockProps {
+  homeTeam: string;
+  awayTeam: string;
+  homeValue: string | null;
+  awayValue: string | null;
+  oddsLabel: string | null;
+  modelHomeFormatted: string | null;
+  modelAwayFormatted: string | null;
+}
+
+function OddsBlock({
+  homeTeam,
+  awayTeam,
+  homeValue,
+  awayValue,
+  oddsLabel,
+  modelHomeFormatted,
+  modelAwayFormatted,
+}: OddsBlockProps) {
+  const showValueRow = homeValue !== null || awayValue !== null;
+
+  if (!showValueRow) return null;
+
+  return (
+    <div className="mt-3 space-y-2 pl-1">
+      {/* Away odds row */}
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          className="flex-1 rounded-full border border-zinc-700 bg-zinc-950/80 px-1 py-0.5 text-left text-xs text-zinc-100 shadow-sm shadow-black/40 transition-all duration-150 hover:border-blue-400 hover:bg-blue-500/10 hover:shadow-blue-500/30 active:scale-[0.97]"
+        >
+          <TeamValueBadge
+            teamName={awayTeam}
+            value={awayValue}
+            variant="odds"
+          />
+        </button>
+      </div>
+
+      {/* Home odds row */}
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          className="flex-1 rounded-full border border-zinc-700 bg-zinc-950/80 px-1 py-0.5 text-left text-xs text-zinc-100 shadow-sm shadow-black/40 transition-all duration-150 hover:border-blue-400 hover:bg-blue-500/10 hover:shadow-blue-500/30 active:scale-[0.97]"
+        >
+          <TeamValueBadge
+            teamName={homeTeam}
+            value={homeValue}
+            variant="odds"
+          />
+        </button>
+      </div>
+
+      <div className="flex flex-col items-end gap-1">
+        {oddsLabel && (homeValue || awayValue) && (
+          <span className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+            {oddsLabel}
+          </span>
+        )}
+        {/* Tiny secondary line to show model odds when sportsbook odds are present */}
+        {oddsLabel === "Sportsbook odds" &&
+          (modelHomeFormatted || modelAwayFormatted) && (
+            <span className="text-[10px] text-zinc-500">
+              Model: {modelAwayFormatted ?? "—"} /{" "}
+              {modelHomeFormatted ?? "—"}
+            </span>
+          )}
+      </div>
+    </div>
+  );
 }
 
 export default function GamesPage() {
@@ -49,7 +295,7 @@ export default function GamesPage() {
 
   // ✅ "Jump to today" helper – sets the calendar date to today and also moves Season to current year
   const handleJumpToToday = () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalISODate();
     setDateFilter(today);
     const year = today.slice(0, 4);
     setYearFilter(year);
@@ -58,12 +304,19 @@ export default function GamesPage() {
   // ✅ Date shift helper – move the current dateFilter backward/forward by N days
   // If no date is selected yet, we treat today as the starting point.
   const handleShiftDate = (deltaDays: number) => {
-    const baseDate = dateFilter ? new Date(dateFilter) : new Date();
-    if (Number.isNaN(baseDate.getTime())) return;
+    // Start from the current filter date if set; otherwise from today (local)
+    const baseStr = dateFilter ?? getLocalISODate();
+    const parts = baseStr.split("-").map((p) => parseInt(p, 10));
+    if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return;
 
+    const [year, month, day] = parts;
+    const baseDate = new Date(year, month - 1, day); // local midnight
     baseDate.setDate(baseDate.getDate() + deltaDays);
-    const shifted = baseDate.toISOString().slice(0, 10);
+
+    const shifted = getLocalISODate(baseDate);
     setDateFilter(shifted);
+    // Keep the season in sync with the shifted date
+    setYearFilter(String(baseDate.getFullYear()));
   };
 
   const scrollToTop = useCallback(() => {
@@ -75,7 +328,6 @@ export default function GamesPage() {
     if (typeof window === "undefined") return;
 
     const onScroll = () => {
-      // Show button after user has scrolled down a bit
       setShowScrollTop(window.scrollY > 400);
     };
 
@@ -110,7 +362,6 @@ export default function GamesPage() {
   }, []);
 
   // 2) After events load, default Season filter to latest year ("current season")
-  //    This runs only once while yearFilter is still "all".
   useEffect(() => {
     if (events.length === 0) return;
     if (yearFilter !== "all") return;
@@ -136,15 +387,8 @@ export default function GamesPage() {
     return teamLabelFromMap(teamsById, id);
   }
 
-  // Sport filter options
-  const sportFilters: { id: SportFilterId; label: string }[] = [
-    { id: "all", label: "All" },
-    { id: 1, label: "NBA" },
-    { id: 2, label: "MLB" },
-    { id: 3, label: "NFL" },
-    { id: 4, label: "NHL" },
-    { id: 5, label: "UFC" },
-  ];
+  // Sport filters (UI only)
+  const sportFilters: { id: SportFilterId; label: string }[] = SPORT_FILTERS;
 
   // Year options derived from events – for the Season dropdown
   const yearOptions = useMemo(() => {
@@ -156,16 +400,28 @@ export default function GamesPage() {
     return Array.from(years).sort();
   }, [events]);
 
-  // Team options derived from teams – for the Team dropdown
+  // Team options derived from teams – filtered by sport
   const teamOptions = useMemo(() => {
+    if (!teams.length) return [];
+
+    const filteredTeams =
+      selectedSport === "all"
+        ? teams
+        : teams.filter((t) => t.sport_id === selectedSport);
+
     const labels = new Set<string>();
-    for (const t of teams) {
+    for (const t of filteredTeams) {
       if (t.name) {
         labels.add(t.name);
       }
     }
     return Array.from(labels).sort();
-  }, [teams]);
+  }, [teams, selectedSport]);
+
+  // When sport changes, reset team filter so you don't get "empty" state from stale team
+  useEffect(() => {
+    setTeamFilter("all");
+  }, [selectedSport]);
 
   // ================================
   // Composed filtering logic (order)
@@ -205,23 +461,27 @@ export default function GamesPage() {
   }, [events, yearFilter, selectedSport, teamFilter, dateFilter]);
 
   const visibleCount = visibleEvents.length;
+  const isTeamDisabled = selectedSport === "all";
+  const teamLeagueLabel =
+    selectedSport === "all"
+      ? "All leagues"
+      : getSportLabelFromFilterId(selectedSport);
 
   return (
-    <main className="min-h-screen bg-black px-4 pb-10 pt-8 text-white">
-      <div className="mx-auto w-full max-w-6xl space-y-6">
+    <main className="min-h-screen bg-black px-4 pb-12 pt-7 text-white">
+      <div className="mx-auto w-full max-w-6xl space-y-5">
         {/* ========================= */}
         {/* 1. PAGE HEADER            */}
         {/* ========================= */}
-        <section className="rounded-2xl border border-slate-900 bg-gradient-to-b from-slate-950/90 to-black/90 px-5 py-5 shadow-sm shadow-black/40">
+        <section className="rounded-2xl border border-slate-900 bg-gradient-to-b from-slate-950/90 to-black/90 px-5 py-4 shadow-sm shadow-black/40">
           <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
                 Games
               </h1>
               <p className="mt-1 max-w-xl text-xs text-zinc-400 sm:text-sm">
-                Explore today&apos;s lines and historical results. Fan view
-                powered by the same API as{" "}
-                <span className="font-mono text-zinc-300">/admin</span>.
+                Browse live lines and historical results across leagues. Fan
+                view powered by your SportIQ models.
               </p>
             </div>
           </header>
@@ -230,12 +490,96 @@ export default function GamesPage() {
         {/* ========================= */}
         {/* 2. FILTER BAR             */}
         {/* ========================= */}
-        <section className="space-y-3 rounded-2xl border border-zinc-900/80 bg-black/90 px-4 py-3">
-          <div className="space-y-3">
-            {/* Main filter row */}
+        <section className="space-y-3 rounded-2xl border border-zinc-900/80 bg-black/90 px-4 py-3 shadow-sm shadow-black/40">
+          <div className="space-y-2.5">
+            {/* Tier 1: Date + Today + Sport pills */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              {/* Left: Season + Team */}
-              <div className="flex flex-wrap items-center gap-4 text-xs">
+              {/* Date controls */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  {/* Previous day */}
+                  <button
+                    type="button"
+                    onClick={() => handleShiftDate(-1)}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/90 text-xs text-zinc-300 shadow-sm shadow-black/30 transition-all duration-150 hover:border-blue-500 hover:bg-blue-500/10 hover:text-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 active:scale-95"
+                    aria-label="Previous day"
+                  >
+                    ←
+                  </button>
+
+                  {/* Calendar style date input */}
+                  <div className="relative flex items-center">
+                    <span className="pointer-events-none absolute left-2 text-[13px] text-zinc-500">
+                      📅
+                    </span>
+                    <input
+                      type="date"
+                      value={dateFilter ?? ""}
+                      onChange={(e) =>
+                        setDateFilter(
+                          e.target.value === "" ? null : e.target.value,
+                        )
+                      }
+                      className="min-w-[170px] rounded-full border border-zinc-700/80 bg-zinc-950 pl-7 pr-3 py-1.5 text-xs text-zinc-100 shadow-sm shadow-black/50 transition-all duration-150 focus:outline-none focus-visible:border-blue-500/80 focus-visible:ring-2 focus-visible:ring-blue-500/70"
+                    />
+                  </div>
+
+                  {/* Next day */}
+                  <button
+                    type="button"
+                    onClick={() => handleShiftDate(1)}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/90 text-xs text-zinc-300 shadow-sm shadow-black/30 transition-all duration-150 hover:border-blue-500 hover:bg-blue-500/10 hover:text-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 active:scale-95"
+                    aria-label="Next day"
+                  >
+                    →
+                  </button>
+
+                  {/* Today ghost-button */}
+                  <button
+                    type="button"
+                    onClick={handleJumpToToday}
+                    title="Jump to today"
+                    className="rounded-full border border-zinc-700/80 bg-transparent px-2.5 py-1 text-[11px] text-zinc-200 shadow-sm shadow-black/20 transition-all duration-150 hover:border-blue-500 hover:bg-blue-500/10 hover:text-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 active:scale-95"
+                  >
+                    Today
+                  </button>
+                </div>
+              </div>
+
+              {/* Sport pills */}
+              <div className="flex w-full items-center gap-2 sm:w-auto">
+                <div className="flex gap-2 overflow-x-auto py-1 text-[11px] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-zinc-800">
+                  {sportFilters.map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setSelectedSport(f.id)}
+                      aria-pressed={selectedSport === f.id}
+                      className={
+                        "shrink-0 rounded-full border px-3 py-1.5 text-xs shadow-sm transition-all duration-150 " +
+                        (selectedSport === f.id
+                          ? "border-blue-400 bg-blue-500/25 text-blue-50 shadow-blue-500/40 ring-1 ring-blue-500/60"
+                          : "border-zinc-700 bg-zinc-950/80 text-zinc-400 hover:border-zinc-500 hover:bg-zinc-900 hover:text-zinc-200 active:scale-95")
+                      }
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {f.id !== "all" && (
+                          <span className="text-[12px]">
+                            {sportIconFromId(f.id as number)}
+                          </span>
+                        )}
+                        <span>{f.label}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Tier 2: Season + Team + mini insight */}
+            <div className="flex flex-col gap-3 border-t border-zinc-800/80 pt-2.5 text-xs sm:flex-row sm:items-center sm:justify-between">
+              {/* Season + Team */}
+              <div className="flex flex-wrap items-center gap-4">
                 {/* Season selector */}
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
@@ -262,21 +606,36 @@ export default function GamesPage() {
 
                 {/* Team selector */}
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+                  <span className="flex items-center gap-1 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
                     Team
+                    <span className="inline-flex items-center gap-1 rounded-full bg-zinc-900/90 px-1.5 py-[2px] text-[9px] font-medium text-zinc-300">
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-400/80" />
+                      {teamLeagueLabel}
+                    </span>
                   </span>
                   <div className="relative inline-flex items-center">
                     <select
                       value={teamFilter}
                       onChange={(e) => setTeamFilter(e.target.value)}
-                      className="rounded-full border border-zinc-700/80 bg-zinc-950 px-3 py-1.5 pr-7 text-xs text-zinc-100 shadow-sm shadow-black/40 transition focus:outline-none focus-visible:border-blue-500/80 focus-visible:ring-2 focus-visible:ring-blue-500/70"
+                      disabled={isTeamDisabled}
+                      className={
+                        "rounded-full border px-3 py-1.5 pr-7 text-xs shadow-sm shadow-black/40 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 " +
+                        (isTeamDisabled
+                          ? "cursor-not-allowed border-zinc-800 bg-zinc-950/60 text-zinc-500"
+                          : "border-zinc-700/80 bg-zinc-950 text-zinc-100 focus-visible:border-blue-500/80")
+                      }
                     >
-                      <option value="all">All teams</option>
-                      {teamOptions.map((name) => (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
-                      ))}
+                      <option value="all">
+                        {isTeamDisabled
+                          ? "Select a sport to filter teams"
+                          : "All teams"}
+                      </option>
+                      {!isTeamDisabled &&
+                        teamOptions.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
                     </select>
                     <span className="pointer-events-none absolute right-2 text-[10px] text-zinc-500">
                       ⌄
@@ -285,187 +644,99 @@ export default function GamesPage() {
                 </div>
               </div>
 
-              {/* Middle: Date selector + Jump to today */}
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
-                  Date
-                </span>
-                <div className="flex items-center gap-2">
-                  {/* Previous day */}
-                  <button
-                    type="button"
-                    onClick={() => handleShiftDate(-1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/80 text-xs text-zinc-300 shadow-sm shadow-black/30 transition hover:border-blue-500 hover:text-blue-200"
-                    aria-label="Previous day"
-                  >
-                    ←
-                  </button>
-                  {/* Native date picker as a pill */}
-                  <input
-                    type="date"
-                    value={dateFilter ?? ""}
-                    onChange={(e) =>
-                      setDateFilter(
-                        e.target.value === "" ? null : e.target.value,
-                      )
-                    }
-                    className="min-w-[160px] rounded-full border border-zinc-700/80 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-100 shadow-sm shadow-black/40 transition focus:outline-none focus-visible:border-blue-500/80 focus-visible:ring-2 focus-visible:ring-blue-500/70"
-                  />
-                  {/* Next day */}
-                  <button
-                    type="button"
-                    onClick={() => handleShiftDate(1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/80 text-xs text-zinc-300 shadow-sm shadow-black/30 transition hover:border-blue-500 hover:text-blue-200"
-                    aria-label="Next day"
-                  >
-                    →
-                  </button>
-                  {/* Jump to today */}
-                  <button
-                    type="button"
-                    onClick={handleJumpToToday}
-                    className="rounded-full border border-zinc-700 bg-zinc-900/80 px-3 py-1 text-[11px] text-zinc-300 shadow-sm shadow-black/30 transition hover:border-blue-500 hover:bg-zinc-900 hover:text-blue-200"
-                  >
-                    Jump to today
-                  </button>
-                </div>
-              </div>
-
-              {/* Right: Sport chips */}
-              <div className="flex w-full items-center gap-2 sm:w-auto">
-                <span className="hidden text-[10px] uppercase tracking-[0.16em] text-zinc-500 sm:inline">
-                  Sport
-                </span>
-                <div className="flex gap-2 overflow-x-auto py-1 text-[11px] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-zinc-800">
-                  {sportFilters.map((f) => (
-                    <button
-                      key={f.id}
-                      onClick={() => setSelectedSport(f.id)}
-                      className={
-                        "shrink-0 rounded-full border px-3 py-1.5 shadow-sm transition " +
-                        (selectedSport === f.id
-                          ? "border-blue-500/80 bg-blue-500/15 text-blue-50 shadow-blue-500/30"
-                          : "border-zinc-700 bg-zinc-950/80 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200")
-                      }
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
+              {/* Mini insight (loading + errors handled below) */}
+              <div className="mt-1 flex flex-1 items-center justify-end gap-2 sm:mt-0">
+                {loading && (
+                  <span className="text-[10px] text-zinc-500">
+                    Loading games…
+                  </span>
+                )}
+                {error && (
+                  <span className="text-[10px] text-red-400">{error}</span>
+                )}
               </div>
             </div>
 
-            {/* Daily insights strip */}
-            <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-950/80 px-3 py-2 text-[11px] text-zinc-300">
-              <span>
-                Showing{" "}
-                <span className="font-semibold text-zinc-50">
-                  {visibleCount}
-                </span>{" "}
-                game{visibleCount === 1 ? "" : "s"}
-                {selectedSport !== "all" && (
-                  <>
-                    {" "}
-                    in{" "}
-                    <span className="uppercase tracking-[0.14em]">
-                      {
-                        sportFilters.find((f) => f.id === selectedSport)
-                          ?.label
-                      }
-                    </span>
-                  </>
-                )}
-                {yearFilter !== "all" && (
-                  <>
-                    {" "}
-                    for{" "}
-                    <span className="uppercase tracking-[0.14em]">
-                      {yearFilter}
-                    </span>
-                  </>
-                )}
-                {dateFilter && (
-                  <>
-                    {" "}
-                    on{" "}
-                    <span className="font-mono text-zinc-200">
-                      {dateFilter}
-                    </span>
-                  </>
-                )}
-              </span>
-
-              {loading && (
-                <span className="text-[10px] text-zinc-500">
-                  Loading games…
-                </span>
-              )}
-              {error && (
-                <span className="text-[10px] text-red-400">
-                  {error}
-                </span>
-              )}
-            </div>
-
+            {/* Empty-state helper message */}
             {!loading && !error && visibleEvents.length === 0 && (
-              <p className="text-[11px] text-zinc-500">
-                {dateFilter
-                  ? "No games scheduled for this date."
-                  : "No games available for the selected filters."}
-              </p>
+              <div className="mt-1 rounded-xl border border-zinc-800 bg-zinc-950/80 px-4 py-3 text-[11px] text-zinc-400">
+                <p className="font-medium text-zinc-200">No games found</p>
+                <p className="mt-1">
+                  Try changing the date, selecting a different sport, or clearing
+                  your team filter.
+                </p>
+              </div>
             )}
           </div>
         </section>
 
         {/* ========================= */}
-        {/* 3. GAME CARDS GRID        */}
+        {/* 3. SUMMARY BAR            */}
         {/* ========================= */}
-        <section>
+        <SummaryBar
+          selectedSport={selectedSport}
+          visibleCount={visibleCount}
+          dateFilter={dateFilter}
+          yearFilter={yearFilter}
+        />
+
+        {/* ========================= */}
+        {/* 4. GAME CARDS GRID        */}
+        {/* ========================= */}
+        <section className="pt-1">
           <div className="grid gap-5 sm:grid-cols-2">
             {visibleEvents.map((e) => {
               // Combine *_score with *_pts so 2025 games show as Final
-              const homeScore =
+              const homeScoreRaw =
                 (e as any).home_score ?? (e as any).home_pts ?? null;
-              const awayScore =
+              const awayScoreRaw =
                 (e as any).away_score ?? (e as any).away_pts ?? null;
 
-              const hasScores =
-                homeScore !== null && awayScore !== null;
+              const homeScore =
+                homeScoreRaw !== null ? Number(homeScoreRaw) : null;
+              const awayScore =
+                awayScoreRaw !== null ? Number(awayScoreRaw) : null;
 
-              // Treat as final if we have both scores
-              const isFinal = hasScores;
+              const hasScores =
+                homeScore !== null && awayScore !== null && !Number.isNaN(homeScore) &&
+                !Number.isNaN(awayScore);
+
+              const isFinal = hasScores || e.status === "final";
 
               // Determine homeWin from field or from scores
               const homeWin =
                 e.home_win != null
                   ? Boolean(e.home_win)
                   : hasScores
-                  ? homeScore > awayScore
+                  ? homeScore! > awayScore!
                   : null;
 
               const homeIsWinner = isFinal && homeWin === true;
               const awayIsWinner = isFinal && homeWin === false;
 
-              // Model odds (for scheduled games)
-              const homeAmericanOdds =
+              // --- Odds (for scheduled games) ---
+              const modelHomeOddsRaw =
                 (e as any).model_home_american_odds ?? null;
-              const awayAmericanOdds =
+              const modelAwayOddsRaw =
                 (e as any).model_away_american_odds ?? null;
 
-              const homeValue = isFinal
-                ? homeScore !== null
-                  ? String(homeScore)
-                  : null
-                : formatAmericanOdds(homeAmericanOdds);
+              const bookHomeOddsRaw =
+                (e as any).sportsbook_home_american_odds ?? null;
+              const bookAwayOddsRaw =
+                (e as any).sportsbook_away_american_odds ?? null;
 
-              const awayValue = isFinal
-                ? awayScore !== null
-                  ? String(awayScore)
-                  : null
-                : formatAmericanOdds(awayAmericanOdds);
+              const hasSportsbookOdds =
+                bookHomeOddsRaw !== null && bookAwayOddsRaw !== null;
 
-              const showValueRow =
-                isFinal || homeValue !== null || awayValue !== null;
+              const homeOddsToShow = hasSportsbookOdds
+                ? bookHomeOddsRaw
+                : modelHomeOddsRaw;
+              const awayOddsToShow = hasSportsbookOdds
+                ? bookAwayOddsRaw
+                : modelAwayOddsRaw;
+
+              const homeOddsFormatted = formatAmericanOdds(homeOddsToShow);
+              const awayOddsFormatted = formatAmericanOdds(awayOddsToShow);
 
               const status = getEventStatus(e, isFinal);
 
@@ -474,7 +745,7 @@ export default function GamesPage() {
                   ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-300"
                   : status === "live"
                   ? "border-red-500/70 bg-red-500/10 text-red-300"
-                  : "border-transparent bg-zinc-800 text-zinc-200";
+                  : "border-zinc-700/70 bg-zinc-900/70 text-zinc-200";
 
               const statusLabel =
                 status === "final"
@@ -483,12 +754,26 @@ export default function GamesPage() {
                   ? "Live"
                   : "Scheduled";
 
+              const oddsLabel = isFinal
+                ? null
+                : hasSportsbookOdds
+                ? "Sportsbook odds"
+                : "Model odds";
+
+              const modelHomeFormatted =
+                formatAmericanOdds(modelHomeOddsRaw);
+              const modelAwayFormatted =
+                formatAmericanOdds(modelAwayOddsRaw);
+
+              const homeTeamName = teamLabel(e.home_team_id);
+              const awayTeamName = teamLabel(e.away_team_id);
+
               return (
                 <Link
                   key={e.event_id}
                   href={`/games/${e.event_id}`}
                   prefetch={false}
-                  className="group relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-950/95 via-black to-zinc-950/90 px-6 py-5 shadow-sm shadow-black/60 transition-transform transition-colors hover:-translate-y-[2px] hover:border-blue-500/70 hover:shadow-blue-500/25"
+                  className="group relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-zinc-800/90 bg-gradient-to-br from-zinc-950/95 via-black to-zinc-950/90 px-5 py-4 shadow-sm shadow-black/60 transition-all duration-200 hover:-translate-y-[2px] hover:border-blue-500/70 hover:shadow-blue-500/25 active:scale-[0.99]"
                 >
                   {/* Vertical accent bar */}
                   <div className="pointer-events-none absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-blue-500 via-sky-500 to-transparent opacity-70" />
@@ -497,15 +782,15 @@ export default function GamesPage() {
                   <div className="flex items-start justify-between gap-3 pl-1">
                     <div className="min-w-0 flex-1">
                       {/* Matchup: main headline */}
-                      <h2 className="truncate text-sm font-semibold leading-snug text-zinc-50 sm:text-base">
-                        {teamLabel(e.away_team_id)}{" "}
+                      <h2 className="truncate text-sm font-semibold leading-snug text-zinc-50 sm:text-[15px]">
+                        {awayTeamName}{" "}
                         <span className="text-zinc-500">@</span>{" "}
-                        {teamLabel(e.home_team_id)}
+                        {homeTeamName}
                       </h2>
 
                       {/* Date row */}
                       <p className="mt-1 text-[11px] text-zinc-400">
-                        {e.date}
+                        {formatReadableDate(e.date) ?? e.date}
                       </p>
                     </div>
 
@@ -532,80 +817,50 @@ export default function GamesPage() {
                     </div>
                   </div>
 
-                  {/* Value row – team badges show score for finals or model odds for scheduled games */}
-                  {showValueRow && (
-                    <div className="mt-3 space-y-2 pl-1">
-                      {/* Away team row */}
-                      <div className="flex items-center justify-between gap-3">
-                        <div
-                          className={
-                            "rounded-full border px-0.5 py-0.5 transition " +
-                            (awayIsWinner
-                              ? "border-emerald-400 bg-emerald-500/20 shadow-sm shadow-emerald-500/40"
-                              : "border-zinc-700 bg-zinc-900/60")
-                          }
-                        >
-                          <TeamValueBadge
-                            teamName={teamLabel(e.away_team_id)}
-                            value={awayValue}
-                            variant={isFinal ? "score" : "odds"}
-                          />
-                        </div>
-                        <span className="text-[10px] text-zinc-500">
-                          {teamLabel(e.away_team_id)}
-                        </span>
-                      </div>
-
-                      {/* Home team row */}
-                      <div className="flex items-center justify-between gap-3">
-                        <div
-                          className={
-                            "rounded-full border px-0.5 py-0.5 transition " +
-                            (homeIsWinner
-                              ? "border-emerald-400 bg-emerald-500/20 shadow-sm shadow-emerald-500/40"
-                              : "border-zinc-700 bg-zinc-900/60")
-                          }
-                        >
-                          <TeamValueBadge
-                            teamName={teamLabel(e.home_team_id)}
-                            value={homeValue}
-                            variant={isFinal ? "score" : "odds"}
-                          />
-                        </div>
-                        <span className="text-[10px] text-zinc-500">
-                          {teamLabel(e.home_team_id)}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-end gap-2">
-                        {isFinal && homeWin !== null && (
-                          <span className="inline-flex items-center rounded-full border border-zinc-700 bg-zinc-900/80 px-2 py-0.5 text-[9px] uppercase tracking-[0.16em] text-zinc-200">
-                            {homeWin ? "Home win" : "Away win"}
-                          </span>
-                        )}
-                        {!isFinal && (homeValue || awayValue) && (
-                          <span className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
-                            Model odds
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                  {/* Value block – final vs scheduled */}
+                  {isFinal && hasScores && homeScore !== null && awayScore !== null ? (
+                    <FinalScoreBlock
+                      homeTeam={homeTeamName}
+                      awayTeam={awayTeamName}
+                      homeScore={homeScore}
+                      awayScore={awayScore}
+                      homeIsWinner={homeIsWinner}
+                      awayIsWinner={awayIsWinner}
+                      homeWin={homeWin}
+                    />
+                  ) : (
+                    <OddsBlock
+                      homeTeam={homeTeamName}
+                      awayTeam={awayTeamName}
+                      homeValue={homeOddsFormatted}
+                      awayValue={awayOddsFormatted}
+                      oddsLabel={oddsLabel}
+                      modelHomeFormatted={modelHomeFormatted}
+                      modelAwayFormatted={modelAwayFormatted}
+                    />
                   )}
 
-                  {/* Footer */}
-                  <div className="mt-3 flex items-center justify-between border-t border-zinc-800/70 pt-3 pl-1 text-[11px]">
-                    <span className="text-zinc-500">
-                      Powered by{" "}
-                      <span className="font-mono text-zinc-300">
-                        nba_logreg_b2b_v1
+                  {/* Footer actions */}
+                  <div className="mt-3 flex items-center justify-between border-t border-zinc-800/70 pt-2.5 pl-1 text-[11px]">
+                    <span
+                      className="inline-flex items-center gap-1 text-zinc-500"
+                      title="Model powered by your NBA logreg engine"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-400/80" />
+                      <span className="font-mono text-[10px] text-zinc-300/90">
+                        model: logreg_v1
                       </span>
                     </span>
-                    <span className="inline-flex items-center gap-1 text-blue-400 group-hover:text-blue-300">
-                      <span className="underline underline-offset-2 group-hover:underline">
-                        View box score + model view
+                    <div className="flex items-center gap-2 text-blue-400 group-hover:text-blue-300">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px]">
+                        <span className="text-xs">📊</span>
+                        <span>Box score</span>
                       </span>
-                      <span className="text-xs">📈</span>
-                    </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px]">
+                        <span className="text-xs">🤖</span>
+                        <span>AI view</span>
+                      </span>
+                    </div>
                   </div>
                 </Link>
               );
@@ -613,11 +868,12 @@ export default function GamesPage() {
           </div>
         </section>
       </div>
+
       {showScrollTop && (
         <button
           type="button"
           onClick={scrollToTop}
-          className="fixed bottom-6 right-6 inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/90 text-zinc-200 shadow-lg shadow-black/50 backdrop-blur transition hover:border-blue-500 hover:bg-blue-500/20 hover:text-blue-100"
+          className="fixed bottom-6 right-6 inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/90 text-zinc-200 shadow-lg shadow-black/50 backdrop-blur transition-all duration-150 hover:border-blue-500 hover:bg-blue-500/20 hover:text-blue-100 active:scale-95"
           aria-label="Back to top"
         >
           ↑
