@@ -25,6 +25,8 @@ export type Event = {
   model_away_win_prob?: number | null;
   model_home_american_odds?: number | null;
   model_away_american_odds?: number | null;
+  sportsbook_home_american_odds?: number | null;
+  sportsbook_away_american_odds?: number | null;
 };
 
 // For places that just need a lightweight event (like pickers)
