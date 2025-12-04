@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional, Dict, List
 
 from collections import deque
+import os  # NEW: for reading environment variables
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException
@@ -18,6 +19,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError
 from .db import SessionLocal
 from .schemas import Event, Prediction
+import requests  # NEW: for calling the Sports Odds API
 
 
 logging.basicConfig(
@@ -61,6 +63,21 @@ GAMES_DF: Optional[pd.DataFrame] = None
 TEAM_NAME_TO_ID: Dict[str, int] = {}
 TEAM_ID_TO_NAME: Dict[int, str] = {}
 SPORT_ID_NBA = 1
+
+# --- Sports Odds API config ---------------------------------------
+# Default to your free Odds API key, but allow overriding via environment
+SPORTS_ODDS_API_KEY = os.getenv(
+    "SPORTS_ODDS_API_KEY",
+    "38953b0ca0f6dd6c9d60f549190b6cf0",
+)
+
+# Feature flag: real odds lookups are DISABLED by default.
+# Turn them back on later with ENABLE_REAL_ODDS=1 in your environment.
+ENABLE_REAL_ODDS = os.getenv("ENABLE_REAL_ODDS", "0") == "1"
+
+# Simple in-memory cache so we don't hammer the odds API
+# key: "YYYY-MM-DD|Home Team|Away Team" -> {"home": float | None, "away": float | None}
+REAL_ODDS_CACHE: Dict[str, Dict[str, Optional[float]]] = {}
 
 # Will be assigned after PredictionLogItem is defined
 RECENT_PREDICTIONS = deque(maxlen=200)
@@ -113,6 +130,160 @@ def log_prediction_row(row: pd.Series, p_home: float, p_away: float) -> None:
     RECENT_PREDICTIONS.appendleft(item)
 
 
+# --- Sportsbook odds helpers --------------------------------------
+
+def _odds_cache_key(game_date_str: str, home_team: str, away_team: str) -> str:
+    """Build a stable cache key for a game’s odds."""
+    return f"{game_date_str}|{home_team}|{away_team}"
+
+
+def fetch_real_odds_for_game(
+    game_date: date_type | datetime | str,
+    home_team: str,
+    away_team: str,
+) -> tuple[Optional[float], Optional[float]]:
+    """
+    Fetch real American odds for a single NBA game from The Odds API.
+
+    Returns (home_american_odds, away_american_odds), or (None, None)
+    if odds cannot be found or lookups are disabled.
+    """
+    # Respect the feature flag
+    if not ENABLE_REAL_ODDS:
+        logger.debug(
+            "Real odds lookup disabled (ENABLE_REAL_ODDS!=1); "
+            "returning None for sportsbook odds."
+        )
+        return None, None
+
+    # If no API key, bail out
+    if not SPORTS_ODDS_API_KEY:
+        logger.warning(
+            "ENABLE_REAL_ODDS=1 but SPORTS_ODDS_API_KEY is not set; "
+            "skipping real odds lookup."
+        )
+        return None, None
+
+    # Normalize the game date to YYYY-MM-DD string
+    if isinstance(game_date, datetime):
+        date_str = game_date.date().isoformat()
+    elif isinstance(game_date, date_type):
+        date_str = game_date.isoformat()
+    else:
+        # string or pandas Timestamp – try to extract date portion
+        try:
+            # pandas Timestamp has .date(), others we just split on "T"
+            if hasattr(game_date, "date"):
+                date_str = game_date.date().isoformat()
+            else:
+                date_str = str(game_date).split("T")[0]
+        except Exception:
+            date_str = str(game_date)
+
+    cache_key = _odds_cache_key(date_str, home_team, away_team)
+    if cache_key in REAL_ODDS_CACHE:
+        cached = REAL_ODDS_CACHE[cache_key]
+        return cached.get("home"), cached.get("away")
+
+    # Call The Odds API
+    url = "https://api.the-odds-api.com/v4/sports/basketball_nba/odds"
+    params = {
+        "apiKey": SPORTS_ODDS_API_KEY,
+        "regions": "us",
+        "markets": "h2h",
+        "oddsFormat": "american",
+        "dateFormat": "iso",
+    }
+
+    def _norm_name(name: str) -> str:
+        return (
+            name.lower()
+            .replace(".", "")
+            .replace("-", " ")
+            .replace("&", "and")
+            .strip()
+        )
+
+    try:
+        resp = requests.get(url, params=params, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.exceptions.HTTPError as e:
+        logger.error(
+            "Error fetching real odds for %s vs %s on %s: %s",
+            home_team,
+            away_team,
+            date_str,
+            e,
+        )
+        REAL_ODDS_CACHE[cache_key] = {"home": None, "away": None}
+        return None, None
+    except Exception as e:
+        logger.exception(
+            "Unexpected error calling The Odds API for %s vs %s on %s",
+            home_team,
+            away_team,
+            date_str,
+        )
+        REAL_ODDS_CACHE[cache_key] = {"home": None, "away": None}
+        return None, None
+
+    home_norm = _norm_name(home_team)
+    away_norm = _norm_name(away_team)
+
+    home_price: Optional[float] = None
+    away_price: Optional[float] = None
+
+    # data is a list of games
+    for game in data:
+        api_home = _norm_name(game.get("home_team", ""))
+        api_away = _norm_name(game.get("away_team", ""))
+
+        # Quick team-name check
+        if {api_home, api_away} != {home_norm, away_norm}:
+            continue
+
+        # Optional: filter by date using commence_time
+        commence_time = game.get("commence_time", "")
+        api_date = str(commence_time).split("T")[0] if commence_time else None
+        if api_date and api_date != date_str:
+            continue
+
+        bookmakers = game.get("bookmakers") or []
+        if not bookmakers:
+            continue
+
+        # Just take the first bookmaker with an h2h market
+        for book in bookmakers:
+            markets = book.get("markets") or []
+            for m in markets:
+                if m.get("key") != "h2h":
+                    continue
+                outcomes = m.get("outcomes") or []
+                for o in outcomes:
+                    name = _norm_name(o.get("name", ""))
+                    price = o.get("price")
+                    if price is None:
+                        continue
+                    if name == home_norm:
+                        home_price = float(price)
+                    elif name == away_norm:
+                        away_price = float(price)
+                break  # only need the first h2h market
+
+            if home_price is not None or away_price is not None:
+                break
+
+        if home_price is not None or away_price is not None:
+            break
+
+    REAL_ODDS_CACHE[cache_key] = {
+        "home": home_price,
+        "away": away_price,
+    }
+    return home_price, away_price
+
+
 # --- Schemas -------------------------------------------------------
 
 class HealthResponse(BaseModel):
@@ -154,6 +325,10 @@ class EventOut(BaseModel):
     model_away_win_prob: Optional[float] = None
     model_home_american_odds: Optional[float] = None
     model_away_american_odds: Optional[float] = None
+
+    # Real sportsbook odds from external provider
+    sportsbook_home_american_odds: Optional[float] = None
+    sportsbook_away_american_odds: Optional[float] = None
 
 
 class ListTeamsResponse(BaseModel):
@@ -560,6 +735,27 @@ def list_events(
         if "model_away_american_odds" in row and pd.notna(row["model_away_american_odds"]):
             model_away_american_odds = float(row["model_away_american_odds"])
 
+        # Real sportsbook odds (only for scheduled games, and only if enabled)
+        sportsbook_home_american_odds: Optional[float] = None
+        sportsbook_away_american_odds: Optional[float] = None
+
+        if status == "scheduled" and ENABLE_REAL_ODDS:
+            try:
+                real_home, real_away = fetch_real_odds_for_game(
+                    row["date"],
+                    str(row["home_team"]),
+                    str(row["away_team"]),
+                )
+                sportsbook_home_american_odds = real_home
+                sportsbook_away_american_odds = real_away
+            except Exception as e:
+                logger.error(
+                    "Real odds lookup failed for game_id=%s: %s",
+                    int(row["game_id"]),
+                    e,
+                )
+                # leave sportsbook_* as None and keep going
+
         items.append(
             EventOut(
                 event_id=int(row["game_id"]),
@@ -577,6 +773,8 @@ def list_events(
                 model_away_win_prob=model_away_win_prob,
                 model_home_american_odds=model_home_american_odds,
                 model_away_american_odds=model_away_american_odds,
+                sportsbook_home_american_odds=sportsbook_home_american_odds,
+                sportsbook_away_american_odds=sportsbook_away_american_odds,
             )
         )
 
@@ -636,6 +834,27 @@ def get_event(event_id: int) -> EventOut:
     if "model_away_american_odds" in row and pd.notna(row["model_away_american_odds"]):
         model_away_american_odds = float(row["model_away_american_odds"])
 
+    # Real sportsbook odds (only for scheduled games, and only if enabled)
+    sportsbook_home_american_odds: Optional[float] = None
+    sportsbook_away_american_odds: Optional[float] = None
+
+    if status == "scheduled" and ENABLE_REAL_ODDS:
+        try:
+            real_home, real_away = fetch_real_odds_for_game(
+                row["date"],
+                str(row["home_team"]),
+                str(row["away_team"]),
+            )
+            sportsbook_home_american_odds = real_home
+            sportsbook_away_american_odds = real_away
+        except Exception as e:
+            logger.error(
+                "Real odds lookup failed for event_id=%s: %s",
+                event_id,
+                e,
+            )
+            # keep sportsbook_* as None
+
     return EventOut(
         event_id=int(row["game_id"]),
         sport_id=SPORT_ID_NBA,
@@ -652,6 +871,8 @@ def get_event(event_id: int) -> EventOut:
         model_away_win_prob=model_away_win_prob,
         model_home_american_odds=model_home_american_odds,
         model_away_american_odds=model_away_american_odds,
+        sportsbook_home_american_odds=sportsbook_home_american_odds,
+        sportsbook_away_american_odds=sportsbook_away_american_odds,
     )
 
 
