@@ -1,7 +1,6 @@
 {
-  "brier": 0.22357380798589002,
-  "logloss": 0.6384501922226887,
-  "n_train": 375,
-  "n_val": 125,
-  "version": "0.1.0"
+  "model_name": "nba_logreg_b2b_v1",
+  "train_test_split": "train <= 2021, test >= 2022",
+  "accuracy_test": 0.6393,
+  "auc_test": 0.6733
 }

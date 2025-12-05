@@ -14,8 +14,43 @@ import {
   type SportKey,
 } from "@/lib/sport";
 
+function isValidProb(p: number | null | undefined): p is number {
+  return typeof p === "number" && !Number.isNaN(p);
+}
+
+function safePercent(p: number | null | undefined): string {
+  if (!isValidProb(p)) return "–";
+  return `${(p * 100).toFixed(1)}%`;
+}
+
+// Extended shape for whatever the backend might send back
+type PredictBackendResponse = PredictResponse & {
+  win_probabilities?: {
+    home?: number;
+    away?: number;
+    home_win?: number;
+    away_win?: number;
+  };
+  probs?: {
+    home?: number;
+    away?: number;
+    home_win?: number;
+    away_win?: number;
+  };
+  prob_home?: number;
+  home_prob?: number;
+  prob_away?: number;
+  away_prob?: number;
+  home?: string;
+  away?: string;
+  home_name?: string;
+  away_name?: string;
+  game_date?: string;
+  event_id?: number;
+};
+
 export default function PredictPanel() {
-  // Which sport we are predicting
+  // Which sport we are predicting (UI only — backend currently supports NBA)
   const [sport, setSport] = useState<SportKey>("nba");
 
   // Metadata for dropdown
@@ -102,8 +137,54 @@ export default function PredictPanel() {
         return;
       }
 
-      const res = await api.predict(sport, finalId);
-      setResult(res);
+      // Strongly typed, but with an extended backend shape
+      const raw = (await api.predict(finalId as number)) as PredictBackendResponse;
+
+      const probs =
+        raw.win_probabilities ?? raw.probs ?? {
+          home: raw.p_home,
+          away: raw.p_away,
+        };
+
+      const pHomeCandidate =
+        typeof probs.home === "number"
+          ? probs.home
+          : typeof probs.home_win === "number"
+          ? probs.home_win
+          : typeof raw.p_home === "number"
+          ? raw.p_home
+          : typeof raw.prob_home === "number"
+          ? raw.prob_home
+          : typeof raw.home_prob === "number"
+          ? raw.home_prob
+          : undefined;
+
+      const pAwayCandidate =
+        typeof probs.away === "number"
+          ? probs.away
+          : typeof probs.away_win === "number"
+          ? probs.away_win
+          : typeof raw.p_away === "number"
+          ? raw.p_away
+          : typeof raw.prob_away === "number"
+          ? raw.prob_away
+          : typeof raw.away_prob === "number"
+          ? raw.away_prob
+          : undefined;
+
+      // Normalize into the PredictResponse shape
+      const normalized: PredictResponse = {
+        game_id: raw.game_id ?? raw.event_id ?? finalId,
+        date: raw.date ?? raw.game_date ?? "Unknown date",
+        home_team:
+          raw.home_team ?? raw.home ?? raw.home_name ?? "Home",
+        away_team:
+          raw.away_team ?? raw.away ?? raw.away_name ?? "Away",
+        p_home: typeof pHomeCandidate === "number" ? pHomeCandidate : NaN,
+        p_away: typeof pAwayCandidate === "number" ? pAwayCandidate : NaN,
+      };
+
+      setResult(normalized);
     } catch (err: unknown) {
       console.error(err);
       const msg =
@@ -121,7 +202,7 @@ export default function PredictPanel() {
           Predict Win Probability
         </h2>
         <span className="text-[10px] text-zinc-500 uppercase tracking-[0.16em]">
-          POST /predict/&lt;sport&gt;
+          POST /predict/nba
         </span>
       </div>
 
@@ -153,7 +234,7 @@ export default function PredictPanel() {
             value={selectedEventId === "" ? "" : String(selectedEventId)}
             onChange={(e) =>
               setSelectedEventId(
-                e.target.value ? Number(e.target.value) : ""
+                e.target.value ? Number(e.target.value) : "",
               )
             }
             className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs"
@@ -203,14 +284,30 @@ export default function PredictPanel() {
       {result && !predictError && (
         <div className="mt-2 text-[11px] text-zinc-400 space-y-1">
           <div>
-            Model: <span className="font-mono">{result.model_key}</span>
+            Game{" "}
+            <span className="font-mono">
+              #{result.game_id} — {result.away_team || "Away"} @{" "}
+              {result.home_team || "Home"}
+            </span>
           </div>
-          <div>Generated: {result.generated_at}</div>
-          <div>
-            Home:{" "}
-            {((result.win_probabilities.home ?? 0) * 100).toFixed(1)}% · Away:{" "}
-            {((result.win_probabilities.away ?? 0) * 100).toFixed(1)}%
-          </div>
+          <div>Date: {result.date}</div>
+
+          {isValidProb(result.p_home) || isValidProb(result.p_away) ? (
+            <div>
+              Home win prob:{" "}
+              <span className="text-zinc-100">
+                {safePercent(result.p_home)}
+              </span>{" "}
+              · Away win prob:{" "}
+              <span className="text-zinc-100">
+                {safePercent(result.p_away)}
+              </span>
+            </div>
+          ) : (
+            <div className="text-zinc-500">
+              Model probabilities unavailable for this event.
+            </div>
+          )}
         </div>
       )}
     </div>
