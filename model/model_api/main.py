@@ -52,7 +52,7 @@ ROOT = Path(__file__).resolve().parents[1]  # /model
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
-from src.paths import PROCESSED_DIR
+from src.paths import PROCESSED_DIR, MLB_PROCESSED_DIR
 from src.nba_inference import load_nba_model, predict_home_win_proba
 
 # --- Global objects (loaded once at startup) -----------------------
@@ -63,6 +63,8 @@ GAMES_DF: Optional[pd.DataFrame] = None
 TEAM_NAME_TO_ID: Dict[str, int] = {}
 TEAM_ID_TO_NAME: Dict[int, str] = {}
 SPORT_ID_NBA = 1
+SPORT_ID_MLB = 2
+TEAM_ID_TO_SPORT_ID: Dict[int, int] = {}
 
 # --- Sports Odds API config ---------------------------------------
 # Default to your free Odds API key, but allow overriding via environment
@@ -84,37 +86,176 @@ RECENT_PREDICTIONS = deque(maxlen=200)
 
 
 def load_games_table() -> pd.DataFrame:
-    """Load the processed B2B modeling table once."""
+    """
+    Load the processed games table once.
+    - NBA: games_with_scores_and_future.parquet
+    - MLB: mlb_model_input.parquet (if present), normalized into the same schema
+
+    Guarantees:
+    - A 'sport' column exists and is 'NBA' or 'MLB'
+    - A numeric 'game_id' exists for every row (no None/NaN)
+    """
     global GAMES_DF
-    if GAMES_DF is None:
-        path = PROCESSED_DIR / "games_with_scores_and_future.parquet"
-        logger.info("Loading games table from %s ...", path)
-        GAMES_DF = pd.read_parquet(path)
+    if GAMES_DF is not None:
+        return GAMES_DF
 
-        # Ensure we have a stable game_id (if not already there)
-        if "game_id" not in GAMES_DF.columns:
-            GAMES_DF = (
-                GAMES_DF.sort_values(["date", "home_team", "away_team"])
-                .reset_index(drop=True)
+    # --- Load NBA games (primary source) ---
+    nba_path = PROCESSED_DIR / "games_with_scores_and_future.parquet"
+    logger.info("Loading NBA games table from %s ...", nba_path)
+    nba_df = pd.read_parquet(nba_path)
+
+    # Ensure we have a sport label for NBA
+    if "sport" not in nba_df.columns:
+        nba_df = nba_df.copy()
+        nba_df["sport"] = "NBA"
+
+    # --- Optionally load MLB games ---
+    mlb_path = MLB_PROCESSED_DIR / "mlb_model_input.parquet"
+    if mlb_path.exists():
+        logger.info("Loading MLB model_input from %s ...", mlb_path)
+        mlb_df = pd.read_parquet(mlb_path).copy()
+
+        # Normalize MLB -> games schema used by the API
+        rename_map = {
+            "home_team_name": "home_team",
+            "away_team_name": "away_team",
+            "home_score": "home_pts",
+            "away_score": "away_pts",
+        }
+        mlb_df = mlb_df.rename(columns=rename_map)
+
+        # Ensure sport column is set
+        mlb_df["sport"] = "MLB"
+
+        # Align columns between NBA + MLB
+        common_cols = sorted(set(nba_df.columns) | set(mlb_df.columns))
+        nba_df = nba_df.reindex(columns=common_cols)
+        mlb_df = mlb_df.reindex(columns=common_cols)
+
+        # Combine NBA + MLB
+        games = pd.concat([nba_df, mlb_df], ignore_index=True)
+        logger.info(
+            "Loaded combined games table with %d rows (NBA + MLB).",
+            len(games),
+        )
+    else:
+        games = nba_df
+        logger.info(
+            "Loaded NBA-only games table with %d rows (MLB model_input not found).",
+            len(games),
+        )
+
+    # --- Ensure a clean numeric game_id for every row ---
+    if "game_id" not in games.columns:
+        # No game_id at all: assign sequential IDs
+        games = games.sort_values(["date", "home_team", "away_team"]).reset_index(drop=True)
+        games["game_id"] = games.index.astype(int)
+    else:
+        # Coerce to numeric, then fill any missing with new IDs
+        games = games.copy()
+        games["game_id"] = pd.to_numeric(games["game_id"], errors="coerce")
+
+        # Find the current max id (ignoring NaNs)
+        max_existing = games["game_id"].max()
+        if pd.isna(max_existing):
+            next_id = 1
+        else:
+            next_id = int(max_existing) + 1
+
+        missing_mask = games["game_id"].isna()
+        num_missing = int(missing_mask.sum())
+        if num_missing > 0:
+            logger.info(
+                "Assigning %d missing game_id values starting at %d.",
+                num_missing,
+                next_id,
             )
-            GAMES_DF["game_id"] = GAMES_DF.index.astype(int)
+            games.loc[missing_mask, "game_id"] = range(next_id, next_id + num_missing)
 
-        logger.info("Loaded games table with %d rows", len(GAMES_DF))
+        games["game_id"] = games["game_id"].astype(int)
+
+    GAMES_DF = games
     return GAMES_DF
 
 
 def build_team_lookups(df: pd.DataFrame) -> None:
-    """Build TEAM_NAME_TO_ID / TEAM_ID_TO_NAME from the games table."""
-    global TEAM_NAME_TO_ID, TEAM_ID_TO_NAME
+    """
+    Build TEAM_NAME_TO_ID / TEAM_ID_TO_NAME / TEAM_ID_TO_SPORT_ID from the games table.
 
-    all_teams = pd.unique(pd.concat([df["home_team"], df["away_team"]]))
-    # Sort just to keep IDs stable
-    sorted_names = sorted(str(t) for t in all_teams)
+    We derive teams from both home and away columns, and keep a primary sport_id
+    for each team name based on the 'sport' column.
+    """
+    global TEAM_NAME_TO_ID, TEAM_ID_TO_NAME, TEAM_ID_TO_SPORT_ID
 
-    TEAM_NAME_TO_ID = {name: i + 1 for i, name in enumerate(sorted_names)}
-    TEAM_ID_TO_NAME = {v: k for k, v in TEAM_NAME_TO_ID.items()}
+    if "home_team" not in df.columns or "away_team" not in df.columns:
+        logger.error("build_team_lookups: games table missing home_team/away_team columns.")
+        TEAM_NAME_TO_ID = {}
+        TEAM_ID_TO_NAME = {}
+        TEAM_ID_TO_SPORT_ID = {}
+        return
 
-    logger.info("Built team lookups for %d NBA teams.", len(TEAM_NAME_TO_ID))
+    # Build a long frame of (team, sport) pairs from home/away
+    frames = []
+
+    if "sport" in df.columns:
+        frames.append(
+            df[["home_team", "sport"]]
+            .rename(columns={"home_team": "team"})
+            .dropna(subset=["team"])
+        )
+        frames.append(
+            df[["away_team", "sport"]]
+            .rename(columns={"away_team": "team"})
+            .dropna(subset=["team"])
+        )
+        pairs = pd.concat(frames, ignore_index=True)
+    else:
+        # Fallback: no sport column, treat everything as NBA
+        tmp = pd.concat(
+            [
+                df[["home_team"]].rename(columns={"home_team": "team"}),
+                df[["away_team"]].rename(columns={"away_team": "team"}),
+            ],
+            ignore_index=True,
+        ).dropna(subset=["team"])
+        tmp["sport"] = "NBA"
+        pairs = tmp
+
+    # Deduplicate (team, sport) pairs
+    pairs["team"] = pairs["team"].astype(str)
+    pairs["sport"] = pairs["sport"].astype(str).str.upper()
+    pairs = pairs.drop_duplicates(subset=["team", "sport"])
+
+    # Sort by name for stable ids
+    pairs = pairs.sort_values(["team", "sport"]).reset_index(drop=True)
+
+    TEAM_NAME_TO_ID = {}
+    TEAM_ID_TO_NAME = {}
+    TEAM_ID_TO_SPORT_ID = {}
+
+    next_id = 1
+    for _, row in pairs.iterrows():
+        name = row["team"]
+        sport_str = row["sport"]
+
+        if name in TEAM_NAME_TO_ID:
+            # Already assigned an id for this team name; keep the first one.
+            continue
+
+        team_id = next_id
+        next_id += 1
+
+        TEAM_NAME_TO_ID[name] = team_id
+        TEAM_ID_TO_NAME[team_id] = name
+
+        if sport_str == "MLB":
+            sport_id = SPORT_ID_MLB
+        else:
+            sport_id = SPORT_ID_NBA
+
+        TEAM_ID_TO_SPORT_ID[team_id] = sport_id
+
+    logger.info("Built team lookups for %d teams.", len(TEAM_NAME_TO_ID))
 
 def log_prediction_row(row: pd.Series, p_home: float, p_away: float) -> None:
     """Append a prediction to the in-memory log for admin/debug."""
@@ -657,9 +798,13 @@ def health() -> HealthResponse:
 
 @app.get("/teams", response_model=ListTeamsResponse)
 def list_teams(limit: int = 100) -> ListTeamsResponse:
-    """Return NBA teams as simple id/name objects."""
+    """Return teams as simple id/name objects for all sports."""
     teams = [
-        TeamOut(team_id=team_id, sport_id=SPORT_ID_NBA, name=name)
+        TeamOut(
+            team_id=team_id,
+            sport_id=TEAM_ID_TO_SPORT_ID.get(team_id, SPORT_ID_NBA),
+            name=name,
+        )
         for name, team_id in TEAM_NAME_TO_ID.items()
     ]
     teams.sort(key=lambda t: t.name.lower())
@@ -693,12 +838,21 @@ def list_events(
         df = df[df["date"].dt.year == year]
 
     # Newest games first, limited
+        # Newest games first. We intentionally ignore `limit` here so that the
+    # frontend can see the full year range (2015–present) for filters.
     df = df.sort_values(["date", "game_id"], ascending=[False, False])
-    if limit is not None: 
-        df = df.head(limit)
 
     items: List[EventOut] = []
     for _, row in df.iterrows():
+        # Some rows (especially from newly added sports) may have missing/None game_id.
+        # Skip those to avoid 500s when casting to int.
+        raw_game_id = row.get("game_id", None)
+        try:
+            game_id = int(raw_game_id)
+        except (TypeError, ValueError):
+            logger.warning("Skipping row with invalid game_id=%r in /events", raw_game_id)
+            continue
+
         # Safely pull score + outcome columns if present
         home_score = None
         away_score = None
@@ -756,10 +910,17 @@ def list_events(
                 )
                 # leave sportsbook_* as None and keep going
 
+        # Determine sport_id per row (NBA vs MLB)
+        sport_str = str(row.get("sport", "NBA")).upper()
+        if sport_str == "MLB":
+            sport_id = SPORT_ID_MLB
+        else:
+            sport_id = SPORT_ID_NBA
+
         items.append(
             EventOut(
-                event_id=int(row["game_id"]),
-                sport_id=SPORT_ID_NBA,
+                event_id=game_id,
+                sport_id=sport_id,
                 date=str(row["date"].date()),
                 home_team_id=TEAM_NAME_TO_ID.get(str(row["home_team"])),
                 away_team_id=TEAM_NAME_TO_ID.get(str(row["away_team"])),
@@ -855,9 +1016,15 @@ def get_event(event_id: int) -> EventOut:
             )
             # keep sportsbook_* as None
 
+    sport_str = str(row.get("sport", "NBA")).upper()
+    if sport_str == "MLB":
+        sport_id = SPORT_ID_MLB
+    else:
+        sport_id = SPORT_ID_NBA
+
     return EventOut(
         event_id=int(row["game_id"]),
-        sport_id=SPORT_ID_NBA,
+        sport_id=sport_id,
         date=str(row["date"].date()),
         home_team_id=TEAM_NAME_TO_ID.get(str(row["home_team"])),
         away_team_id=TEAM_NAME_TO_ID.get(str(row["away_team"])),
