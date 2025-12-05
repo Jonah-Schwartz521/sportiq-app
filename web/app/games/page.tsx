@@ -467,6 +467,11 @@ export default function GamesPage() {
       ? "All leagues"
       : getSportLabelFromFilterId(selectedSport);
 
+  // Limit how many game cards we render at once to keep the page responsive
+  const MAX_EVENTS_TO_RENDER = 400;
+  const eventsToRender = visibleEvents.slice(0, MAX_EVENTS_TO_RENDER);
+  const isTruncated = visibleEvents.length > MAX_EVENTS_TO_RENDER;
+
   return (
     <main className="min-h-screen bg-black px-4 pb-12 pt-7 text-white">
       <div className="mx-auto w-full max-w-6xl space-y-5">
@@ -588,7 +593,12 @@ export default function GamesPage() {
                   <div className="relative inline-flex items-center">
                     <select
                       value={yearFilter}
-                      onChange={(e) => setYearFilter(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setYearFilter(value);
+                        // Clear any specific date filter when switching seasons
+                        setDateFilter(null);
+                      }}
                       className="rounded-full border border-zinc-700/80 bg-zinc-950 px-3 py-1.5 pr-7 text-xs text-zinc-100 shadow-sm shadow-black/40 transition focus:outline-none focus-visible:border-blue-500/80 focus-visible:ring-2 focus-visible:ring-blue-500/70"
                     >
                       <option value="all">All years</option>
@@ -684,8 +694,14 @@ export default function GamesPage() {
         {/* 4. GAME CARDS GRID        */}
         {/* ========================= */}
         <section className="pt-1">
+          {isTruncated && (
+            <div className="mb-3 rounded-xl border border-zinc-800 bg-zinc-950/80 px-4 py-2 text-[11px] text-zinc-400">
+              Showing the first {MAX_EVENTS_TO_RENDER} games. Try narrowing the
+              date, season, sport, or team filters to see a smaller set.
+            </div>
+          )}
           <div className="grid gap-5 sm:grid-cols-2">
-            {visibleEvents.map((e) => {
+            {eventsToRender.map((e) => {
               // Combine *_score with *_pts so 2025 games show as Final
               const homeScoreRaw =
                 (e as any).home_score ?? (e as any).home_pts ?? null;
