@@ -86,6 +86,44 @@ const MLB_TEAM_LOGOS: Record<string, TeamLogoConfig> = {
   "Washington Nationals":   { abbrev: "WSN", bg: "bg-red-900",    text: "text-navy-100" },
 };
 
+const NFL_TEAM_LOGOS: Record<string, TeamLogoConfig> = {
+  // AFC
+  "Baltimore Ravens":       { abbrev: "BAL", bg: "bg-purple-900", text: "text-zinc-100" },
+  "Buffalo Bills":          { abbrev: "BUF", bg: "bg-blue-900",   text: "text-red-200" },
+  "Cincinnati Bengals":     { abbrev: "CIN", bg: "bg-orange-700", text: "text-zinc-900" },
+  "Cleveland Browns":       { abbrev: "CLE", bg: "bg-orange-800", text: "text-zinc-900" },
+  "Denver Broncos":         { abbrev: "DEN", bg: "bg-blue-900",   text: "text-orange-300" },
+  "Houston Texans":         { abbrev: "HOU", bg: "bg-navy-900",   text: "text-red-200" },
+  "Indianapolis Colts":     { abbrev: "IND", bg: "bg-blue-900",   text: "text-slate-50" },
+  "Jacksonville Jaguars":   { abbrev: "JAX", bg: "bg-teal-800",   text: "text-yellow-200" },
+  "Kansas City Chiefs":     { abbrev: "KC",  bg: "bg-red-800",    text: "text-yellow-200" },
+  "Las Vegas Raiders":      { abbrev: "LV",  bg: "bg-zinc-900",   text: "text-slate-100" },
+  "Los Angeles Chargers":   { abbrev: "LAC", bg: "bg-sky-800",    text: "text-yellow-200" },
+  "Miami Dolphins":         { abbrev: "MIA", bg: "bg-teal-700",   text: "text-orange-200" },
+  "New England Patriots":   { abbrev: "NE",  bg: "bg-navy-900",   text: "text-red-200" },
+  "New York Jets":          { abbrev: "NYJ", bg: "bg-emerald-900",text: "text-slate-50" },
+  "Pittsburgh Steelers":    { abbrev: "PIT", bg: "bg-zinc-900",   text: "text-yellow-300" },
+  "Tennessee Titans":       { abbrev: "TEN", bg: "bg-sky-900",    text: "text-red-200" },
+
+  // NFC
+  "Arizona Cardinals":      { abbrev: "ARI", bg: "bg-red-800",    text: "text-zinc-100" },
+  "Atlanta Falcons":        { abbrev: "ATL", bg: "bg-red-900",    text: "text-zinc-100" },
+  "Carolina Panthers":      { abbrev: "CAR", bg: "bg-cyan-900",   text: "text-slate-50" },
+  "Chicago Bears":          { abbrev: "CHI", bg: "bg-navy-900",   text: "text-orange-200" },
+  "Dallas Cowboys":         { abbrev: "DAL", bg: "bg-slate-900",  text: "text-slate-50" },
+  "Detroit Lions":          { abbrev: "DET", bg: "bg-sky-800",    text: "text-slate-50" },
+  "Green Bay Packers":      { abbrev: "GB",  bg: "bg-green-900",  text: "text-yellow-200" },
+  "Los Angeles Rams":       { abbrev: "LAR", bg: "bg-blue-900",   text: "text-yellow-200" },
+  "Minnesota Vikings":      { abbrev: "MIN", bg: "bg-purple-900", text: "text-yellow-200" },
+  "New Orleans Saints":     { abbrev: "NO",  bg: "bg-zinc-900",   text: "text-amber-200" },
+  "New York Giants":        { abbrev: "NYG", bg: "bg-blue-900",   text: "text-red-200" },
+  "Philadelphia Eagles":    { abbrev: "PHI", bg: "bg-emerald-900",text: "text-slate-50" },
+  "San Francisco 49ers":    { abbrev: "SF",  bg: "bg-red-900",    text: "text-yellow-200" },
+  "Seattle Seahawks":       { abbrev: "SEA", bg: "bg-teal-900",   text: "text-lime-200" },
+  "Tampa Bay Buccaneers":   { abbrev: "TB",  bg: "bg-red-900",    text: "text-slate-50" },
+  "Washington Commanders":  { abbrev: "WAS", bg: "bg-red-900",    text: "text-amber-200" },
+};
+
 // Props for the badge that can show either a score or an odds value.
 type TeamValueBadgeProps = {
   teamName: string;
@@ -98,15 +136,49 @@ export function TeamValueBadge({
   value,
   variant = "score",
 }: TeamValueBadgeProps) {
-  // Fallback config if we don't have a custom entry
-  const config =
-    NBA_TEAM_LOGOS[teamName] ??
-    MLB_TEAM_LOGOS[teamName] ??
-    {
-      abbrev: teamName.slice(0, 3).toUpperCase(),
-      bg: "bg-zinc-600",
-      text: "text-zinc-100",
+  const resolveTeam = (name: string): { config: TeamLogoConfig; displayName: string } => {
+    // Check by full name keys first
+    if (NBA_TEAM_LOGOS[name]) {
+      return { config: NBA_TEAM_LOGOS[name], displayName: name };
+    }
+    if (MLB_TEAM_LOGOS[name]) {
+      return { config: MLB_TEAM_LOGOS[name], displayName: name };
+    }
+    if (NFL_TEAM_LOGOS[name]) {
+      return { config: NFL_TEAM_LOGOS[name], displayName: name };
+    }
+
+    // Search by abbreviation in NBA_TEAM_LOGOS
+    for (const [fullName, cfg] of Object.entries(NBA_TEAM_LOGOS)) {
+      if (cfg.abbrev === name) {
+        return { config: cfg, displayName: fullName };
+      }
+    }
+    // Search by abbreviation in MLB_TEAM_LOGOS
+    for (const [fullName, cfg] of Object.entries(MLB_TEAM_LOGOS)) {
+      if (cfg.abbrev === name) {
+        return { config: cfg, displayName: fullName };
+      }
+    }
+    // Search by abbreviation in NFL_TEAM_LOGOS
+    for (const [fullName, cfg] of Object.entries(NFL_TEAM_LOGOS)) {
+      if (cfg.abbrev === name) {
+        return { config: cfg, displayName: fullName };
+      }
+    }
+
+    // Fallback
+    return {
+      config: {
+        abbrev: name.slice(0, 3).toUpperCase(),
+        bg: "bg-zinc-600",
+        text: "text-zinc-100",
+      },
+      displayName: name,
     };
+  };
+
+  const { config, displayName } = resolveTeam(teamName);
 
   return (
     <div
@@ -121,8 +193,8 @@ export function TeamValueBadge({
         <span className={["h-2 w-2 rounded-full", config.bg].join(" ")} />
       </span>
 
-      <span className="font-semibold tracking-wide text-zinc-50">
-        {config.abbrev}
+      <span className="font-semibold tracking-wide text-zinc-50 max-w-[120px] truncate">
+        {displayName}
       </span>
 
       {value && (
