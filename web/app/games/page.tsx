@@ -72,6 +72,110 @@ function getSportLabelFromFilterId(id: SportFilterId): string {
   return found?.label ?? "Sport";
 }
 
+// NFL abbreviations → full team names (includes legacy codes and common aliases)
+const NFL_TEAM_FULL_NAME_BY_ABBR: Record<string, string> = {
+  // Core 32 franchises (current abbreviations)
+  ARI: "Arizona Cardinals",
+  ATL: "Atlanta Falcons",
+  BAL: "Baltimore Ravens",
+  BUF: "Buffalo Bills",
+  CAR: "Carolina Panthers",
+  CHI: "Chicago Bears",
+  CIN: "Cincinnati Bengals",
+  CLE: "Cleveland Browns",
+  DAL: "Dallas Cowboys",
+  DEN: "Denver Broncos",
+  DET: "Detroit Lions",
+  GB: "Green Bay Packers",
+  HOU: "Houston Texans",
+  IND: "Indianapolis Colts",
+  JAX: "Jacksonville Jaguars",
+  KC: "Kansas City Chiefs",
+  LA: "Los Angeles Rams", // older Rams code in data
+  LAC: "Los Angeles Chargers",
+  LV: "Las Vegas Raiders",
+  MIA: "Miami Dolphins",
+  MIN: "Minnesota Vikings",
+  NE: "New England Patriots",
+  NO: "New Orleans Saints",
+  NYG: "New York Giants",
+  NYJ: "New York Jets",
+  PHI: "Philadelphia Eagles",
+  PIT: "Pittsburgh Steelers",
+  SEA: "Seattle Seahawks",
+  SF: "San Francisco 49ers",
+  TB: "Tampa Bay Buccaneers",
+  TEN: "Tennessee Titans",
+  WAS: "Washington Commanders",
+  WSH: "Washington Commanders",
+
+  // Explicit legacy city/team codes present in the historical data
+  OAK: "Oakland Raiders",
+  SD: "San Diego Chargers",
+  STL: "St. Louis Rams",
+
+  // Extra aliases / variations that might appear in either the games
+  // table or the teams table. These are defensive mappings so that if
+  // the event data uses these instead of the standard 2–3 letter code,
+  // the UI still shows a full franchise name.
+
+  // Carolina
+  CA: "Carolina Panthers",
+  CAROLINA: "Carolina Panthers",
+
+  // Dallas
+  COWBOYS: "Dallas Cowboys",
+
+  // Detroit
+  LIONS: "Detroit Lions",
+
+  // Patriots
+  NWE: "New England Patriots",
+
+  // Giants
+  GIANTS: "New York Giants",
+  NY: "New York Giants",
+
+  // Raiders
+  RAIDERS: "Las Vegas Raiders",
+  OAKLAND: "Oakland Raiders",
+
+  // Eagles
+  EAGLES: "Philadelphia Eagles",
+
+  // 49ers
+  NINERS: "San Francisco 49ers",
+  SFO: "San Francisco 49ers",
+};
+
+// Parse an NFL event_id like "2019_01_ARI_PHI" and return full team names.
+// Some rows may have numeric or unexpected ids, so we guard on type first.
+function deriveNflNamesFromEventId(eventId: unknown) {
+  if (typeof eventId !== "string" || !eventId) {
+    return { home: null as string | null, away: null as string | null };
+  }
+
+  const parts = eventId.split("_");
+  // Expected shape like "2019_01_ARI_PHI"
+  if (parts.length < 4) {
+    return { home: null as string | null, away: null as string | null };
+  }
+
+  const awayAbbr = parts[2];
+  const homeAbbr = parts[3];
+
+  const mapAbbrToFull = (abbr: string | undefined): string | null => {
+    if (!abbr) return null;
+    const key = abbr.toUpperCase();
+    return NFL_TEAM_FULL_NAME_BY_ABBR[key] ?? abbr;
+  };
+
+  return {
+    home: mapAbbrToFull(homeAbbr),
+    away: mapAbbrToFull(awayAbbr),
+  };
+}
+
 // =========================
 // Subcomponent: SummaryBar
 // =========================
@@ -380,6 +484,32 @@ export default function GamesPage() {
     }
   }, [events, yearFilter]);
 
+  // Log all unique NFL team labels based on events
+  useEffect(() => {
+    if (!events.length) return;
+
+    // Only NFL events
+    const nflEvents = events.filter((e) => e.sport_id === 3);
+
+    const names = new Set<string>();
+
+    for (const e of nflEvents) {
+      const home =
+        (e as any).home_team_name ??
+        (e as any).home_team ??
+        null;
+      const away =
+        (e as any).away_team_name ??
+        (e as any).away_team ??
+        null;
+
+      if (home) names.add(String(home));
+      if (away) names.add(String(away));
+    }
+
+    console.log("NFL team labels in events:", Array.from(names));
+  }, [events]);
+
   // Team lookup using shared helpers
   const teamsById = useMemo(() => buildTeamsById(teams), [teams]);
 
@@ -456,6 +586,51 @@ export default function GamesPage() {
     if (dateFilter) {
       filtered = filtered.filter((e) => e.date === dateFilter);
     }
+
+    // 5) Remove bogus NFL rows that would render as "TBD @ TBD"
+    filtered = filtered.filter((e) => {
+      if (e.sport_id !== 3) return true;
+
+      // Prefer explicit team name fields from the event, then shared team lookup
+      const rawHomeName =
+        (e as any).home_team_name ??
+        (e as any).home_team ??
+        null;
+      const rawAwayName =
+        (e as any).away_team_name ??
+        (e as any).away_team ??
+        null;
+
+      let homeTeamName: string | null =
+        rawHomeName || teamLabel(e.home_team_id) || null;
+      let awayTeamName: string | null =
+        rawAwayName || teamLabel(e.away_team_id) || null;
+
+      const expandNflName = (name: string | null): string | null => {
+        if (!name) return name;
+        const key = name.toUpperCase().trim();
+        return NFL_TEAM_FULL_NAME_BY_ABBR[key] ?? name;
+      };
+
+      homeTeamName = expandNflName(homeTeamName);
+      awayTeamName = expandNflName(awayTeamName);
+
+      const derived = deriveNflNamesFromEventId(
+        (e as any).event_id ?? e.event_id,
+      );
+      if (!homeTeamName && derived.home) {
+        homeTeamName = derived.home;
+      }
+      if (!awayTeamName && derived.away) {
+        awayTeamName = derived.away;
+      }
+
+      const isNflTbdMatchup =
+        (!homeTeamName || homeTeamName === "TBD") &&
+        (!awayTeamName || awayTeamName === "TBD");
+
+      return !isNflTbdMatchup;
+    });
 
     return filtered;
   }, [events, yearFilter, selectedSport, teamFilter, dateFilter]);
@@ -781,8 +956,64 @@ export default function GamesPage() {
               const modelAwayFormatted =
                 formatAmericanOdds(modelAwayOddsRaw);
 
-              const homeTeamName = teamLabel(e.home_team_id);
-              const awayTeamName = teamLabel(e.away_team_id);
+              // Prefer explicit team name fields from the event (needed for NFL),
+              // then fall back to the shared teams lookup, then finally "TBD".
+              const rawHomeName =
+                (e as any).home_team_name ??
+                (e as any).home_team ??
+                null;
+              const rawAwayName =
+                (e as any).away_team_name ??
+                (e as any).away_team ??
+                null;
+
+              // Base names from explicit event fields or shared team lookup
+              let homeTeamName: string | null =
+                rawHomeName || teamLabel(e.home_team_id) || null;
+              let awayTeamName: string | null =
+                rawAwayName || teamLabel(e.away_team_id) || null;
+
+              // For NFL, manually map common abbreviations (JAX, TEN, NO, TB, etc.)
+              // to full team names so the UI always shows the full franchise name.
+              if (e.sport_id === 3) {
+                const expandNflName = (name: string | null): string | null => {
+                  if (!name) return name;
+                  const key = name.toUpperCase().trim();
+                  return NFL_TEAM_FULL_NAME_BY_ABBR[key] ?? name;
+                };
+
+                // First try to expand whatever names we already have (from teams table)
+                homeTeamName = expandNflName(homeTeamName);
+                awayTeamName = expandNflName(awayTeamName);
+
+                // As a backup, if we still did not get a full name, try to derive
+                // abbreviations from the event_id pattern like "2019_01_ARI_PHI".
+                const derived = deriveNflNamesFromEventId(
+                  (e as any).event_id ?? e.event_id,
+                );
+                if (derived.home) {
+                  homeTeamName = derived.home;
+                }
+                if (derived.away) {
+                  awayTeamName = derived.away;
+                }
+              }
+
+              // Final fallback
+              const finalHomeTeamName = homeTeamName ?? "TBD";
+              const finalAwayTeamName = awayTeamName ?? "TBD";
+
+              // 🚫 Hide bogus NFL rows where we never resolved either team.
+              // These show up as "TBD @ TBD" and likely aren't real games.
+              const isNflTbdMatchup =
+                e.sport_id === 3 &&
+                (!finalHomeTeamName || finalHomeTeamName === "TBD") &&
+                (!finalAwayTeamName || finalAwayTeamName === "TBD");
+
+              if (isNflTbdMatchup) {
+                // Skip rendering this card entirely
+                return null;
+              }
 
               return (
                 <Link
@@ -799,9 +1030,9 @@ export default function GamesPage() {
                     <div className="min-w-0 flex-1">
                       {/* Matchup: main headline */}
                       <h2 className="truncate text-sm font-semibold leading-snug text-zinc-50 sm:text-[15px]">
-                        {awayTeamName}{" "}
+                        {finalAwayTeamName}{" "}
                         <span className="text-zinc-500">@</span>{" "}
-                        {homeTeamName}
+                        {finalHomeTeamName}
                       </h2>
 
                       {/* Date row */}
@@ -836,8 +1067,8 @@ export default function GamesPage() {
                   {/* Value block – final vs scheduled */}
                   {isFinal && hasScores && homeScore !== null && awayScore !== null ? (
                     <FinalScoreBlock
-                      homeTeam={homeTeamName}
-                      awayTeam={awayTeamName}
+                      homeTeam={finalHomeTeamName}
+                      awayTeam={finalAwayTeamName}
                       homeScore={homeScore}
                       awayScore={awayScore}
                       homeIsWinner={homeIsWinner}
@@ -846,8 +1077,8 @@ export default function GamesPage() {
                     />
                   ) : (
                     <OddsBlock
-                      homeTeam={homeTeamName}
-                      awayTeam={awayTeamName}
+                      homeTeam={finalHomeTeamName}
+                      awayTeam={finalAwayTeamName}
                       homeValue={homeOddsFormatted}
                       awayValue={awayOddsFormatted}
                       oddsLabel={oddsLabel}
