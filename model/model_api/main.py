@@ -52,7 +52,7 @@ ROOT = Path(__file__).resolve().parents[1]  # /model
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
-from src.paths import PROCESSED_DIR, MLB_PROCESSED_DIR
+from src.paths import PROCESSED_DIR, MLB_PROCESSED_DIR, NFL_PROCESSED_DIR
 from src.nba_inference import load_nba_model, predict_home_win_proba
 
 # --- Global objects (loaded once at startup) -----------------------
@@ -64,6 +64,7 @@ TEAM_NAME_TO_ID: Dict[str, int] = {}
 TEAM_ID_TO_NAME: Dict[int, str] = {}
 SPORT_ID_NBA = 1
 SPORT_ID_MLB = 2
+SPORT_ID_NFL = 3
 TEAM_ID_TO_SPORT_ID: Dict[int, int] = {}
 
 # --- Sports Odds API config ---------------------------------------
@@ -88,26 +89,45 @@ RECENT_PREDICTIONS = deque(maxlen=200)
 def load_games_table() -> pd.DataFrame:
     """
     Load the processed games table once.
+
     - NBA: games_with_scores_and_future.parquet
-    - MLB: mlb_model_input.parquet (if present), normalized into the same schema
+    - MLB: mlb_model_input.parquet (if present)
+    - NFL: nfl_games.parquet (historical) + nfl_future_games.parquet (schedule)
 
     Guarantees:
-    - A 'sport' column exists and is 'NBA' or 'MLB'
+    - A 'sport' column exists and is 'NBA', 'MLB', or 'NFL'
     - A numeric 'game_id' exists for every row (no None/NaN)
+    - Unified team/score columns:
+        home_team, away_team, home_pts, away_pts
     """
     global GAMES_DF
     if GAMES_DF is not None:
         return GAMES_DF
 
+    frames: list[pd.DataFrame] = []
+
     # --- Load NBA games (primary source) ---
     nba_path = PROCESSED_DIR / "games_with_scores_and_future.parquet"
     logger.info("Loading NBA games table from %s ...", nba_path)
-    nba_df = pd.read_parquet(nba_path)
+    nba_df = pd.read_parquet(nba_path).copy()
 
     # Ensure we have a sport label for NBA
     if "sport" not in nba_df.columns:
-        nba_df = nba_df.copy()
         nba_df["sport"] = "NBA"
+    else:
+        nba_df["sport"] = nba_df["sport"].fillna("NBA").astype(str).str.upper()
+
+    # Normalize NBA column names into the unified schema
+    nba_df = nba_df.rename(
+        columns={
+            "home_team_name": "home_team",
+            "away_team_name": "away_team",
+            "home_score": "home_pts",
+            "away_score": "away_pts",
+        }
+    )
+
+    frames.append(nba_df)
 
     # --- Optionally load MLB games ---
     mlb_path = MLB_PROCESSED_DIR / "mlb_model_input.parquet"
@@ -115,47 +135,125 @@ def load_games_table() -> pd.DataFrame:
         logger.info("Loading MLB model_input from %s ...", mlb_path)
         mlb_df = pd.read_parquet(mlb_path).copy()
 
-        # Normalize MLB -> games schema used by the API
-        rename_map = {
-            "home_team_name": "home_team",
-            "away_team_name": "away_team",
-            "home_score": "home_pts",
-            "away_score": "away_pts",
-        }
-        mlb_df = mlb_df.rename(columns=rename_map)
-
-        # Ensure sport column is set
+        # Normalize MLB -> unified schema
         mlb_df["sport"] = "MLB"
-
-        # Align columns between NBA + MLB
-        common_cols = sorted(set(nba_df.columns) | set(mlb_df.columns))
-        nba_df = nba_df.reindex(columns=common_cols)
-        mlb_df = mlb_df.reindex(columns=common_cols)
-
-        # Combine NBA + MLB
-        games = pd.concat([nba_df, mlb_df], ignore_index=True)
-        logger.info(
-            "Loaded combined games table with %d rows (NBA + MLB).",
-            len(games),
+        mlb_df = mlb_df.rename(
+            columns={
+                "home_team_name": "home_team",
+                "away_team_name": "away_team",
+                "home_score": "home_pts",
+                "away_score": "away_pts",
+            }
         )
+
+        frames.append(mlb_df)
     else:
-        games = nba_df
-        logger.info(
-            "Loaded NBA-only games table with %d rows (MLB model_input not found).",
-            len(games),
+        logger.info("MLB model_input not found at %s; skipping MLB.", mlb_path)
+
+    # --- NFL historical games ---
+    nfl_hist_path = NFL_PROCESSED_DIR / "nfl_games.parquet"
+    if nfl_hist_path.exists():
+        logger.info("Loading NFL historical games from %s ...", nfl_hist_path)
+        nfl_hist = pd.read_parquet(nfl_hist_path).copy()
+
+        nfl_hist["sport"] = "NFL"
+        nfl_hist = nfl_hist.rename(
+            columns={
+                "home_team_name": "home_team",
+                "away_team_name": "away_team",
+                "home_score": "home_pts",
+                "away_score": "away_pts",
+            }
         )
+
+        # Ensure score columns exist
+        if "home_pts" not in nfl_hist.columns:
+            nfl_hist["home_pts"] = None
+        if "away_pts" not in nfl_hist.columns:
+            nfl_hist["away_pts"] = None
+
+        frames.append(nfl_hist)
+    else:
+        logger.info("NFL historical games parquet not found at %s; skipping.", nfl_hist_path)
+
+    # --- NFL future schedule ---
+    nfl_future_path = NFL_PROCESSED_DIR / "nfl_future_games.parquet"
+    if nfl_future_path.exists():
+        logger.info("Loading NFL future schedule from %s ...", nfl_future_path)
+        nfl_future = pd.read_parquet(nfl_future_path).copy()
+
+        nfl_future["sport"] = "NFL"
+        nfl_future = nfl_future.rename(
+            columns={
+                "home_team_name": "home_team",
+                "away_team_name": "away_team",
+                "home_score": "home_pts",
+                "away_score": "away_pts",
+            }
+        )
+
+        # Future rows should have no final scores yet
+        if "home_pts" not in nfl_future.columns:
+            nfl_future["home_pts"] = None
+        if "away_pts" not in nfl_future.columns:
+            nfl_future["away_pts"] = None
+
+        frames.append(nfl_future)
+    else:
+        logger.info("NFL future schedule parquet not found at %s; skipping.", nfl_future_path)
+
+    # --- Combine all sports into a single games table ---
+    if not frames:
+        raise RuntimeError("load_games_table(): no game frames loaded for any sport")
+
+    # 1) Drop duplicate columns within each frame (keep first occurrence)
+    cleaned_frames: list[pd.DataFrame] = []
+    for f in frames:
+        # Ensure unique column labels BEFORE we reindex; duplicate labels
+        # can cause `cannot reindex on an axis with duplicate labels` errors.
+        f = f.loc[:, ~f.columns.duplicated()]
+        cleaned_frames.append(f)
+
+    frames = cleaned_frames
+
+    # 2) Build the superset of columns across all sports
+    all_cols: set[str] = set()
+    for f in frames:
+        all_cols.update(f.columns)
+
+    all_cols_list = sorted(all_cols)
+
+    # 3) Reindex each frame to the same column set
+    frames = [f.reindex(columns=all_cols_list) for f in frames]
+
+    # 4) Concatenate into one master games table
+    games = pd.concat(frames, ignore_index=True)
+
+    # --- Normalize date column to timezone-naive pandas datetime ---
+    if "date" in games.columns:
+        # Convert any mix of strings / python datetimes (with or without tz)
+        # into a unified datetime64[ns] column, dropping timezone info.
+        games = games.copy()
+        games["date"] = pd.to_datetime(games["date"], utc=True, errors="coerce")
+        # Drop timezone info so downstream `.dt` access works without errors
+        games["date"] = games["date"].dt.tz_localize(None)
+
+    logger.info(
+        "Loaded combined games table with %d rows (NBA=%d, MLB=%d, NFL=%d).",
+        len(games),
+        (games["sport"] == "NBA").sum() if "sport" in games.columns else 0,
+        (games["sport"] == "MLB").sum() if "sport" in games.columns else 0,
+        (games["sport"] == "NFL").sum() if "sport" in games.columns else 0,
+    )
 
     # --- Ensure a clean numeric game_id for every row ---
     if "game_id" not in games.columns:
-        # No game_id at all: assign sequential IDs
         games = games.sort_values(["date", "home_team", "away_team"]).reset_index(drop=True)
         games["game_id"] = games.index.astype(int)
     else:
-        # Coerce to numeric, then fill any missing with new IDs
         games = games.copy()
         games["game_id"] = pd.to_numeric(games["game_id"], errors="coerce")
 
-        # Find the current max id (ignoring NaNs)
         max_existing = games["game_id"].max()
         if pd.isna(max_existing):
             next_id = 1
@@ -250,6 +348,8 @@ def build_team_lookups(df: pd.DataFrame) -> None:
 
         if sport_str == "MLB":
             sport_id = SPORT_ID_MLB
+        elif sport_str == "NFL":
+            sport_id = SPORT_ID_NFL
         else:
             sport_id = SPORT_ID_NBA
 
@@ -914,6 +1014,8 @@ def list_events(
         sport_str = str(row.get("sport", "NBA")).upper()
         if sport_str == "MLB":
             sport_id = SPORT_ID_MLB
+        elif sport_str == "NFL":
+            sport_id = SPORT_ID_NFL
         else:
             sport_id = SPORT_ID_NBA
 
@@ -1019,6 +1121,8 @@ def get_event(event_id: int) -> EventOut:
     sport_str = str(row.get("sport", "NBA")).upper()
     if sport_str == "MLB":
         sport_id = SPORT_ID_MLB
+    elif sport_str == "NFL":
+        sport_id = SPORT_ID_NFL
     else:
         sport_id = SPORT_ID_NBA
 
