@@ -337,7 +337,7 @@ export default function Home() {
                 <div className="mt-2 max-h-64 overflow-y-auto pr-1">
                   <ul className="space-y-1.5 text-xs text-zinc-300">
                     {visibleEvents.map((e) => (
-                      <li key={e.event_id}>
+                      <li key={`${e.event_id}-${e.sport_id}-${e.date}`}>
                         <div className="flex flex-col rounded-lg px-2 py-1.5 hover:bg-zinc-900/70 transition-colors border-b border-zinc-900/60 last:border-b-0">
                           <div className="flex justify-between items-center gap-2">
                             <span className="flex items-center gap-2 min-w-0">

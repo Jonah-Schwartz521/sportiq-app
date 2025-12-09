@@ -49,10 +49,8 @@ def ensure_db_schema() -> None:
     teams table. This lets SQLAlchemy create the events table without
     raising NoReferencedTableError.
     """
-    Event.__table__.create(bind=engine, checkfirst=True)
-    Prediction.__table__.create(bind=engine, checkfirst=True)
-
-    # If the teams table is not in metadata, register a minimal version.
+    # If the teams table is not in metadata, register a minimal version *first*
+    # so that Event's foreign keys can resolve when events is created.
     if "teams" not in Base.metadata.tables:
         Table(
             "teams",
@@ -60,7 +58,7 @@ def ensure_db_schema() -> None:
             Column("teams_id", Integer, primary_key=True),
         )
 
-    # Now create all tables known to this metadata (including events).
+    # Now create all tables known to this metadata (including events & predictions).
     Base.metadata.create_all(bind=engine)
 
 

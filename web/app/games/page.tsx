@@ -510,6 +510,32 @@ export default function GamesPage() {
     console.log("NFL team labels in events:", Array.from(names));
   }, [events]);
 
+  // Debug: count events per sport_id and sample NHL rows
+  useEffect(() => {
+    if (!events.length) return;
+
+    const bySport: Record<number, number> = {};
+    for (const e of events) {
+      const key = Number(e.sport_id ?? 0);
+      bySport[key] = (bySport[key] ?? 0) + 1;
+    }
+
+    console.log("Events by sport_id from API:", bySport);
+
+    const nhlSample = events
+      .filter((e) => e.sport_id === 4)
+      .slice(0, 5)
+      .map((e) => ({
+        event_id: e.event_id,
+        date: e.date,
+        sport_id: e.sport_id,
+        home_team_id: e.home_team_id,
+        away_team_id: e.away_team_id,
+      }));
+
+    console.log("Sample NHL events from API (sport_id = 4):", nhlSample);
+  }, [events]);
+
   // Team lookup using shared helpers
   const teamsById = useMemo(() => buildTeamsById(teams), [teams]);
 
@@ -1003,14 +1029,19 @@ export default function GamesPage() {
               const finalHomeTeamName = homeTeamName ?? "TBD";
               const finalAwayTeamName = awayTeamName ?? "TBD";
 
-              // 🚫 Hide bogus NFL rows where we never resolved either team.
+              // 🚫 Hide bogus rows where we never resolved either team.
               // These show up as "TBD @ TBD" and likely aren't real games.
               const isNflTbdMatchup =
                 e.sport_id === 3 &&
                 (!finalHomeTeamName || finalHomeTeamName === "TBD") &&
                 (!finalAwayTeamName || finalAwayTeamName === "TBD");
 
-              if (isNflTbdMatchup) {
+              const isNbaTbdMatchup =
+                e.sport_id === 1 &&
+                (!finalHomeTeamName || finalHomeTeamName === "TBD") &&
+                (!finalAwayTeamName || finalAwayTeamName === "TBD");
+
+              if (isNflTbdMatchup || isNbaTbdMatchup) {
                 // Skip rendering this card entirely
                 return null;
               }
