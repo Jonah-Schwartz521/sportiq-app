@@ -1,1 +1,15 @@
-{"features": ["home_flag", "prior_home_adv", "home_elo_proxy", "away_elo_proxy"], "target": "y_home_win"}
+{
+  "model_name": "nba_logreg_b2b_v1",
+  "features": [
+    "home_win_pct_10", "away_win_pct_10",
+    "home_avg_pd_10", "away_avg_pd_10",
+    "home_season_win_pct", "away_season_win_pct",
+    "home_recent_win_pct_20g", "away_recent_win_pct_20g",
+    "home_days_rest", "away_days_rest",
+    "home_last_pd", "away_last_pd",
+    "home_b2b", "away_b2b"
+  ],
+  "target": "home_win",
+  "train_rows": 11508,
+  "notes": "Logistic regression with rolling, season, rest, last_pd, b2b; trained on 2014–2024 seasons"
+}
