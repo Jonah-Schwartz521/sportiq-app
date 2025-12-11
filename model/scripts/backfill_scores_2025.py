@@ -34,7 +34,7 @@ BALLDONTLIE_API_KEY = os.environ.get("BALLDONTLIE_API_KEY")  # set this in your 
 # First date of the season you want to backfill.
 # END_DATE is just a hard safety upper bound; in practice we will only
 # hit dates that actually appear in the schedule and that are <= today.
-START_DATE = date(2025, 10, 1)   # adjust if needed
+START_DATE = date(2024, 10, 1)   # 2024-25 season started Oct 2024
 END_DATE   = date(2026, 6, 30)   # safety upper bound
 
 TEAM_NAME_FIXES: Dict[str, str] = {
