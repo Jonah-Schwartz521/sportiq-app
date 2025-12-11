@@ -199,56 +199,71 @@ def main() -> None:
 
     candidate_dates = sorted({d for d in games.loc[mask_candidate, "date"]})
     today_iso = date.today().isoformat()
-    candidate_dates = [d for d in candidate_dates if d <= today_iso]
+    # BUGFIX: exclude today's date to avoid finalizing games that haven't finished yet
+    candidate_dates = [d for d in candidate_dates if d < today_iso]
 
-    if not candidate_dates:
-        print("All candidate dates are in the future; nothing to backfill yet.")
-        return
-
-    print(
-        f"Will query API for {len(candidate_dates)} distinct dates "
-        f"from {candidate_dates[0]} to {candidate_dates[-1]}."
-    )
-
-    # Build lookup from API only for the dates we actually need
-    lookup = build_api_results_lookup(candidate_dates)
-
-    updated = 0
-    missing = 0
-
-    for idx in games[mask_candidate].index:
-        row = games.loc[idx]
-
-        # Normalize home/away team names to match the API-derived keys
-        home_name = TEAM_NAME_FIXES.get(row["home_team"], row["home_team"])
-        away_name = TEAM_NAME_FIXES.get(row["away_team"], row["away_team"])
-
-        key = (row["date"], home_name, away_name)
-
-        # NOTE: if your names don't match exactly (e.g. "LA Clippers" vs "Los Angeles Clippers"),
-        # you’ll need a small mapping dict here to translate.
-        scores = lookup.get(key)
-        if not scores:
-            missing += 1
-            continue
-
-        games.at[idx, "home_pts"] = scores["home_pts"]
-        games.at[idx, "away_pts"] = scores["away_pts"]
-
-        # Mirror into UI score columns if present
-        if "home_score" in games.columns:
-            games.at[idx, "home_score"] = scores["home_pts"]
-        if "away_score" in games.columns:
-            games.at[idx, "away_score"] = scores["away_pts"]
-
-        # home_win = 1 if home_pts > away_pts else 0
-        games.at[idx, "home_win"] = (
-            1 if scores["home_pts"] > scores["away_pts"] else 0
+    if candidate_dates:
+        print(
+            f"Will query API for {len(candidate_dates)} distinct dates "
+            f"from {candidate_dates[0]} to {candidate_dates[-1]}."
         )
 
-        updated += 1
+        # Build lookup from API only for the dates we actually need
+        lookup = build_api_results_lookup(candidate_dates)
 
-    print(f"Updated {updated} rows with final scores. {missing} rows had no match.")
+        updated = 0
+        missing = 0
+
+        for idx in games[mask_candidate].index:
+            row = games.loc[idx]
+
+            # Normalize home/away team names to match the API-derived keys
+            home_name = TEAM_NAME_FIXES.get(row["home_team"], row["home_team"])
+            away_name = TEAM_NAME_FIXES.get(row["away_team"], row["away_team"])
+
+            key = (row["date"], home_name, away_name)
+
+            # NOTE: if your names don't match exactly (e.g. "LA Clippers" vs "Los Angeles Clippers"),
+            # you'll need a small mapping dict here to translate.
+            scores = lookup.get(key)
+            if not scores:
+                missing += 1
+                continue
+
+            games.at[idx, "home_pts"] = scores["home_pts"]
+            games.at[idx, "away_pts"] = scores["away_pts"]
+
+            # Mirror into UI score columns if present
+            if "home_score" in games.columns:
+                games.at[idx, "home_score"] = scores["home_pts"]
+            if "away_score" in games.columns:
+                games.at[idx, "away_score"] = scores["away_pts"]
+
+            # home_win = 1 if home_pts > away_pts else 0
+            games.at[idx, "home_win"] = (
+                1 if scores["home_pts"] > scores["away_pts"] else 0
+            )
+
+            updated += 1
+
+        print(f"Updated {updated} rows with final scores. {missing} rows had no match.")
+    else:
+        print("All candidate dates are in the future; no API queries needed.")
+
+    # CLEANUP: Remove any accidental "final" scores for today's games.
+    # Today's games may have been backfilled in a previous run when today was in the past,
+    # or they may have partial data from the API. Clear them to ensure correct status.
+    today_mask = games["date"] == today_iso
+    num_today = today_mask.sum()
+    if num_today > 0:
+        print(f"Cleaning up {num_today} rows for today ({today_iso}) to remove scores...")
+        games.loc[today_mask, "home_pts"] = None
+        games.loc[today_mask, "away_pts"] = None
+        if "home_score" in games.columns:
+            games.loc[today_mask, "home_score"] = None
+        if "away_score" in games.columns:
+            games.loc[today_mask, "away_score"] = None
+        games.loc[today_mask, "home_win"] = None
 
     out_path = PROCESSED_DIR / "games_with_scores_and_future.parquet"
     games.to_parquet(out_path, index=False)
