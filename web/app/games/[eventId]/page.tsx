@@ -11,7 +11,7 @@ import {
   type Insight,
 } from "@/lib/api";
 import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
-import { buildTeamsById, teamLabelFromMap } from "@/lib/teams";
+import { buildTeamsById, teamLabelFromMap, getFullTeamName } from "@/lib/teams";
 
 // --- Helpers --------------------------------------------------------
 
@@ -135,8 +135,23 @@ export default function GameDetailPage() {
   const teamsById = useMemo(() => buildTeamsById(teams), [teams]);
   const teamLabel = (id: number | null) => teamLabelFromMap(teamsById, id);
 
-  const homeName = event ? teamLabel(event.home_team_id) : "Home";
-  const awayName = event ? teamLabel(event.away_team_id) : "Away";
+  // Prioritize event.home_team/away_team from API, fall back to ID lookup
+  // For NHL, expand abbreviations to full names (e.g., "CGY" → "Calgary Flames")
+  const getTeamDisplayName = (teamCode: string | null, sportId: number) => {
+    if (!teamCode) return null;
+    // For NHL, convert abbreviation to full name
+    if (sportId === 4) {
+      return getFullTeamName(sportId, teamCode);
+    }
+    return teamCode;
+  };
+
+  const homeName = event
+    ? (getTeamDisplayName(event.home_team, event.sport_id) || teamLabel(event.home_team_id))
+    : "Home";
+  const awayName = event
+    ? (getTeamDisplayName(event.away_team, event.sport_id) || teamLabel(event.away_team_id))
+    : "Away";
 
   // ---------- Load prediction ----------
 

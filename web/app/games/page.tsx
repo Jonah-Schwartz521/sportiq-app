@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api, type Event, type Team } from "@/lib/api";
 import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
-import { buildTeamsById, teamLabelFromMap, getTeamLabel } from "@/lib/teams";
+import { buildTeamsById, teamLabelFromMap, getTeamLabel, NHL_TEAM_NAMES } from "@/lib/teams";
 import { TeamValueBadge } from "@/lib/logos";
 
 function getLocalISODate(date: Date = new Date()): string {
@@ -46,14 +46,71 @@ function formatReadableDate(dateStr: string | null): string | null {
   });
 }
 
-// UI-only status helper, so we can style FINAL / LIVE / SCHEDULED
+// Format time string from 24-hour format (e.g., "19:00") to 12-hour (e.g., "7:00 PM")
+function formatTime(timeStr: string | null | undefined): string | null {
+  if (!timeStr) return null;
+
+  try {
+    // Handle "HH:MM" format
+    const parts = timeStr.split(":");
+    if (parts.length < 2) return timeStr;
+
+    let hour = parseInt(parts[0], 10);
+    const minute = parts[1].split(" ")[0]; // handle "19:00" or "7:00 PM" formats
+
+    if (Number.isNaN(hour)) return timeStr;
+
+    const ampm = hour >= 12 ? "PM" : "AM";
+    hour = hour % 12 || 12; // Convert to 12-hour format (0 -> 12)
+
+    return `${hour}:${minute} ${ampm}`;
+  } catch {
+    return timeStr;
+  }
+}
+
+// Format date with time for display. If it's today, show "Today · TIME", else show full date.
+function formatDateWithTime(
+  dateStr: string | null,
+  timeStr: string | null | undefined
+): string | null {
+  if (!dateStr) return null;
+
+  const today = getLocalISODate();
+  const isToday = dateStr === today;
+
+  if (isToday && timeStr) {
+    const formattedTime = formatTime(timeStr);
+    return formattedTime ? `Today · ${formattedTime}` : "Today";
+  }
+
+  if (isToday) {
+    return "Today";
+  }
+
+  // Not today - show full date
+  const readableDate = formatReadableDate(dateStr);
+  if (timeStr) {
+    const formattedTime = formatTime(timeStr);
+    return formattedTime ? `${readableDate} · ${formattedTime}` : readableDate;
+  }
+
+  return readableDate;
+}
+
+// UI-only status helper, so we can style FINAL / LIVE / UPCOMING
 function getEventStatus(
   e: Event,
   isFinal: boolean,
-): "final" | "scheduled" | "live" {
+): "final" | "upcoming" | "live" {
+  // Trust the backend's status first
   if (e.status === "in_progress" || e.status === "live") return "live";
-  if (isFinal || e.status === "final") return "final";
-  return "scheduled";
+  if (e.status === "final") return "final";
+  if (e.status === "upcoming") return "upcoming";
+
+  // Legacy fallback for old API responses
+  if (isFinal) return "final";
+  return "upcoming";
 }
 
 // Sport filter config shared by main page + summary
@@ -993,7 +1050,7 @@ export default function GamesPage() {
                   ? "Final"
                   : status === "live"
                   ? "Live"
-                  : "Scheduled";
+                  : "Upcoming";
 
               const oddsLabel = isFinal
                 ? null
@@ -1035,6 +1092,19 @@ export default function GamesPage() {
                 if (derived.away) {
                   awayTeamName = derived.away;
                 }
+              }
+
+              // For NHL, manually map common abbreviations (CGY, VAN, TOR, MTL, etc.)
+              // to full team names so the UI shows "Calgary Flames" not "CGY".
+              if (e.sport_id === 4) {
+                const expandNhlName = (name: string): string => {
+                  const key = name.toUpperCase().trim();
+                  return NHL_TEAM_NAMES[key] ?? name;
+                };
+
+                // Expand whatever names we got from getTeamLabel
+                homeTeamName = expandNhlName(homeTeamName);
+                awayTeamName = expandNhlName(awayTeamName);
               }
 
               // Already strings from getTeamLabel
@@ -1080,7 +1150,7 @@ export default function GamesPage() {
 
                       {/* Date row */}
                       <p className="mt-1 text-[11px] text-zinc-400">
-                        {formatReadableDate(e.date) ?? e.date}
+                        {formatDateWithTime(e.date, e.start_time) ?? e.date}
                       </p>
                     </div>
 
