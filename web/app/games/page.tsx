@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api, type Event, type Team } from "@/lib/api";
 import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
-import { buildTeamsById, teamLabelFromMap } from "@/lib/teams";
+import { buildTeamsById, teamLabelFromMap, getTeamLabel } from "@/lib/teams";
 import { TeamValueBadge } from "@/lib/logos";
 
 function getLocalISODate(date: Date = new Date()): string {
@@ -548,13 +548,18 @@ export default function GamesPage() {
 
   // Year options derived from events – for the Season dropdown
   const yearOptions = useMemo(() => {
+    const relevantEvents =
+      selectedSport === "all"
+        ? events
+        : events.filter((e) => e.sport_id === selectedSport);
+
     const years = new Set<string>();
-    for (const e of events) {
+    for (const e of relevantEvents) {
       const y = getYearFromDate(e.date);
       if (y) years.add(y);
     }
     return Array.from(years).sort();
-  }, [events]);
+  }, [events, selectedSport]);
 
   // Team options derived from teams – filtered by sport
   const teamOptions = useMemo(() => {
@@ -579,6 +584,37 @@ export default function GamesPage() {
     setTeamFilter("all");
   }, [selectedSport]);
 
+  // When the sport filter changes, ensure the season/year filter points to an available year
+  // for that sport so NHL (and other leagues) surface immediately.
+  useEffect(() => {
+    if (selectedSport === "all") return;
+    if (!events.length) return;
+
+    const sportEvents = events.filter((e) => e.sport_id === selectedSport);
+    if (!sportEvents.length) return;
+
+    const sportYears = Array.from(
+      new Set(
+        sportEvents
+          .map((e) => getYearFromDate(e.date))
+          .filter((y): y is string => !!y),
+      ),
+    ).sort();
+
+    const latestForSport = sportYears[sportYears.length - 1];
+
+    if (yearFilter === "all") {
+      if (latestForSport) {
+        setYearFilter(latestForSport);
+      }
+      return;
+    }
+
+    if (!sportYears.includes(yearFilter) && latestForSport) {
+      setYearFilter(latestForSport);
+    }
+  }, [selectedSport, events, yearFilter]);
+
   // ================================
   // Composed filtering logic (order)
   // 1) Season (yearFilter)
@@ -602,8 +638,8 @@ export default function GamesPage() {
     // 3) Team filter
     if (teamFilter !== "all") {
       filtered = filtered.filter((e) => {
-        const homeName = teamLabel(e.home_team_id);
-        const awayName = teamLabel(e.away_team_id);
+        const homeName = getTeamLabel(e, "home", teamsById);
+        const awayName = getTeamLabel(e, "away", teamsById);
         return homeName === teamFilter || awayName === teamFilter;
       });
     }
@@ -617,23 +653,11 @@ export default function GamesPage() {
     filtered = filtered.filter((e) => {
       if (e.sport_id !== 3) return true;
 
-      // Prefer explicit team name fields from the event, then shared team lookup
-      const rawHomeName =
-        (e as any).home_team_name ??
-        (e as any).home_team ??
-        null;
-      const rawAwayName =
-        (e as any).away_team_name ??
-        (e as any).away_team ??
-        null;
+      // Use the robust team label helper
+      let homeTeamName: string = getTeamLabel(e, "home", teamsById);
+      let awayTeamName: string = getTeamLabel(e, "away", teamsById);
 
-      let homeTeamName: string | null =
-        rawHomeName || teamLabel(e.home_team_id) || null;
-      let awayTeamName: string | null =
-        rawAwayName || teamLabel(e.away_team_id) || null;
-
-      const expandNflName = (name: string | null): string | null => {
-        if (!name) return name;
+      const expandNflName = (name: string): string => {
         const key = name.toUpperCase().trim();
         return NFL_TEAM_FULL_NAME_BY_ABBR[key] ?? name;
       };
@@ -644,22 +668,22 @@ export default function GamesPage() {
       const derived = deriveNflNamesFromEventId(
         (e as any).event_id ?? e.event_id,
       );
-      if (!homeTeamName && derived.home) {
+      if (homeTeamName === "TBD" && derived.home) {
         homeTeamName = derived.home;
       }
-      if (!awayTeamName && derived.away) {
+      if (awayTeamName === "TBD" && derived.away) {
         awayTeamName = derived.away;
       }
 
       const isNflTbdMatchup =
-        (!homeTeamName || homeTeamName === "TBD") &&
-        (!awayTeamName || awayTeamName === "TBD");
+        (homeTeamName === "TBD") &&
+        (awayTeamName === "TBD");
 
       return !isNflTbdMatchup;
     });
 
     return filtered;
-  }, [events, yearFilter, selectedSport, teamFilter, dateFilter]);
+  }, [events, yearFilter, selectedSport, teamFilter, dateFilter, teamsById]);
 
   const visibleCount = visibleEvents.length;
   const isTeamDisabled = selectedSport === "all";
@@ -984,26 +1008,14 @@ export default function GamesPage() {
 
               // Prefer explicit team name fields from the event (needed for NFL),
               // then fall back to the shared teams lookup, then finally "TBD".
-              const rawHomeName =
-                (e as any).home_team_name ??
-                (e as any).home_team ??
-                null;
-              const rawAwayName =
-                (e as any).away_team_name ??
-                (e as any).away_team ??
-                null;
-
-              // Base names from explicit event fields or shared team lookup
-              let homeTeamName: string | null =
-                rawHomeName || teamLabel(e.home_team_id) || null;
-              let awayTeamName: string | null =
-                rawAwayName || teamLabel(e.away_team_id) || null;
+              // Use robust team label helper
+              let homeTeamName: string = getTeamLabel(e, "home", teamsById);
+              let awayTeamName: string = getTeamLabel(e, "away", teamsById);
 
               // For NFL, manually map common abbreviations (JAX, TEN, NO, TB, etc.)
               // to full team names so the UI always shows the full franchise name.
               if (e.sport_id === 3) {
-                const expandNflName = (name: string | null): string | null => {
-                  if (!name) return name;
+                const expandNflName = (name: string): string => {
                   const key = name.toUpperCase().trim();
                   return NFL_TEAM_FULL_NAME_BY_ABBR[key] ?? name;
                 };
@@ -1025,9 +1037,9 @@ export default function GamesPage() {
                 }
               }
 
-              // Final fallback
-              const finalHomeTeamName = homeTeamName ?? "TBD";
-              const finalAwayTeamName = awayTeamName ?? "TBD";
+              // Already strings from getTeamLabel
+              const finalHomeTeamName = homeTeamName;
+              const finalAwayTeamName = awayTeamName;
 
               // 🚫 Hide bogus rows where we never resolved either team.
               // These show up as "TBD @ TBD" and likely aren't real games.

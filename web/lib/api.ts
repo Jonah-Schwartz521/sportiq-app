@@ -15,6 +15,8 @@ export type Event = {
   date: string;
   home_team_id: number | null;
   away_team_id: number | null;
+  home_team?: string | null;  // Team name/abbrev from API
+  away_team?: string | null;  // Team name/abbrev from API
   venue: string | null;
   status: string | null;
   start_time?: string | null;
