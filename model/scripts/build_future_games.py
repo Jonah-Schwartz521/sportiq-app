@@ -17,7 +17,7 @@ from model.src.paths import PROCESSED_DIR  # type: ignore  # noqa
 RAW_ROOT = PROCESSED_DIR.parent / "raw" / "NBA_schedule_results"
 
 # Only treat these as "future" schedule seasons
-FUTURE_SEASONS = {"2025-26_NBA"}
+FUTURE_SEASONS = {"2024-25_NBA", "2025-26_NBA"}
 
 
 def load_future_schedule() -> pd.DataFrame:
@@ -31,17 +31,26 @@ def load_future_schedule() -> pd.DataFrame:
         if season_dir.name not in FUTURE_SEASONS:
             continue
 
-        for xls_path in season_dir.glob("*.xls"):
-            print(f"  Loading {season_dir.name}/{xls_path.name} ...")
-            # Some of these schedule files are HTML tables saved with a .xls extension.
-            # First try regular Excel parsing; if that fails, fall back to read_html.
-            try:
-                df_raw = pd.read_excel(xls_path)
-            except Exception:
-                tables = pd.read_html(xls_path)
-                if not tables:
-                    raise RuntimeError(f"No tables found in {xls_path}")
-                df_raw = tables[0]
+        # Read both .xls and .csv files (for manual patches)
+        schedule_files = list(season_dir.glob("*.xls")) + list(season_dir.glob("*.csv"))
+
+        for schedule_path in schedule_files:
+            print(f"  Loading {season_dir.name}/{schedule_path.name} ...")
+
+            # Handle CSV files (manual patches)
+            if schedule_path.suffix == '.csv':
+                # Skip comment lines starting with #
+                # index_col=False prevents pandas from using first column as index
+                df_raw = pd.read_csv(schedule_path, comment='#', index_col=False)
+            else:
+                # Handle .xls files (some are HTML tables saved with .xls extension)
+                try:
+                    df_raw = pd.read_excel(schedule_path)
+                except Exception:
+                    tables = pd.read_html(schedule_path)
+                    if not tables:
+                        raise RuntimeError(f"No tables found in {schedule_path}")
+                    df_raw = tables[0]
 
             df_raw["_season_label"] = season_dir.name
             all_rows.append(df_raw)

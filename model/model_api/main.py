@@ -52,7 +52,7 @@ ROOT = Path(__file__).resolve().parents[1]  # /model
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
-from src.paths import PROCESSED_DIR, MLB_PROCESSED_DIR, NFL_PROCESSED_DIR
+from src.paths import PROCESSED_DIR, MLB_PROCESSED_DIR, NFL_PROCESSED_DIR, NHL_PROCESSED_DIR
 from src.nba_inference import load_nba_model, predict_home_win_proba
 
 # --- Global objects (loaded once at startup) -----------------------
@@ -65,6 +65,7 @@ TEAM_ID_TO_NAME: Dict[int, str] = {}
 SPORT_ID_NBA = 1
 SPORT_ID_MLB = 2
 SPORT_ID_NFL = 3
+SPORT_ID_NHL = 4
 TEAM_ID_TO_SPORT_ID: Dict[int, int] = {}
 
 # --- Sports Odds API config ---------------------------------------
@@ -110,6 +111,19 @@ def load_games_table() -> pd.DataFrame:
     nba_path = PROCESSED_DIR / "games_with_scores_and_future.parquet"
     logger.info("Loading NBA games table from %s ...", nba_path)
     nba_df = pd.read_parquet(nba_path).copy()
+
+    # BUGFIX: Filter out non-NBA games if the parquet contains multiple leagues
+    # The games_with_scores_and_future.parquet file may contain NHL games with league='NHL'.
+    # We only want actual NBA games here.
+    if "league" in nba_df.columns:
+        before_count = len(nba_df)
+        nba_df = nba_df[nba_df["league"].fillna("NBA").str.upper() == "NBA"]
+        filtered_count = before_count - len(nba_df)
+        if filtered_count > 0:
+            logger.info(
+                "Filtered out %d non-NBA games from NBA parquet (league != 'NBA')",
+                filtered_count
+            )
 
     # Ensure we have a sport label for NBA
     if "sport" not in nba_df.columns:
@@ -202,6 +216,33 @@ def load_games_table() -> pd.DataFrame:
     else:
         logger.info("NFL future schedule parquet not found at %s; skipping.", nfl_future_path)
 
+    # --- NHL games (MoneyPuck data) ---
+    nhl_path = NHL_PROCESSED_DIR / "nhl_games_for_app.parquet"
+    if nhl_path.exists():
+        logger.info("Loading NHL games from %s ...", nhl_path)
+        nhl_df = pd.read_parquet(nhl_path).copy()
+
+        nhl_df["sport"] = "NHL"
+        nhl_df = nhl_df.rename(
+            columns={
+                "game_datetime": "date",
+                "home_team_name": "home_team",
+                "away_team_name": "away_team",
+                "home_score": "home_pts",
+                "away_score": "away_pts",
+            }
+        )
+
+        # Ensure score columns exist (future games may not have scores yet)
+        if "home_pts" not in nhl_df.columns:
+            nhl_df["home_pts"] = None
+        if "away_pts" not in nhl_df.columns:
+            nhl_df["away_pts"] = None
+
+        frames.append(nhl_df)
+    else:
+        logger.info("NHL games parquet not found at %s; skipping NHL.", nhl_path)
+
     # --- Combine all sports into a single games table ---
     if not frames:
         raise RuntimeError("load_games_table(): no game frames loaded for any sport")
@@ -239,11 +280,12 @@ def load_games_table() -> pd.DataFrame:
         games["date"] = games["date"].dt.tz_localize(None)
 
     logger.info(
-        "Loaded combined games table with %d rows (NBA=%d, MLB=%d, NFL=%d).",
+        "Loaded combined games table with %d rows (NBA=%d, MLB=%d, NFL=%d, NHL=%d).",
         len(games),
         (games["sport"] == "NBA").sum() if "sport" in games.columns else 0,
         (games["sport"] == "MLB").sum() if "sport" in games.columns else 0,
         (games["sport"] == "NFL").sum() if "sport" in games.columns else 0,
+        (games["sport"] == "NHL").sum() if "sport" in games.columns else 0,
     )
 
     # --- Ensure a clean numeric game_id for every row ---
@@ -350,6 +392,8 @@ def build_team_lookups(df: pd.DataFrame) -> None:
             sport_id = SPORT_ID_MLB
         elif sport_str == "NFL":
             sport_id = SPORT_ID_NFL
+        elif sport_str == "NHL":
+            sport_id = SPORT_ID_NHL
         else:
             sport_id = SPORT_ID_NBA
 
@@ -554,6 +598,8 @@ class EventOut(BaseModel):
     date: str
     home_team_id: Optional[int]
     away_team_id: Optional[int]
+    home_team: Optional[str] = None  # Team name/abbrev for display
+    away_team: Optional[str] = None  # Team name/abbrev for display
     venue: Optional[str] = None
     status: Optional[str] = None
     start_time: Optional[str] = None
@@ -1010,12 +1056,14 @@ def list_events(
                 )
                 # leave sportsbook_* as None and keep going
 
-        # Determine sport_id per row (NBA vs MLB)
+        # Determine sport_id per row (NBA vs MLB vs NFL vs NHL)
         sport_str = str(row.get("sport", "NBA")).upper()
         if sport_str == "MLB":
             sport_id = SPORT_ID_MLB
         elif sport_str == "NFL":
             sport_id = SPORT_ID_NFL
+        elif sport_str == "NHL":
+            sport_id = SPORT_ID_NHL
         else:
             sport_id = SPORT_ID_NBA
 
@@ -1026,6 +1074,8 @@ def list_events(
                 date=str(row["date"].date()),
                 home_team_id=TEAM_NAME_TO_ID.get(str(row["home_team"])),
                 away_team_id=TEAM_NAME_TO_ID.get(str(row["away_team"])),
+                home_team=str(row["home_team"]) if pd.notna(row.get("home_team")) else None,
+                away_team=str(row["away_team"]) if pd.notna(row.get("away_team")) else None,
                 venue=None,
                 status=status,
                 start_time=None,
