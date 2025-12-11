@@ -177,6 +177,7 @@ def load_games_table() -> pd.DataFrame:
                 "away_team_name": "away_team",
                 "home_score": "home_pts",
                 "away_score": "away_pts",
+                "gameday": "date",  # Normalize NFL date column
             }
         )
 
@@ -211,6 +212,10 @@ def load_games_table() -> pd.DataFrame:
             nfl_future["home_pts"] = None
         if "away_pts" not in nfl_future.columns:
             nfl_future["away_pts"] = None
+
+        # Ensure start_et exists for time display
+        if "start_et" not in nfl_future.columns:
+            nfl_future["start_et"] = "13:00"  # Default to 1:00 PM ET
 
         frames.append(nfl_future)
     else:
@@ -400,6 +405,135 @@ def build_team_lookups(df: pd.DataFrame) -> None:
         TEAM_ID_TO_SPORT_ID[team_id] = sport_id
 
     logger.info("Built team lookups for %d teams.", len(TEAM_NAME_TO_ID))
+
+def compute_event_status(row: pd.Series) -> str:
+    """
+    Compute event status based on date, time, and scores.
+
+    Rules:
+    - If game_dt.date < today: "final" if scores exist, else "scheduled"
+    - If game_dt.date > today: "upcoming"
+    - If game_dt.date == today:
+        - If game_dt > now: "upcoming"
+        - Else if scores exist: "in_progress"
+        - Else: "upcoming" (safety fallback)
+
+    Returns: "final", "in_progress", or "upcoming"
+    """
+    from datetime import timezone
+    from zoneinfo import ZoneInfo
+
+    # Get current time in ET
+    et_tz = ZoneInfo("America/New_York")
+    now_et = datetime.now(et_tz)
+    today_et = now_et.date()
+
+    # Parse the game date (YYYY-MM-DD string)
+    game_date_str = str(row.get("date", "")).split("T")[0]  # handle both date and datetime strings
+    try:
+        game_date_parts = game_date_str.split("-")
+        game_date = date_type(
+            int(game_date_parts[0]),
+            int(game_date_parts[1]),
+            int(game_date_parts[2])
+        )
+    except (ValueError, IndexError, AttributeError):
+        # If we can't parse the date, fall back to score-based status
+        has_scores = pd.notna(row.get("home_pts")) and pd.notna(row.get("away_pts"))
+        return "final" if has_scores else "upcoming"
+
+    # Try to get the game time (start_et field, format like "19:00" or "7:00 PM")
+    start_time_str = row.get("start_et")
+    game_dt_et = None
+
+    if start_time_str and pd.notna(start_time_str):
+        # Parse time string (could be "19:00" or "7:00 PM" format)
+        try:
+            # Try parsing as HH:MM 24-hour format
+            time_parts = str(start_time_str).split(":")
+            hour = int(time_parts[0])
+            minute = int(time_parts[1].split()[0]) if len(time_parts) > 1 else 0
+
+            # Create datetime in ET
+            game_dt_et = datetime(
+                game_date.year,
+                game_date.month,
+                game_date.day,
+                hour,
+                minute,
+                tzinfo=et_tz
+            )
+        except (ValueError, AttributeError, IndexError):
+            # If time parsing fails, we'll just use date comparison
+            pass
+
+    # Check if we have final scores
+    has_scores = pd.notna(row.get("home_pts")) and pd.notna(row.get("away_pts"))
+
+    # Apply status logic based on date
+    if game_date < today_et:
+        # Past game
+        return "final" if has_scores else "scheduled"
+    elif game_date > today_et:
+        # Future game
+        return "upcoming"
+    else:
+        # Today's game - check tipoff time
+        start_time_str = row.get("start_et")
+        if start_time_str and pd.notna(start_time_str):
+            try:
+                # Parse "HH:MM" 24-hour format
+                time_str = str(start_time_str).strip()
+                parts = time_str.split(":")
+                hour = int(parts[0])
+                minute = int(parts[1]) if len(parts) > 1 else 0
+
+                tipoff_et = datetime(
+                    game_date.year, game_date.month, game_date.day,
+                    hour, minute, tzinfo=et_tz
+                )
+
+                if now_et < tipoff_et:
+                    return "upcoming"
+                else:
+                    return "in_progress" if not has_scores else "final"
+            except (ValueError, AttributeError, IndexError):
+                pass
+
+        # Fallback for today without valid time
+        return "upcoming" if not has_scores else "final"
+
+
+def format_start_time_display(row: pd.Series) -> str | None:
+    """
+    Format start_et field (24-hour "HH:MM") into display string like "7:00 PM ET"
+    """
+    start_time_str = row.get("start_et")
+    if not start_time_str or pd.isna(start_time_str):
+        return None
+
+    try:
+        time_str = str(start_time_str).strip()
+
+        # Parse "HH:MM" format
+        parts = time_str.split(":")
+        hour = int(parts[0])
+        minute = parts[1] if len(parts) > 1 else "00"
+
+        # Convert to 12-hour format
+        if hour == 0:
+            display = f"12:{minute} AM ET"
+        elif hour < 12:
+            display = f"{hour}:{minute} AM ET"
+        elif hour == 12:
+            display = f"12:{minute} PM ET"
+        else:
+            display = f"{hour - 12}:{minute} PM ET"
+
+        return display
+    except (ValueError, AttributeError, IndexError):
+        return None
+
 
 def log_prediction_row(row: pd.Series, p_home: float, p_away: float) -> None:
     """Append a prediction to the in-memory log for admin/debug."""
@@ -603,6 +737,7 @@ class EventOut(BaseModel):
     venue: Optional[str] = None
     status: Optional[str] = None
     start_time: Optional[str] = None
+    start_time_display: Optional[str] = None
     has_prediction: bool = True
 
     home_score: Optional[int] = None
@@ -1014,11 +1149,16 @@ def list_events(
             except (ValueError, TypeError):
                 home_win = None
 
-        # Determine status based on whether we have final scores
-        if home_score is not None and away_score is not None:
-            status = "final"
-        else:
-            status = "scheduled"
+        # Compute status using date/time-aware logic
+        status = compute_event_status(row)
+
+        # Extract start time if available
+        start_time = None
+        if "start_et" in row and pd.notna(row["start_et"]):
+            start_time = str(row["start_et"])
+
+        # Format start time for display
+        start_time_display = format_start_time_display(row)
 
         # Safely pull model probability / odds columns if present
         model_home_win_prob = None
@@ -1078,7 +1218,8 @@ def list_events(
                 away_team=str(row["away_team"]) if pd.notna(row.get("away_team")) else None,
                 venue=None,
                 status=status,
-                start_time=None,
+                start_time=start_time,
+                start_time_display=start_time_display,
                 home_score=home_score,
                 away_score=away_score,
                 home_win=home_win,
@@ -1126,11 +1267,16 @@ def get_event(event_id: int) -> EventOut:
         except (ValueError, TypeError):
             home_win = None
 
-    # Determine status based on whether we have final scores
-    if home_score is not None and away_score is not None:
-        status = "final"
-    else:
-        status = "scheduled"
+    # Compute status using date/time-aware logic
+    status = compute_event_status(row)
+
+    # Extract start time if available
+    start_time = None
+    if "start_et" in row and pd.notna(row["start_et"]):
+        start_time = str(row["start_et"])
+
+    # Format start time for display
+    start_time_display = format_start_time_display(row)
 
     # Safely pull model probability / odds columns if present
     model_home_win_prob = None
@@ -1182,9 +1328,12 @@ def get_event(event_id: int) -> EventOut:
         date=str(row["date"].date()),
         home_team_id=TEAM_NAME_TO_ID.get(str(row["home_team"])),
         away_team_id=TEAM_NAME_TO_ID.get(str(row["away_team"])),
+        home_team=str(row["home_team"]) if pd.notna(row.get("home_team")) else None,
+        away_team=str(row["away_team"]) if pd.notna(row.get("away_team")) else None,
         venue=None,
         status=status,
-        start_time=None,
+        start_time=start_time,
+        start_time_display=start_time_display,
         home_score=home_score,
         away_score=away_score,
         home_win=home_win,

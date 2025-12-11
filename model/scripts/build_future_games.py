@@ -16,6 +16,71 @@ from model.src.paths import PROCESSED_DIR  # type: ignore  # noqa
 
 RAW_ROOT = PROCESSED_DIR.parent / "raw" / "NBA_schedule_results"
 
+
+def parse_nba_start_time(raw_time_str) -> str:
+    """
+    Parse NBA start time from raw schedule.
+
+    Input examples:
+      - "7:30p" → "19:30"
+      - "8:00" → "20:00"  (assume PM for evening games)
+      - "12:00" → "12:00" (noon)
+      - "1:00" → "13:00"  (assume PM)
+      - "" or NaN → "19:00" (default 7:00 PM)
+
+    Returns: 24-hour time string "HH:MM"
+    """
+    import re
+
+    # Handle missing/blank times
+    if pd.isna(raw_time_str) or str(raw_time_str).strip() == "":
+        return "19:00"  # Default to 7:00 PM ET
+
+    time_str = str(raw_time_str).strip().lower()
+
+    # Already has AM/PM indicator
+    if 'p' in time_str or 'a' in time_str:
+        # Extract just the time part
+        match = re.match(r'(\d{1,2}):?(\d{2})?\s*([ap])', time_str)
+        if match:
+            hour = int(match.group(1))
+            minute = int(match.group(2)) if match.group(2) else 0
+            period = match.group(3)
+
+            if period == 'p' and hour != 12:
+                hour += 12
+            elif period == 'a' and hour == 12:
+                hour = 0
+
+            return f"{hour:02d}:{minute:02d}"
+
+    # No AM/PM - parse and infer
+    match = re.match(r'(\d{1,2}):?(\d{2})?', time_str)
+    if match:
+        hour = int(match.group(1))
+        minute = int(match.group(2)) if match.group(2) else 0
+
+        # NBA game time inference rules:
+        # - 12:00, 1:00, 2:00, 3:00 → keep as-is (afternoon games)
+        # - 6:00 and later → assume PM
+        # - 4:00, 5:00 → assume PM (rare but possible)
+        # - Everything else 7+ → assume PM
+
+        if hour >= 6 and hour <= 11:
+            # Evening games: 6, 7, 8, 9, 10, 11 → PM
+            hour += 12
+        elif hour == 12:
+            # Noon
+            pass
+        elif 1 <= hour <= 5:
+            # Afternoon: 1 PM - 5 PM
+            hour += 12
+
+        return f"{hour:02d}:{minute:02d}"
+
+    # Fallback
+    return "19:00"
+
 # Only treat these as "future" schedule seasons
 FUTURE_SEASONS = {"2024-25_NBA", "2025-26_NBA"}
 
@@ -65,10 +130,13 @@ def load_future_schedule() -> pd.DataFrame:
     date_str = raw["Date"].astype(str).str.split(",", n=1).str[1].str.strip()
     dates = pd.to_datetime(date_str, errors="coerce")
 
+    # Parse and normalize start times
+    parsed_start_times = raw["Start (ET)"].apply(parse_nba_start_time)
+
     schedule = pd.DataFrame(
         {
             "date": dates.dt.date,
-            "start_et": raw["Start (ET)"],
+            "start_et": parsed_start_times,  # Now in 24-hour "HH:MM" format
             "away_team": raw["Visitor/Neutral"],
             "home_team": raw["Home/Neutral"],
             "arena": raw["Arena"],

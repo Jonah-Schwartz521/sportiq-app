@@ -32,6 +32,54 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def parse_nfl_kickoff_time(raw_time_str) -> str:
+    """
+    Parse NFL kickoff time from raw schedule.
+
+    Input examples:
+      - "13:00" (already 24-hour) → "13:00"
+      - "16:25" → "16:25"
+      - "20:30" → "20:30"
+      - "1:00p" → "13:00"
+      - "4:25p" → "16:25"
+      - None/"TBD"/blank → "13:00" (default to 1:00 PM ET Sunday)
+
+    Returns: 24-hour time string "HH:MM"
+    """
+    import re
+
+    # Handle missing/blank times
+    if pd.isna(raw_time_str) or str(raw_time_str).strip() in ("", "TBD", "None"):
+        return "13:00"  # Default to 1:00 PM ET
+
+    time_str = str(raw_time_str).strip().lower()
+
+    # Already in 24-hour format like "13:00", "16:25"
+    if re.match(r'^\d{1,2}:\d{2}$', time_str):
+        parts = time_str.split(":")
+        hour = int(parts[0])
+        minute = parts[1]
+        return f"{hour:02d}:{minute}"
+
+    # Has AM/PM indicator like "1:00p" or "4:25p"
+    if 'p' in time_str or 'a' in time_str:
+        match = re.match(r'(\d{1,2}):?(\d{2})?\s*([ap])', time_str)
+        if match:
+            hour = int(match.group(1))
+            minute = int(match.group(2)) if match.group(2) else 0
+            period = match.group(3)
+
+            if period == 'p' and hour != 12:
+                hour += 12
+            elif period == 'a' and hour == 12:
+                hour = 0
+
+            return f"{hour:02d}:{minute:02d}"
+
+    # Fallback
+    return "13:00"
+
+
 def main() -> None:
     in_path = NFL_PROCESSED_DIR / "games.parquet"
     out_path = NFL_PROCESSED_DIR / "nfl_games.parquet"
@@ -111,6 +159,14 @@ def main() -> None:
     # Ensure home_win exists (0/1), but it's ok if it's missing for some rows
     if "home_win" not in nfl.columns:
         nfl["home_win"] = None
+
+    # Parse and normalize kickoff times to match NBA format
+    if "gametime" in nfl.columns:
+        logger.info("Parsing NFL kickoff times from 'gametime' column...")
+        nfl["start_et"] = nfl["gametime"].apply(parse_nfl_kickoff_time)
+    else:
+        logger.warning("No 'gametime' column found - using default 1:00 PM for all games")
+        nfl["start_et"] = "13:00"
 
     # Ensure event_id exists (string)
     if "event_id" not in nfl.columns:
