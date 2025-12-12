@@ -1,0 +1,173 @@
+name: Nightly Odds Refresh
+
+on:
+  # Run every night at 4:00 AM Denver time (approximately 11:00 AM UTC)
+  # Offset from score refreshes to avoid rate limit conflicts
+  schedule:
+    - cron: '0 11 * * *'
+  # Allow manual triggering for testing
+  workflow_dispatch:
+
+jobs:
+  refresh-odds:
+    runs-on: ubuntu-latest
+
+    # Grant write permissions for creating PRs
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Need full history to commit back
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pandas pyarrow requests
+
+      - name: Verify API key is set
+        run: |
+          if [ -z "${{ secrets.ODDS_API_KEY }}" ]; then
+            echo "ERROR: ODDS_API_KEY secret is not configured"
+            exit 1
+          fi
+          echo "✓ API key secret is configured"
+
+      - name: Run odds refresh
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        id: refresh
+        # Script exits with code 1 if no changes, 0 if changes detected
+        continue-on-error: true
+        run: |
+          python model/scripts/refresh_odds.py
+
+      - name: Debug - Pre-commit state
+        id: debug-pre
+        run: |
+          echo "======================================"
+          echo "PRE-COMMIT DEBUGGING"
+          echo "======================================"
+          echo ""
+          echo "=== Directory listing ==="
+          ls -lah model/data/processed/odds/ || echo "Directory does not exist"
+          echo ""
+          echo "=== File exists check ==="
+          for file in model/data/processed/odds/*.parquet; do
+            if [ -f "$file" ]; then
+              echo "✓ $(basename $file) exists"
+              FILE_SIZE=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file")
+              echo "  Size: $FILE_SIZE bytes"
+            fi
+          done
+          echo ""
+          echo "=== Git status before staging ==="
+          git status --porcelain model/data/processed/odds/
+          echo ""
+          echo "=== Git check-ignore (verify NOT ignored) ==="
+          git check-ignore -v model/data/processed/odds/*.parquet || echo "✓ Files are NOT ignored"
+          echo ""
+
+      - name: Force-add parquet files (override gitignore)
+        id: force-add
+        run: |
+          echo "======================================"
+          echo "FORCE-ADDING FILES"
+          echo "======================================"
+          echo ""
+
+          # Force add both parquet files even if gitignore would block them
+          git add -f model/data/processed/odds/nba_odds.parquet 2>/dev/null || echo "NBA odds file doesn't exist yet"
+          git add -f model/data/processed/odds/nfl_odds.parquet 2>/dev/null || echo "NFL odds file doesn't exist yet"
+
+          echo "✓ Files force-added to staging area"
+          echo ""
+          echo "=== Git status after force-add ==="
+          git status --porcelain model/data/processed/odds/
+          echo ""
+          echo "=== Git diff --cached (staged changes) ==="
+          git diff --cached --stat model/data/processed/odds/ || echo "No staged changes detected"
+          echo ""
+
+          # Check if there are actual changes staged
+          if git diff --cached --quiet model/data/processed/odds/; then
+            echo "⚠️  WARNING: No changes detected in odds files"
+            echo "FILE_CHANGED=false" >> $GITHUB_OUTPUT
+          else
+            echo "✓ Changes detected in odds files"
+            echo "FILE_CHANGED=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        id: create-pr
+        # Only create PR if files actually changed
+        if: steps.force-add.outputs.FILE_CHANGED == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          # Commit settings
+          commit-message: 'chore: update odds data (automated refresh)'
+          committer: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+          author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+
+          # Branch settings
+          branch: bot/odds-refresh
+          delete-branch: false
+
+          # PR settings
+          title: 'chore: update odds data (automated refresh)'
+          body: |
+            ## Automated Odds Refresh
+
+            This PR updates NBA and NFL odds data from The Odds API.
+
+            - **Run time**: ${{ github.event.repository.updated_at }}
+            - **Workflow**: Nightly Odds Refresh
+            - **Trigger**: ${{ github.event_name }}
+            - **Markets**: Moneyline (h2h) + Spreads
+            - **Bookmakers**: FanDuel, DraftKings, BetMGM, PointsBet, Bovada
+            - **Time window**: Next 24 hours
+
+            ### Files Updated
+            - `model/data/processed/odds/nba_odds.parquet`
+            - `model/data/processed/odds/nfl_odds.parquet`
+
+            This is an automated nightly refresh. Review and merge if the data looks correct.
+
+          # Only commit the parquet files (already staged by force-add)
+          add-paths: |
+            model/data/processed/odds/*.parquet
+
+          # Labels (optional)
+          labels: |
+            automated
+            data-refresh
+            odds
+
+      - name: PR Created/Updated
+        if: steps.create-pr.outputs.pull-request-number
+        run: |
+          echo "======================================"
+          echo "✓ PULL REQUEST CREATED/UPDATED"
+          echo "======================================"
+          echo "  Number: #${{ steps.create-pr.outputs.pull-request-number }}"
+          echo "  URL: ${{ steps.create-pr.outputs.pull-request-url }}"
+          echo "  Operation: ${{ steps.create-pr.outputs.pull-request-operation }}"
+
+      - name: No changes detected
+        if: steps.force-add.outputs.FILE_CHANGED != 'true'
+        run: |
+          echo "======================================"
+          echo "ℹ️  NO CHANGES DETECTED"
+          echo "======================================"
+          echo "No odds updates found - parquet files unchanged"
+          echo "No pull request created or updated."

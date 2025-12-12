@@ -29,6 +29,9 @@ data/
 # Exception: allow nightly refresh parquet outputs
 !model/data/processed/nfl/nfl_games_with_scores.parquet
 !model/data/processed/nba/nba_games_with_scores.parquet
+!model/data/processed/nhl/nhl_games_with_scores.parquet
+!model/data/processed/odds/nba_odds.parquet
+!model/data/processed/odds/nfl_odds.parquet
 logs/  
 # Virtualenvs
 .venv*/
