@@ -4,7 +4,6 @@ on:
   # Run every night at 3:30 AM Denver time (approximately 10:30 AM UTC)
   schedule:
     - cron: '30 10 * * *'
-
   # Allow manual triggering for testing
   workflow_dispatch:
 
@@ -22,8 +21,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          python-version: "3.11"
+          cache: pip
 
       - name: Install dependencies
         run: |
@@ -56,14 +55,12 @@ jobs:
       - name: Stage and check for changes
         id: git-check
         run: |
-          # Configure git identity first
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Force-add the parquet file (in case it was previously ignored)
+          # Force-add in case it was previously ignored
           git add -f model/data/processed/nfl/nfl_games_with_scores.parquet
 
-          # Check if anything is staged
           if git diff --cached --quiet; then
             echo "No changes staged → skipping commit"
             echo "changed=false" >> $GITHUB_OUTPUT
