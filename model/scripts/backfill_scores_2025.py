@@ -177,6 +177,10 @@ def main() -> None:
     print(f"Loading games table from {path} ...")
     games = pd.read_parquet(path)
 
+    if "sport" not in games.columns:
+        games = games.copy()
+        games["sport"] = "NBA"
+
     # Ensure date is string "YYYY-MM-DD"
     if not isinstance(games["date"].iloc[0], str):
         games = games.copy()
@@ -184,7 +188,8 @@ def main() -> None:
 
     # Restrict to 2025+ rows where scores are missing
     mask_candidate = (
-        (games["date"] >= START_DATE.isoformat())
+        (games["sport"] == "NBA")
+        & (games["date"] >= START_DATE.isoformat())
         & (games["date"] <= END_DATE.isoformat())
         & (games["home_pts"].isna() | games["away_pts"].isna())
     )
@@ -197,8 +202,10 @@ def main() -> None:
         print("No candidate rows to backfill; exiting.")
         return
 
-    candidate_dates = sorted({d for d in games.loc[mask_candidate, "date"]})
     today_iso = date.today().isoformat()
+    today_mask = (games["date"] == today_iso) & (games["sport"] == "NBA")
+
+    candidate_dates = sorted({d for d in games.loc[mask_candidate, "date"]})
     # BUGFIX: exclude today's date to avoid finalizing games that haven't finished yet
     candidate_dates = [d for d in candidate_dates if d < today_iso]
 
@@ -253,7 +260,7 @@ def main() -> None:
     # CLEANUP: Remove any accidental "final" scores for today's games.
     # Today's games may have been backfilled in a previous run when today was in the past,
     # or they may have partial data from the API. Clear them to ensure correct status.
-    today_mask = games["date"] == today_iso
+    today_mask = (games["date"] == today_iso) & (games["sport"] == "NBA")
     num_today = today_mask.sum()
     if num_today > 0:
         print(f"Cleaning up {num_today} rows for today ({today_iso}) to remove scores...")
