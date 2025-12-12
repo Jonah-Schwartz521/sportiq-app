@@ -26,6 +26,9 @@ node_modules/
 # Artifacts / data (tweak as needed)
 models/*/artifacts/
 data/
+# Exception: allow nightly refresh parquet outputs
+!model/data/processed/nfl/nfl_games_with_scores.parquet
+!model/data/processed/nba/nba_games_with_scores.parquet
 logs/  
 # Virtualenvs
 .venv*/

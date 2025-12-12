@@ -44,17 +44,47 @@ jobs:
         run: |
           python model/scripts/refresh_nba_scores.py
 
-      - name: Check for changes
+      - name: Debug - Check output file and git status
+        run: |
+          echo "=== Directory listing ==="
+          ls -lah model/data/processed/nba/ || echo "Directory does not exist"
+          echo ""
+          echo "=== Git status (porcelain) ==="
+          git status --porcelain
+          echo ""
+          echo "=== Check if parquet is ignored ==="
+          git check-ignore -v model/data/processed/nba/nba_games_with_scores.parquet || echo "✓ NOT IGNORED"
+          echo ""
+          echo "=== File exists check ==="
+          if [ -f model/data/processed/nba/nba_games_with_scores.parquet ]; then
+            echo "✓ Parquet file exists"
+          else
+            echo "✗ ERROR: Parquet file missing after refresh!"
+            exit 1
+          fi
+
+      - name: Stage and check for changes
         id: git-check
         run: |
-          git diff --exit-code model/data/processed/nba/nba_games_with_scores.parquet || echo "changed=true" >> $GITHUB_OUTPUT
+          # Configure git identity first
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Force-add the parquet file (in case it was previously ignored)
+          git add -f model/data/processed/nba/nba_games_with_scores.parquet
+
+          # Check if anything is staged
+          if git diff --cached --quiet; then
+            echo "No changes staged → skipping commit"
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Parquet changed → will commit"
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Commit and push if changed
         if: steps.git-check.outputs.changed == 'true'
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add model/data/processed/nba/nba_games_with_scores.parquet
           git commit -m "chore: update NBA scores (automated refresh)"
           git push
 
