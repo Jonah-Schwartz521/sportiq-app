@@ -11,9 +11,10 @@ jobs:
   refresh-scores:
     runs-on: ubuntu-latest
 
-    # Grant write permissions to push commits back to repo
+    # Grant write permissions for creating PRs
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
       - name: Checkout repository
@@ -21,16 +22,12 @@ jobs:
         with:
           # Need full history to commit back
           fetch-depth: 0
-          # Explicitly persist credentials for git push
-          persist-credentials: true
-          # Use GITHUB_TOKEN for authentication
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-          cache: pip
+          python-version: '3.11'
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
@@ -41,16 +38,10 @@ jobs:
         run: |
           python model/scripts/refresh_nfl_scores.py
 
-      - name: Debug - Check output file and git status
+      - name: Debug - Check output file
         run: |
           echo "=== Directory listing ==="
           ls -lah model/data/processed/nfl/ || echo "Directory does not exist"
-          echo ""
-          echo "=== Git status (porcelain) ==="
-          git status --porcelain
-          echo ""
-          echo "=== Check if parquet is ignored ==="
-          git check-ignore -v model/data/processed/nfl/nfl_games_with_scores.parquet || echo "✓ NOT IGNORED"
           echo ""
           echo "=== File exists check ==="
           if [ -f model/data/processed/nfl/nfl_games_with_scores.parquet ]; then
@@ -60,45 +51,50 @@ jobs:
             exit 1
           fi
 
-      - name: Debug - Git and auth configuration
+      - name: Create Pull Request
+        id: create-pr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          # Commit settings
+          commit-message: 'chore: update NFL scores (automated refresh)'
+          committer: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+          author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+
+          # Branch settings
+          branch: bot/nfl-scores-refresh
+          delete-branch: false
+
+          # PR settings
+          title: 'chore: update NFL scores (automated refresh)'
+          body: |
+            ## Automated NFL Scores Refresh
+
+            This PR updates the NFL scores parquet file with the latest data.
+
+            - **Run time**: ${{ github.event.repository.updated_at }}
+            - **Workflow**: Nightly NFL Scores Refresh
+            - **Trigger**: ${{ github.event_name }}
+
+            This is an automated nightly refresh. Review and merge if the data looks correct.
+
+          # Only commit the parquet file
+          add-paths: |
+            model/data/processed/nfl/nfl_games_with_scores.parquet
+
+          # Labels (optional)
+          labels: |
+            automated
+            data-refresh
+
+      - name: PR Created/Updated
+        if: steps.create-pr.outputs.pull-request-number
         run: |
-          echo "=== Current branch ==="
-          git branch --show-current
-          echo ""
-          echo "=== Git remote ==="
-          git remote -v
-          echo ""
-          echo "=== GITHUB_TOKEN availability ==="
-          if [ -n "${{ secrets.GITHUB_TOKEN }}" ]; then
-            echo "✓ GITHUB_TOKEN is set"
-          else
-            echo "✗ GITHUB_TOKEN is NOT set"
-          fi
-
-      - name: Stage and check for changes
-        id: git-check
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Force-add in case it was previously ignored
-          git add -f model/data/processed/nfl/nfl_games_with_scores.parquet
-
-          if git diff --cached --quiet; then
-            echo "No changes staged → skipping commit"
-            echo "changed=false" >> $GITHUB_OUTPUT
-          else
-            echo "Parquet changed → will commit"
-            echo "changed=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Commit and push if changed
-        if: steps.git-check.outputs.changed == 'true'
-        run: |
-          git commit -m "chore: update NFL scores (automated refresh)"
-          git push
+          echo "✓ Pull Request #${{ steps.create-pr.outputs.pull-request-number }} created/updated"
+          echo "  URL: ${{ steps.create-pr.outputs.pull-request-url }}"
+          echo "  Operation: ${{ steps.create-pr.outputs.pull-request-operation }}"
 
       - name: No changes detected
-        if: steps.git-check.outputs.changed != 'true'
+        if: steps.create-pr.outputs.pull-request-number == ''
         run: |
           echo "ℹ️  No score updates found - parquet file unchanged"
+          echo "No pull request created or updated."
