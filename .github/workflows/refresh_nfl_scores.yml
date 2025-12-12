@@ -35,9 +35,13 @@ jobs:
           python model/scripts/refresh_nfl_scores.py
 
       - name: Check for changes
-        id: git-check
+        id: changes
         run: |
-          git diff --exit-code model/data/processed/nfl/nfl_games_with_scores.parquet || echo "changed=true" >> $GITHUB_OUTPUT
+          if [ -n "$(git status --porcelain model/data/processed/nfl/nfl_games_with_scores.parquet)" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Commit and push if changed
         if: steps.git-check.outputs.changed == 'true'
