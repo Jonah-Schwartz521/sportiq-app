@@ -12,12 +12,20 @@ jobs:
   refresh-scores:
     runs-on: ubuntu-latest
 
+    # Grant write permissions to push commits back to repo
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           # Need full history to commit back
           fetch-depth: 0
+          # Explicitly persist credentials for git push
+          persist-credentials: true
+          # Use GITHUB_TOKEN for authentication
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -61,6 +69,21 @@ jobs:
           else
             echo "✗ ERROR: Parquet file missing after refresh!"
             exit 1
+          fi
+
+      - name: Debug - Git and auth configuration
+        run: |
+          echo "=== Current branch ==="
+          git branch --show-current
+          echo ""
+          echo "=== Git remote ==="
+          git remote -v
+          echo ""
+          echo "=== GITHUB_TOKEN availability ==="
+          if [ -n "${{ secrets.GITHUB_TOKEN }}" ]; then
+            echo "✓ GITHUB_TOKEN is set"
+          else
+            echo "✗ GITHUB_TOKEN is NOT set"
           fi
 
       - name: Stage and check for changes
