@@ -1,0 +1,100 @@
+name: Nightly NHL Scores Refresh
+
+on:
+  # Run every night at 3:30 AM Denver time (approximately 10:30 AM UTC)
+  schedule:
+    - cron: '30 10 * * *'
+  # Allow manual triggering for testing
+  workflow_dispatch:
+
+jobs:
+  refresh-scores:
+    runs-on: ubuntu-latest
+
+    # Grant write permissions for creating PRs
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Need full history to commit back
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pandas pyarrow requests
+
+      - name: Run NHL scores refresh
+        run: |
+          python model/scripts/refresh_nhl_scores.py
+
+      - name: Debug - Check output file
+        run: |
+          echo "=== Directory listing ==="
+          ls -lah model/data/processed/nhl/ || echo "Directory does not exist"
+          echo ""
+          echo "=== File exists check ==="
+          if [ -f model/data/processed/nhl/nhl_games_with_scores.parquet ]; then
+            echo "✓ Parquet file exists"
+          else
+            echo "✗ ERROR: Parquet file missing after refresh!"
+            exit 1
+          fi
+
+      - name: Create Pull Request
+        id: create-pr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          # Commit settings
+          commit-message: 'chore: update NHL scores (automated refresh)'
+          committer: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+          author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+
+          # Branch settings
+          branch: bot/nhl-scores-refresh
+          delete-branch: false
+
+          # PR settings
+          title: 'chore: update NHL scores (automated refresh)'
+          body: |
+            ## Automated NHL Scores Refresh
+
+            This PR updates the NHL scores parquet file with the latest data.
+
+            - **Run time**: ${{ github.event.repository.updated_at }}
+            - **Workflow**: Nightly NHL Scores Refresh
+            - **Trigger**: ${{ github.event_name }}
+
+            This is an automated nightly refresh. Review and merge if the data looks correct.
+
+          # Only commit the parquet file
+          add-paths: |
+            model/data/processed/nhl/nhl_games_with_scores.parquet
+
+          # Labels (optional)
+          labels: |
+            automated
+            data-refresh
+
+      - name: PR Created/Updated
+        if: steps.create-pr.outputs.pull-request-number
+        run: |
+          echo "✓ Pull Request #${{ steps.create-pr.outputs.pull-request-number }} created/updated"
+          echo "  URL: ${{ steps.create-pr.outputs.pull-request-url }}"
+          echo "  Operation: ${{ steps.create-pr.outputs.pull-request-operation }}"
+
+      - name: No changes detected
+        if: steps.create-pr.outputs.pull-request-number == ''
+        run: |
+          echo "ℹ️  No score updates found - parquet file unchanged"
+          echo "No pull request created or updated."
