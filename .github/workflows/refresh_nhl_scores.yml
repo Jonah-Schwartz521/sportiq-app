@@ -38,21 +38,63 @@ jobs:
         run: |
           python model/scripts/refresh_nhl_scores.py
 
-      - name: Debug - Check output file
+      - name: Debug - Pre-commit state
+        id: debug-pre
         run: |
+          echo "======================================"
+          echo "PRE-COMMIT DEBUGGING"
+          echo "======================================"
+          echo ""
           echo "=== Directory listing ==="
           ls -lah model/data/processed/nhl/ || echo "Directory does not exist"
           echo ""
           echo "=== File exists check ==="
           if [ -f model/data/processed/nhl/nhl_games_with_scores.parquet ]; then
             echo "✓ Parquet file exists"
+            FILE_SIZE=$(stat -f%z model/data/processed/nhl/nhl_games_with_scores.parquet 2>/dev/null || stat -c%s model/data/processed/nhl/nhl_games_with_scores.parquet)
+            echo "  Size: $FILE_SIZE bytes"
           else
             echo "✗ ERROR: Parquet file missing after refresh!"
             exit 1
           fi
+          echo ""
+          echo "=== Git status before staging ==="
+          git status --porcelain model/data/processed/nhl/
+          echo ""
+          echo "=== Git check-ignore ==="
+          git check-ignore -v model/data/processed/nhl/nhl_games_with_scores.parquet || echo "File is NOT ignored"
+          echo ""
+
+      - name: Force-add parquet file (override gitignore)
+        id: force-add
+        run: |
+          echo "======================================"
+          echo "FORCE-ADDING FILE"
+          echo "======================================"
+          echo ""
+          # Force add the file even if gitignore would block it
+          git add -f model/data/processed/nhl/nhl_games_with_scores.parquet
+          echo "✓ File force-added to staging area"
+          echo ""
+          echo "=== Git status after force-add ==="
+          git status --porcelain model/data/processed/nhl/
+          echo ""
+          echo "=== Git diff --cached (staged changes) ==="
+          git diff --cached --stat model/data/processed/nhl/ || echo "No staged changes detected"
+          echo ""
+          # Check if there are actual changes staged
+          if git diff --cached --quiet model/data/processed/nhl/nhl_games_with_scores.parquet; then
+            echo "⚠️  WARNING: No changes detected in parquet file"
+            echo "FILE_CHANGED=false" >> $GITHUB_OUTPUT
+          else
+            echo "✓ Changes detected in parquet file"
+            echo "FILE_CHANGED=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Create Pull Request
         id: create-pr
+        # Only create PR if file actually changed
+        if: steps.force-add.outputs.FILE_CHANGED == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
           # Commit settings
@@ -74,10 +116,11 @@ jobs:
             - **Run time**: ${{ github.event.repository.updated_at }}
             - **Workflow**: Nightly NHL Scores Refresh
             - **Trigger**: ${{ github.event_name }}
+            - **File**: `model/data/processed/nhl/nhl_games_with_scores.parquet`
 
             This is an automated nightly refresh. Review and merge if the data looks correct.
 
-          # Only commit the parquet file
+          # Only commit the parquet file (already staged by force-add)
           add-paths: |
             model/data/processed/nhl/nhl_games_with_scores.parquet
 
@@ -89,12 +132,18 @@ jobs:
       - name: PR Created/Updated
         if: steps.create-pr.outputs.pull-request-number
         run: |
-          echo "✓ Pull Request #${{ steps.create-pr.outputs.pull-request-number }} created/updated"
+          echo "======================================"
+          echo "✓ PULL REQUEST CREATED/UPDATED"
+          echo "======================================"
+          echo "  Number: #${{ steps.create-pr.outputs.pull-request-number }}"
           echo "  URL: ${{ steps.create-pr.outputs.pull-request-url }}"
           echo "  Operation: ${{ steps.create-pr.outputs.pull-request-operation }}"
 
       - name: No changes detected
-        if: steps.create-pr.outputs.pull-request-number == ''
+        if: steps.force-add.outputs.FILE_CHANGED != 'true'
         run: |
-          echo "ℹ️  No score updates found - parquet file unchanged"
+          echo "======================================"
+          echo "ℹ️  NO CHANGES DETECTED"
+          echo "======================================"
+          echo "The parquet file content is identical to the previous version."
           echo "No pull request created or updated."
