@@ -52,7 +52,7 @@ ROOT = Path(__file__).resolve().parents[1]  # /model
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
-from src.paths import PROCESSED_DIR, MLB_PROCESSED_DIR, NFL_PROCESSED_DIR, NHL_PROCESSED_DIR
+from src.paths import PROCESSED_DIR, MLB_PROCESSED_DIR, NFL_PROCESSED_DIR, NHL_PROCESSED_DIR, UFC_PROCESSED_DIR
 from src.nba_inference import load_nba_model, predict_home_win_proba
 
 # --- Global objects (loaded once at startup) -----------------------
@@ -66,6 +66,7 @@ SPORT_ID_NBA = 1
 SPORT_ID_MLB = 2
 SPORT_ID_NFL = 3
 SPORT_ID_NHL = 4
+SPORT_ID_UFC = 5
 TEAM_ID_TO_SPORT_ID: Dict[int, int] = {}
 
 # --- Sports Odds API config ---------------------------------------
@@ -248,6 +249,33 @@ def load_games_table() -> pd.DataFrame:
     else:
         logger.info("NHL games parquet not found at %s; skipping NHL.", nhl_path)
 
+    # --- UFC fights ---
+    ufc_path = UFC_PROCESSED_DIR / "ufc_fights_for_app.parquet"
+    if ufc_path.exists():
+        logger.info("Loading UFC fights from %s ...", ufc_path)
+        ufc_df = pd.read_parquet(ufc_path).copy()
+
+        ufc_df["sport"] = "UFC"
+        ufc_df = ufc_df.rename(
+            columns={
+                "fight_datetime": "date",
+                "home_team_name": "home_team",
+                "away_team_name": "away_team",
+                "home_score": "home_pts",
+                "away_score": "away_pts",
+            }
+        )
+
+        # Ensure score columns exist (all UFC fights should have outcomes)
+        if "home_pts" not in ufc_df.columns:
+            ufc_df["home_pts"] = None
+        if "away_pts" not in ufc_df.columns:
+            ufc_df["away_pts"] = None
+
+        frames.append(ufc_df)
+    else:
+        logger.info("UFC fights parquet not found at %s; skipping UFC.", ufc_path)
+
     # --- Combine all sports into a single games table ---
     if not frames:
         raise RuntimeError("load_games_table(): no game frames loaded for any sport")
@@ -285,12 +313,13 @@ def load_games_table() -> pd.DataFrame:
         games["date"] = games["date"].dt.tz_localize(None)
 
     logger.info(
-        "Loaded combined games table with %d rows (NBA=%d, MLB=%d, NFL=%d, NHL=%d).",
+        "Loaded combined games table with %d rows (NBA=%d, MLB=%d, NFL=%d, NHL=%d, UFC=%d).",
         len(games),
         (games["sport"] == "NBA").sum() if "sport" in games.columns else 0,
         (games["sport"] == "MLB").sum() if "sport" in games.columns else 0,
         (games["sport"] == "NFL").sum() if "sport" in games.columns else 0,
         (games["sport"] == "NHL").sum() if "sport" in games.columns else 0,
+        (games["sport"] == "UFC").sum() if "sport" in games.columns else 0,
     )
 
     # --- Ensure a clean numeric game_id for every row ---
@@ -399,6 +428,8 @@ def build_team_lookups(df: pd.DataFrame) -> None:
             sport_id = SPORT_ID_NFL
         elif sport_str == "NHL":
             sport_id = SPORT_ID_NHL
+        elif sport_str == "UFC":
+            sport_id = SPORT_ID_UFC
         else:
             sport_id = SPORT_ID_NBA
 
@@ -751,6 +782,17 @@ class EventOut(BaseModel):
     # Real sportsbook odds from external provider
     sportsbook_home_american_odds: Optional[float] = None
     sportsbook_away_american_odds: Optional[float] = None
+
+    # UFC-specific fields (optional, only present for UFC fights)
+    method: Optional[str] = None
+    finish_round: Optional[float] = None
+    finish_details: Optional[str] = None
+    finish_time: Optional[str] = None
+    weight_class: Optional[str] = None
+    title_bout: Optional[bool] = None
+    gender: Optional[str] = None
+    location: Optional[str] = None
+    scheduled_rounds: Optional[int] = None
 
 
 class ListTeamsResponse(BaseModel):
@@ -1196,7 +1238,7 @@ def list_events(
                 )
                 # leave sportsbook_* as None and keep going
 
-        # Determine sport_id per row (NBA vs MLB vs NFL vs NHL)
+        # Determine sport_id per row (NBA vs MLB vs NFL vs NHL vs UFC)
         sport_str = str(row.get("sport", "NBA")).upper()
         if sport_str == "MLB":
             sport_id = SPORT_ID_MLB
@@ -1204,6 +1246,8 @@ def list_events(
             sport_id = SPORT_ID_NFL
         elif sport_str == "NHL":
             sport_id = SPORT_ID_NHL
+        elif sport_str == "UFC":
+            sport_id = SPORT_ID_UFC
         else:
             sport_id = SPORT_ID_NBA
 
@@ -1229,6 +1273,16 @@ def list_events(
                 model_away_american_odds=model_away_american_odds,
                 sportsbook_home_american_odds=sportsbook_home_american_odds,
                 sportsbook_away_american_odds=sportsbook_away_american_odds,
+                # UFC-specific fields (only present for UFC fights)
+                method=str(row["method"]) if pd.notna(row.get("method")) else None,
+                finish_round=float(row["finish_round"]) if pd.notna(row.get("finish_round")) else None,
+                finish_details=str(row["finish_details"]) if pd.notna(row.get("finish_details")) else None,
+                finish_time=str(row["finish_time"]) if pd.notna(row.get("finish_time")) else None,
+                weight_class=str(row["weight_class"]) if pd.notna(row.get("weight_class")) else None,
+                title_bout=bool(row["title_bout"]) if pd.notna(row.get("title_bout")) else None,
+                gender=str(row["gender"]) if pd.notna(row.get("gender")) else None,
+                location=str(row["location"]) if pd.notna(row.get("location")) else None,
+                scheduled_rounds=int(row["scheduled_rounds"]) if pd.notna(row.get("scheduled_rounds")) else None,
             )
         )
 
@@ -1319,6 +1373,10 @@ def get_event(event_id: int) -> EventOut:
         sport_id = SPORT_ID_MLB
     elif sport_str == "NFL":
         sport_id = SPORT_ID_NFL
+    elif sport_str == "NHL":
+        sport_id = SPORT_ID_NHL
+    elif sport_str == "UFC":
+        sport_id = SPORT_ID_UFC
     else:
         sport_id = SPORT_ID_NBA
 
@@ -1343,6 +1401,16 @@ def get_event(event_id: int) -> EventOut:
         model_away_american_odds=model_away_american_odds,
         sportsbook_home_american_odds=sportsbook_home_american_odds,
         sportsbook_away_american_odds=sportsbook_away_american_odds,
+        # UFC-specific fields (only present for UFC fights)
+        method=str(row["method"]) if pd.notna(row.get("method")) else None,
+        finish_round=float(row["finish_round"]) if pd.notna(row.get("finish_round")) else None,
+        finish_details=str(row["finish_details"]) if pd.notna(row.get("finish_details")) else None,
+        finish_time=str(row["finish_time"]) if pd.notna(row.get("finish_time")) else None,
+        weight_class=str(row["weight_class"]) if pd.notna(row.get("weight_class")) else None,
+        title_bout=bool(row["title_bout"]) if pd.notna(row.get("title_bout")) else None,
+        gender=str(row["gender"]) if pd.notna(row.get("gender")) else None,
+        location=str(row["location"]) if pd.notna(row.get("location")) else None,
+        scheduled_rounds=int(row["scheduled_rounds"]) if pd.notna(row.get("scheduled_rounds")) else None,
     )
 
 

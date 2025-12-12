@@ -362,6 +362,148 @@ function FinalScoreBlock({
 }
 
 // =========================
+// Subcomponent: UFC Result
+// =========================
+interface UfcResultBlockProps {
+  homeTeam: string;
+  awayTeam: string;
+  homeWin: boolean | null;
+  event: Event;
+}
+
+function UfcResultBlock({
+  homeTeam,
+  awayTeam,
+  homeWin,
+  event,
+}: UfcResultBlockProps) {
+  // Determine winner name
+  const winnerName = homeWin === true ? homeTeam : homeWin === false ? awayTeam : null;
+
+  // Try to get method and round from event metadata (if available from parquet)
+  const rawMethod = (event as any).method ?? (event as any).win_method ?? (event as any).result ?? (event as any).finish ?? null;
+  const finishRound = (event as any).finish_round ?? (event as any).win_round ?? (event as any).round ?? null;
+
+  // Helper: Normalize and clean UFC method strings
+  const normalizeMethod = (raw: any): string | null => {
+    if (!raw || raw === "null" || raw === "undefined") return null;
+
+    const str = String(raw).trim();
+    if (!str) return null;
+
+    // Extract method from strings like "TKO (Punches)" -> "TKO"
+    const mainMethod = str.split("(")[0].trim();
+
+    // Normalize common variations
+    const upper = mainMethod.toUpperCase();
+    if (upper.includes("KO") || upper.includes("T.K.O")) return "KO/TKO";
+    if (upper.includes("SUB")) return "Submission";
+    if (upper.includes("DEC")) return "Decision";
+    if (upper === "U-DEC") return "Decision";
+    if (upper === "S-DEC") return "Decision";
+    if (upper === "M-DEC") return "Decision";
+
+    // Return cleaned string (capitalized first letter)
+    return mainMethod.charAt(0).toUpperCase() + mainMethod.slice(1).toLowerCase();
+  };
+
+  // Helper: Format round as "(R1)", "(R2)", etc.
+  const formatRound = (raw: any): string | null => {
+    if (!raw || raw === "null" || raw === "undefined") return null;
+
+    const roundNum = typeof raw === 'number' ? raw : parseFloat(String(raw));
+    if (isNaN(roundNum)) return null;
+
+    return `(R${Math.floor(roundNum)})`;
+  };
+
+  const method = normalizeMethod(rawMethod);
+  const round = formatRound(finishRound);
+
+  // Format the result string
+  let resultText = "";
+  if (winnerName) {
+    resultText = `Winner: ${winnerName}`;
+
+    // Add method and/or round
+    if (method && round) {
+      // Both available: "Winner: Name — Method (R1)"
+      resultText += ` — ${method} ${round}`;
+    } else if (method) {
+      // Only method: "Winner: Name — Method"
+      resultText += ` — ${method}`;
+    } else if (round) {
+      // Only round: "Winner: Name (R1)"
+      resultText += ` ${round}`;
+    }
+    // If neither, just show "Winner: Name"
+  } else {
+    resultText = "Result pending";
+  }
+
+  const isHomeWinner = homeWin === true;
+  const isAwayWinner = homeWin === false;
+
+  return (
+    <div className="mt-3 space-y-2 pl-1">
+      {/* Away fighter row */}
+      <div
+        className={
+          "flex items-center justify-between gap-3 rounded-xl border px-3 py-2 transition-all duration-150 " +
+          (isAwayWinner
+            ? "border-emerald-500/70 bg-emerald-500/10 shadow-sm shadow-emerald-500/30"
+            : "border-zinc-800 bg-zinc-950/80")
+        }
+      >
+        <div className="flex flex-col">
+          <span className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">
+            Fighter
+          </span>
+          <span className="text-sm font-medium text-zinc-50">
+            {awayTeam}
+          </span>
+        </div>
+        {isAwayWinner && (
+          <span className="text-xs font-semibold text-emerald-400">✓</span>
+        )}
+      </div>
+
+      {/* Home fighter row */}
+      <div
+        className={
+          "flex items-center justify-between gap-3 rounded-xl border px-3 py-2 transition-all duration-150 " +
+          (isHomeWinner
+            ? "border-emerald-500/70 bg-emerald-500/10 shadow-sm shadow-emerald-500/30"
+            : "border-zinc-800 bg-zinc-950/80")
+        }
+      >
+        <div className="flex flex-col">
+          <span className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">
+            Fighter
+          </span>
+          <span className="text-sm font-medium text-zinc-50">
+            {homeTeam}
+          </span>
+        </div>
+        {isHomeWinner && (
+          <span className="text-xs font-semibold text-emerald-400">✓</span>
+        )}
+      </div>
+
+      {/* Result text */}
+      {winnerName && (
+        <div className="flex justify-end">
+          <span className="inline-flex items-center gap-1 rounded-full border border-zinc-700/80 bg-zinc-900/80 px-2.5 py-0.5 text-[10px] text-zinc-200">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            {resultText}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =========================
 // Subcomponent: Odds block
 // =========================
 interface OddsBlockProps {
@@ -1144,7 +1286,7 @@ export default function GamesPage() {
                       {/* Matchup: main headline */}
                       <h2 className="truncate text-sm font-semibold leading-snug text-zinc-50 sm:text-[15px]">
                         {finalAwayTeamName}{" "}
-                        <span className="text-zinc-500">@</span>{" "}
+                        <span className="text-zinc-500">{e.sport_id === 5 ? "vs" : "@"}</span>{" "}
                         {finalHomeTeamName}
                       </h2>
 
@@ -1178,7 +1320,16 @@ export default function GamesPage() {
                   </div>
 
                   {/* Value block – final vs scheduled */}
-                  {isFinal && hasScores && homeScore !== null && awayScore !== null ? (
+                  {e.sport_id === 5 && isFinal ? (
+                    // UFC: Show winner and method instead of numeric scores
+                    <UfcResultBlock
+                      homeTeam={finalHomeTeamName}
+                      awayTeam={finalAwayTeamName}
+                      homeWin={homeWin}
+                      event={e}
+                    />
+                  ) : isFinal && hasScores && homeScore !== null && awayScore !== null ? (
+                    // Other sports: Show numeric scores
                     <FinalScoreBlock
                       homeTeam={finalHomeTeamName}
                       awayTeam={finalAwayTeamName}
@@ -1189,6 +1340,7 @@ export default function GamesPage() {
                       homeWin={homeWin}
                     />
                   ) : (
+                    // Scheduled games: Show odds
                     <OddsBlock
                       homeTeam={finalHomeTeamName}
                       awayTeam={finalAwayTeamName}

@@ -124,6 +124,52 @@ const NFL_TEAM_LOGOS: Record<string, TeamLogoConfig> = {
   "Washington Commanders":  { abbrev: "WAS", bg: "bg-red-900",    text: "text-amber-200" },
 };
 
+const NHL_TEAM_LOGOS: Record<string, TeamLogoConfig> = {
+  // Metropolitan Division
+  "Carolina Hurricanes":    { abbrev: "CAR", bg: "bg-red-800",    text: "text-zinc-100" },
+  "Columbus Blue Jackets":  { abbrev: "CBJ", bg: "bg-blue-900",   text: "text-red-200" },
+  "New Jersey Devils":      { abbrev: "NJD", bg: "bg-red-800",    text: "text-zinc-100" },
+  "New York Islanders":     { abbrev: "NYI", bg: "bg-blue-900",   text: "text-orange-200" },
+  "New York Rangers":       { abbrev: "NYR", bg: "bg-blue-900",   text: "text-red-200" },
+  "Philadelphia Flyers":    { abbrev: "PHI", bg: "bg-orange-700", text: "text-zinc-100" },
+  "Pittsburgh Penguins":    { abbrev: "PIT", bg: "bg-zinc-900",   text: "text-yellow-300" },
+  "Washington Capitals":    { abbrev: "WSH", bg: "bg-red-800",    text: "text-blue-200" },
+
+  // Atlantic Division
+  "Boston Bruins":          { abbrev: "BOS", bg: "bg-yellow-500", text: "text-zinc-900" },
+  "Buffalo Sabres":         { abbrev: "BUF", bg: "bg-blue-900",   text: "text-yellow-200" },
+  "Detroit Red Wings":      { abbrev: "DET", bg: "bg-red-800",    text: "text-zinc-100" },
+  "Florida Panthers":       { abbrev: "FLA", bg: "bg-red-800",    text: "text-blue-200" },
+  "Montreal Canadiens":     { abbrev: "MTL", bg: "bg-red-800",    text: "text-blue-200" },
+  "Ottawa Senators":        { abbrev: "OTT", bg: "bg-red-800",    text: "text-zinc-100" },
+  "Tampa Bay Lightning":    { abbrev: "TBL", bg: "bg-blue-900",   text: "text-zinc-100" },
+  "Toronto Maple Leafs":    { abbrev: "TOR", bg: "bg-blue-900",   text: "text-zinc-100" },
+
+  // Central Division
+  "Arizona Coyotes":        { abbrev: "ARI", bg: "bg-red-900",    text: "text-zinc-100" },
+  "Chicago Blackhawks":     { abbrev: "CHI", bg: "bg-red-800",    text: "text-zinc-100" },
+  "Colorado Avalanche":     { abbrev: "COL", bg: "bg-red-900",    text: "text-blue-200" },
+  "Dallas Stars":           { abbrev: "DAL", bg: "bg-green-700",  text: "text-zinc-100" },
+  "Minnesota Wild":         { abbrev: "MIN", bg: "bg-green-800",  text: "text-red-200" },
+  "Nashville Predators":    { abbrev: "NSH", bg: "bg-yellow-600", text: "text-blue-900" },
+  "St. Louis Blues":        { abbrev: "STL", bg: "bg-blue-900",   text: "text-yellow-200" },
+  "Utah Hockey Club":       { abbrev: "UTA", bg: "bg-blue-900",   text: "text-zinc-100" },
+  "Winnipeg Jets":          { abbrev: "WPG", bg: "bg-blue-900",   text: "text-zinc-100" },
+
+  // Pacific Division
+  "Anaheim Ducks":          { abbrev: "ANA", bg: "bg-orange-700", text: "text-zinc-100" },
+  "Calgary Flames":         { abbrev: "CGY", bg: "bg-red-800",    text: "text-yellow-200" },
+  "Edmonton Oilers":        { abbrev: "EDM", bg: "bg-blue-900",   text: "text-orange-300" },
+  "Los Angeles Kings":      { abbrev: "LAK", bg: "bg-zinc-900",   text: "text-zinc-100" },
+  "San Jose Sharks":        { abbrev: "SJS", bg: "bg-teal-700",   text: "text-zinc-100" },
+  "Seattle Kraken":         { abbrev: "SEA", bg: "bg-teal-900",   text: "text-zinc-100" },
+  "Vancouver Canucks":      { abbrev: "VAN", bg: "bg-blue-900",   text: "text-green-300" },
+  "Vegas Golden Knights":   { abbrev: "VGK", bg: "bg-yellow-700", text: "text-zinc-900" },
+
+  // Historic teams
+  "Atlanta Thrashers":      { abbrev: "ATL", bg: "bg-blue-900",   text: "text-red-200" },
+};
+
 // Props for the badge that can show either a score or an odds value.
 type TeamValueBadgeProps = {
   teamName: string;
@@ -147,6 +193,9 @@ export function TeamValueBadge({
     if (NFL_TEAM_LOGOS[name]) {
       return { config: NFL_TEAM_LOGOS[name], displayName: name };
     }
+    if (NHL_TEAM_LOGOS[name]) {
+      return { config: NHL_TEAM_LOGOS[name], displayName: name };
+    }
 
     // Search by abbreviation in NBA_TEAM_LOGOS
     for (const [fullName, cfg] of Object.entries(NBA_TEAM_LOGOS)) {
@@ -162,6 +211,12 @@ export function TeamValueBadge({
     }
     // Search by abbreviation in NFL_TEAM_LOGOS
     for (const [fullName, cfg] of Object.entries(NFL_TEAM_LOGOS)) {
+      if (cfg.abbrev === name) {
+        return { config: cfg, displayName: fullName };
+      }
+    }
+    // Search by abbreviation in NHL_TEAM_LOGOS
+    for (const [fullName, cfg] of Object.entries(NHL_TEAM_LOGOS)) {
       if (cfg.abbrev === name) {
         return { config: cfg, displayName: fullName };
       }

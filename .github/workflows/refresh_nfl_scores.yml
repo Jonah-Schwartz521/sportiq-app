@@ -1,0 +1,54 @@
+name: Nightly NFL Scores Refresh
+
+on:
+  # Run every night at 3:30 AM Denver time (approximately 10:30 AM UTC)
+  schedule:
+    - cron: '30 10 * * *'
+
+  # Allow manual triggering for testing
+  workflow_dispatch:
+
+jobs:
+  refresh-scores:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Need full history to commit back
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pandas pyarrow nfl-data-py
+
+      - name: Run NFL scores refresh
+        run: |
+          python model/scripts/refresh_nfl_scores.py
+
+      - name: Check for changes
+        id: git-check
+        run: |
+          git diff --exit-code model/data/processed/nfl/nfl_games_with_scores.parquet || echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push if changed
+        if: steps.git-check.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add model/data/processed/nfl/nfl_games_with_scores.parquet
+          git commit -m "chore: update NFL scores (automated refresh)"
+          git push
+
+      - name: No changes detected
+        if: steps.git-check.outputs.changed != 'true'
+        run: |
+          echo "ℹ️  No score updates found - parquet file unchanged"
