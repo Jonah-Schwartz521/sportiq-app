@@ -12,6 +12,7 @@ from .routers.insights import router as insights_router
 from .routers.predictions import router as predictions_router
 from .routers.events import router as events_router
 from .routers.teams import router as teams_router
+from .routers.odds import router as odds_router
 
 app = FastAPI(
     title="SportIQ API",
@@ -40,6 +41,7 @@ app.include_router(insights_router)
 app.include_router(predictions_router)
 app.include_router(events_router)
 app.include_router(teams_router)
+app.include_router(odds_router)
 
 @app.get("/", include_in_schema=False)
 def root():
