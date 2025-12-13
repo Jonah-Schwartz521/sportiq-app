@@ -9,6 +9,7 @@ import {
   type Team,
   type PredictResponse,
   type Insight,
+  type OddsForEvent,
 } from "@/lib/api";
 import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
 import { buildTeamsById, teamLabelFromMap, getFullTeamName } from "@/lib/teams";
@@ -80,13 +81,13 @@ export default function GameDetailPage() {
   const [predLoading, setPredLoading] = useState(false);
   const [predError, setPredError] = useState<string | null>(null);
 
-  const [selectedSide, setSelectedSide] = useState<"home" | "away" | null>(
-    null,
-  );
-
   const [insights, setInsights] = useState<Insight[] | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsError, setInsightsError] = useState<string | null>(null);
+
+  const [odds, setOdds] = useState<OddsForEvent | null>(null);
+  const [oddsLoading, setOddsLoading] = useState(false);
+  const [oddsError, setOddsError] = useState<string | null>(null);
 
   const [generatedAt] = useState(() => new Date().toISOString());
 
@@ -212,6 +213,45 @@ export default function GameDetailPage() {
     })();
   }, [event]);
 
+  // ---------- Load odds ----------
+
+  useEffect(() => {
+    if (!event || !homeName || !awayName) return;
+
+    // Only load for upcoming games (not final)
+    if (isFinal) return;
+
+    (async () => {
+      try {
+        setOddsLoading(true);
+        setOddsError(null);
+        setOdds(null);
+
+        // Map sport_id to sport code
+        const sportCode =
+          event.sport_id === 1 ? "nba" :
+          event.sport_id === 2 ? "nfl" :
+          event.sport_id === 4 ? "nhl" :
+          undefined;
+
+        const data = await api.oddsForEvent(homeName, awayName, sportCode);
+        setOdds(data);
+      } catch (err: unknown) {
+        if (process.env.NODE_ENV === "development") {
+          console.warn("Odds API error", err);
+        }
+        const message = parseApiError(
+          err,
+          "No odds are available yet for this game.",
+          "Failed to load odds.",
+        );
+        setOddsError(message);
+      } finally {
+        setOddsLoading(false);
+      }
+    })();
+  }, [event, homeName, awayName, isFinal]);
+
   // ---------- Derived model / edge info ----------
 
   const edgeCategory = useMemo(() => {
@@ -324,16 +364,16 @@ export default function GameDetailPage() {
   // ------------------------------------------------------------------
 
   return (
-    <main className="min-h-screen bg-black px-4 pb-16 pt-8 text-white">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
+    <main className="min-h-screen bg-black px-4 pb-16 pt-6 text-white">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
         {/* Back link */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between px-1">
           <Link
             href="/games"
-            className="inline-flex items-center gap-1 text-xs text-zinc-400 transition-colors hover:text-sky-300"
+            className="inline-flex items-center gap-2 text-sm text-zinc-400 transition-colors hover:text-blue-400"
           >
-            <span className="text-sm">←</span>
-            <span>Back to games</span>
+            <span className="text-base">←</span>
+            <span>All games</span>
           </Link>
         </div>
 
@@ -364,304 +404,207 @@ export default function GameDetailPage() {
         {!loading && !error && event && (
           <>
             {/* ========================= */}
-            {/* 1. HEADER / HERO          */}
+            {/* 1. CLEAN HEADER           */}
             {/* ========================= */}
-            <section className="relative overflow-hidden rounded-3xl border border-zinc-800 bg-gradient-to-br from-zinc-950 via-slate-950 to-black p-5 shadow-xl shadow-black/70">
-              {/* Subtle stadium spotlight */}
-              <div className="pointer-events-none absolute inset-x-6 -top-10 -z-10 h-32 rounded-full bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.22)_0,_transparent_60%)] blur-3xl" />
-
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                {/* Left: matchup + meta */}
-                <div className="space-y-3">
-                  <div className="inline-flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-zinc-700 bg-zinc-900/90 text-xl">
-                      {sportIcon}
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
-                        {sportLabel}
-                      </span>
-                      <span className="text-[11px] text-zinc-400">
-                        {formatDateOnly(event.date)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                      {awayName}{" "}
-                      <span className="text-base text-zinc-500 sm:text-xl">@</span>{" "}
-                      {homeName}
-                    </h1>
-                    <p className="text-xs text-zinc-400">
-                      {formatDateTime(event.date)}
-                    </p>
-                  </div>
-
-                  {/* Tags */}
-                  <div className="flex flex-wrap items-center gap-2 text-[10px]">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-zinc-900/90 px-2.5 py-1 font-medium uppercase tracking-[0.16em] text-emerald-300">
-                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-                      Edge: {edgeCategory ?? "N/A"}
-                    </span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-zinc-900/90 px-2.5 py-1 text-zinc-400">
-                      Game ID:
-                      <span className="font-mono text-zinc-100">
-                        {event.event_id}
-                      </span>
-                    </span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-zinc-900/90 px-2.5 py-1 text-zinc-400">
-                      🤖 Generated using your{" "}
-                      <span className="font-medium text-zinc-100">
-                        {sportLabel.toLowerCase()} surface
-                      </span>
-                    </span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-zinc-900/90 px-2.5 py-1 text-zinc-500">
-                      {statusLabel}
-                    </span>
-                  </div>
+            <section className="space-y-4 px-1">
+              {/* Meta row */}
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{sportIcon}</span>
+                <div className="flex flex-col">
+                  <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                    {sportLabel}
+                  </span>
+                  <span className="text-xs text-zinc-400">
+                    {formatDateOnly(event.date)}
+                  </span>
                 </div>
-
-                {/* Right: score + confidence */}
-                <div className="flex flex-col gap-3 rounded-2xl border border-zinc-800 bg-zinc-950/85 p-4 text-xs shadow-sm shadow-black/50">
-                  {isFinal && (
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex-1">
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
-                          Final score
-                        </p>
-                        <p className="mt-1 text-sm font-medium text-zinc-100">
-                          {awayName} {event.away_score}{" "}
-                          <span className="mx-1 text-zinc-500">@</span>
-                          {homeName} {event.home_score}
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end text-[11px] text-zinc-400">
-                        <span>Winner</span>
-                        <span className="mt-1 rounded-full bg-zinc-900/90 px-2 py-1 text-[11px] text-zinc-100">
-                          {event.home_win ? homeName : awayName}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {favoriteWinProb != null && favoriteTeamLabel && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-[11px] text-zinc-400">
-                        <span>Model confidence</span>
-                        <span>
-                          {favoriteTeamLabel} •{" "}
-                          <span className="text-zinc-100">
-                            {(favoriteWinProb * 100).toFixed(1)}%
-                          </span>
-                        </span>
-                      </div>
-                      <div className="relative h-2.5 overflow-hidden rounded-full bg-zinc-900">
-                        <div
-                          className={`absolute inset-y-0 left-0 ${edgeFillClass} bg-gradient-to-r from-current/40 via-current to-current/80 transition-all`}
-                          style={{ width: `${edgeWidthPct}%` }}
-                        />
-                        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent" />
-                      </div>
-                      <div className="flex items-center justify-between text-[10px] text-zinc-500">
-                        <span>
-                          {awayName}:{" "}
-                          {safePercent(prediction?.p_away)}
-                        </span>
-                        <span>
-                          {homeName}:{" "}
-                          {safePercent(prediction?.p_home)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  <p className="mt-1 text-[10px] text-zinc-500">
-                    Confidence reflects how far apart the model&apos;s win
-                    probabilities are, not a guarantee of outcome.
-                  </p>
-                </div>
+                {isFinal && (
+                  <span className="ml-auto rounded-md bg-emerald-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-400">
+                    Final
+                  </span>
+                )}
               </div>
+
+              {/* Matchup */}
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+                  {awayName}{" "}
+                  <span className="text-xl text-zinc-600 sm:text-2xl">at</span>{" "}
+                  {homeName}
+                </h1>
+                <p className="mt-1.5 text-sm text-zinc-500">
+                  {formatDateTime(event.date)}
+                </p>
+              </div>
+
+              {/* Final score if available */}
+              {isFinal && (
+                <div className="flex items-center gap-6 rounded-lg border border-zinc-800/50 bg-zinc-900/30 px-4 py-3">
+                  <div className="flex flex-col">
+                    <span className="text-xs text-zinc-500">Final Score</span>
+                    <span className="mt-1 text-2xl font-bold tabular-nums text-zinc-200">
+                      {event.away_score} — {event.home_score}
+                    </span>
+                  </div>
+                  <div className="ml-auto flex items-center gap-2">
+                    <span className="text-xs text-zinc-500">Winner:</span>
+                    <span className="text-sm font-semibold text-emerald-400">
+                      {event.home_win ? homeName : awayName}
+                    </span>
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* ========================= */}
-            {/* 2. MODEL PREDICTION GRID  */}
+            {/* 2. THE TAKEAWAY (NEW)     */}
             {/* ========================= */}
-            <section className="grid gap-4 md:grid-cols-[minmax(0,3fr)_minmax(0,2.4fr)]">
-              {/* Left: Model prediction */}
-              <div className="rounded-2xl border border-zinc-800 bg-gradient-to-b from-zinc-950/95 to-black/95 p-4 shadow-sm shadow-black/60">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
-                      Model prediction
+            {!predLoading && !predError && prediction && (
+              <section className="overflow-hidden rounded-xl border border-blue-900/30 bg-gradient-to-br from-blue-950/20 via-zinc-950/40 to-zinc-950/20 p-6">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-2xl">
+                    {edgeCategory === "COIN FLIP" ? "⚖️" : edgeCategory === "MODEST EDGE" ? "📊" : "⭐"}
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <h2 className="text-sm font-medium uppercase tracking-wider text-blue-400">
+                      Model&apos;s Take
+                    </h2>
+                    <p className="text-lg font-semibold leading-snug text-white sm:text-xl">
+                      {edgeCategory === "COIN FLIP" ? (
+                        <>
+                          This is essentially a <span className="text-zinc-400">coin flip</span>.
+                          The model sees both teams within{" "}
+                          <span className="text-blue-400">5 percentage points</span>.
+                        </>
+                      ) : edgeCategory === "MODEST EDGE" ? (
+                        <>
+                          The model leans slightly toward{" "}
+                          <span className="text-blue-400">{favoriteTeamLabel}</span>
+                          {favoriteWinProb && ` (${(favoriteWinProb * 100).toFixed(1)}%)`}, but
+                          this is a <span className="text-zinc-400">modest edge</span>.
+                        </>
+                      ) : (
+                        <>
+                          The model strongly favors{" "}
+                          <span className="text-blue-400">{favoriteTeamLabel}</span>
+                          {favoriteWinProb && ` (${(favoriteWinProb * 100).toFixed(1)}%)`} in
+                          this matchup.
+                        </>
+                      )}
                     </p>
-                    <p className="mt-0.5 text-xs text-zinc-400">
-                      Side-by-side win probabilities. Bigger bar = stronger
-                      belief.
+                    <p className="text-xs text-zinc-500">
+                      {edgeCategory === "COIN FLIP"
+                        ? "Small probability differences like this are statistically insignificant. Either team could reasonably win."
+                        : edgeCategory === "MODEST EDGE"
+                        ? "The model sees some advantages, but there's meaningful uncertainty in this game."
+                        : "This represents a clear mismatch based on the available data, though upsets always happen."}
                     </p>
                   </div>
-                  <span className="rounded-full bg-zinc-900/90 px-2 py-1 text-[10px] text-zinc-400">
-                    Pre-game surface
+                </div>
+              </section>
+            )}
+
+            {/* ========================= */}
+            {/* 3. MODEL PREDICTION GRID  */}
+            {/* ========================= */}
+            <section className="space-y-5">
+              {/* Model prediction card */}
+              <div className="overflow-hidden rounded-xl border border-zinc-800/60 bg-gradient-to-br from-zinc-900/40 to-zinc-950/60 p-5 shadow-xl shadow-black/40">
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-sm font-medium uppercase tracking-wider text-zinc-400">
+                    Win Probabilities
+                  </h2>
+                  <span className="rounded-md bg-zinc-900/60 px-2 py-1 text-[10px] text-zinc-500">
+                    Pre-game estimate
                   </span>
                 </div>
 
                 {predLoading && (
-                  <p className="text-xs text-zinc-500">
-                    Loading model prediction…
-                  </p>
+                  <div className="flex items-center gap-2 text-sm text-zinc-500">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-blue-400" />
+                    <span>Loading prediction…</span>
+                  </div>
                 )}
 
                 {!predLoading && predError && (
-                  <div className="rounded-xl border border-zinc-800 bg-zinc-950/90 px-3 py-2 text-xs text-zinc-300">
+                  <div className="rounded-lg border border-zinc-800/50 bg-zinc-900/30 px-4 py-3 text-sm text-zinc-400">
                     {predError}
                   </div>
                 )}
 
                 {!predLoading && !predError && !prediction && (
-                  <p className="text-xs text-zinc-500">
-                    No prediction yet. Check back once the model has scored
-                    this game.
+                  <p className="text-sm text-zinc-500">
+                    No prediction available yet for this game.
                   </p>
                 )}
 
                 {!predLoading && !predError && prediction && (
                   <>
-                    <div className="mt-2 grid gap-3 md:grid-cols-2">
-                      {/* Away side */}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSelectedSide((prev) =>
-                            prev === "away" ? null : "away",
-                          )
-                        }
-                        className={
-                          "group relative overflow-hidden rounded-2xl border px-3 py-3 text-left text-xs shadow-sm transition-all " +
-                          (selectedSide === "away"
-                            ? "border-sky-400 bg-sky-500/10 shadow-sky-500/30"
-                            : "border-zinc-800 bg-zinc-950/80 hover:border-zinc-700")
-                        }
-                      >
-                        {selectedSide === "away" && (
-                          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-sky-500/10 via-transparent to-emerald-500/5 opacity-80" />
-                        )}
-                        <div className="relative flex items-center justify-between gap-2">
+                    {/* Simplified probability display */}
+                    <div className="space-y-3">
+                      {/* Away */}
+                      <div className="rounded-lg border border-zinc-800/50 bg-zinc-900/30 p-4">
+                        <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
-                              Away side
-                            </p>
-                            <p className="mt-0.5 text-sm font-semibold text-zinc-100">
+                            <span className="text-xs text-zinc-500">Away</span>
+                            <p className="mt-1 text-lg font-bold text-zinc-200">
                               {prediction.away_team || awayName}
                             </p>
                           </div>
-                          {selectedSide === "away" && (
-                            <span className="rounded-full bg-sky-500/20 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-sky-100">
-                              Selected
-                            </span>
-                          )}
+                          <div className="text-right">
+                            <p className="text-3xl font-bold tabular-nums text-white">
+                              {safePercent(prediction.p_away)}
+                            </p>
+                            {prediction.p_away && prediction.p_away > 0 && (
+                              <p className="mt-0.5 font-mono text-xs text-zinc-500">
+                                {impliedOdds(prediction.p_away)}
+                              </p>
+                            )}
+                          </div>
                         </div>
-
-                        <div className="relative mt-3 h-2.5 overflow-hidden rounded-full bg-zinc-900">
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-900">
                           <div
-                            className="absolute inset-y-0 left-0 bg-gradient-to-r from-sky-400/80 via-emerald-400/80 to-blue-500/80 transition-all"
+                            className="h-full bg-gradient-to-r from-blue-500/80 to-blue-600/60 transition-all duration-500"
                             style={{
-                              width: `${Math.min(
-                                100,
-                                Math.max(
-                                  0,
-                                  (prediction.p_away || 0) * 100,
-                                ),
-                              )}%`,
+                              width: `${Math.min(100, Math.max(0, (prediction.p_away || 0) * 100))}%`,
                             }}
                           />
                         </div>
+                      </div>
 
-                        <div className="mt-2 flex items-end justify-between text-[11px] text-zinc-400">
-                          <div className="space-y-0.5">
-                            <p className="text-zinc-500">Win probability</p>
-                            <p className="text-base font-semibold text-zinc-50">
-                              {safePercent(prediction.p_away)}
-                            </p>
-                          </div>
-                          <div className="space-y-0.5 text-right">
-                            <p className="text-zinc-500">Implied odds</p>
-                            <p className="font-mono text-[11px] text-zinc-200">
-                              {impliedOdds(prediction.p_away)}
-                            </p>
-                          </div>
-                        </div>
-                      </button>
-
-                      {/* Home side */}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSelectedSide((prev) =>
-                            prev === "home" ? null : "home",
-                          )
-                        }
-                        className={
-                          "group relative overflow-hidden rounded-2xl border px-3 py-3 text-left text-xs shadow-sm transition-all " +
-                          (selectedSide === "home"
-                            ? "border-sky-400 bg-sky-500/10 shadow-sky-500/30"
-                            : "border-zinc-800 bg-zinc-950/80 hover:border-zinc-700")
-                        }
-                      >
-                        {selectedSide === "home" && (
-                          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-sky-500/10 via-transparent to-emerald-500/5 opacity-80" />
-                        )}
-                        <div className="relative flex items-center justify-between gap-2">
+                      {/* Home */}
+                      <div className="rounded-lg border border-zinc-800/50 bg-zinc-900/30 p-4">
+                        <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
-                              Home side
-                            </p>
-                            <p className="mt-0.5 text-sm font-semibold text-zinc-100">
+                            <span className="text-xs text-zinc-500">Home</span>
+                            <p className="mt-1 text-lg font-bold text-zinc-200">
                               {prediction.home_team || homeName}
                             </p>
                           </div>
-                          {selectedSide === "home" && (
-                            <span className="rounded-full bg-sky-500/20 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-sky-100">
-                              Selected
-                            </span>
-                          )}
+                          <div className="text-right">
+                            <p className="text-3xl font-bold tabular-nums text-white">
+                              {safePercent(prediction.p_home)}
+                            </p>
+                            {prediction.p_home && prediction.p_home > 0 && (
+                              <p className="mt-0.5 font-mono text-xs text-zinc-500">
+                                {impliedOdds(prediction.p_home)}
+                              </p>
+                            )}
+                          </div>
                         </div>
-
-                        <div className="relative mt-3 h-2.5 overflow-hidden rounded-full bg-zinc-900">
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-900">
                           <div
-                            className="absolute inset-y-0 left-0 bg-gradient-to-r from-sky-400/80 via-emerald-400/80 to-blue-500/80 transition-all"
+                            className="h-full bg-gradient-to-r from-blue-500/80 to-blue-600/60 transition-all duration-500"
                             style={{
-                              width: `${Math.min(
-                                100,
-                                Math.max(
-                                  0,
-                                  (prediction.p_home || 0) * 100,
-                                ),
-                              )}%`,
+                              width: `${Math.min(100, Math.max(0, (prediction.p_home || 0) * 100))}%`,
                             }}
                           />
                         </div>
-
-                        <div className="mt-2 flex items-end justify-between text-[11px] text-zinc-400">
-                          <div className="space-y-0.5">
-                            <p className="text-zinc-500">Win probability</p>
-                            <p className="text-base font-semibold text-zinc-50">
-                              {safePercent(prediction.p_home)}
-                            </p>
-                          </div>
-                          <div className="space-y-0.5 text-right">
-                            <p className="text-zinc-500">Implied odds</p>
-                            <p className="font-mono text-[11px] text-zinc-200">
-                              {impliedOdds(prediction.p_home)}
-                            </p>
-                          </div>
-                        </div>
-                      </button>
+                      </div>
                     </div>
 
-                    <p className="mt-3 text-[10px] text-zinc-500">
-                      These are pre-game model estimates. They do not account
-                      for last-minute injuries, rest decisions, or breaking
-                      news.
+                    <p className="mt-4 text-xs text-zinc-500">
+                      Pre-game estimates based on available data. Does not account for last-minute roster changes or breaking news.
                     </p>
 
                     {isFinal && predictionOutcome && (
@@ -706,35 +649,173 @@ export default function GameDetailPage() {
                 )}
               </div>
 
-              {/* Right: Quick factor summary / SHAP-style */}
-              <div className="rounded-2xl border border-zinc-800 bg-gradient-to-b from-zinc-950/95 to-black/95 p-4 shadow-sm shadow-black/60">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-900/90 text-sm">
-                      🧩
-                    </span>
+              {/* Sportsbook Odds (only for upcoming games) */}
+              {!isFinal && (
+                <div className="overflow-hidden rounded-xl border border-zinc-800/60 bg-gradient-to-br from-zinc-900/40 to-zinc-950/60 p-5 shadow-xl shadow-black/40">
+                  <div className="mb-4 flex items-center justify-between">
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
-                        Why the model leans this way
-                      </p>
-                      <p className="mt-0.5 text-xs text-zinc-400">
-                        Top factor-level drivers behind the prediction.
+                      <h2 className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-zinc-400">
+                        <span className="text-lg">💰</span>
+                        <span>Sportsbook Odds</span>
+                      </h2>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        Live betting lines from major sportsbooks
                       </p>
                     </div>
                   </div>
-                  <span className="rounded-full bg-zinc-900/90 px-2 py-1 text-[10px] text-zinc-400">
-                    SHAP-style view
-                  </span>
+
+                  {oddsLoading && (
+                    <div className="flex items-center gap-2 text-sm text-zinc-500">
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-blue-400" />
+                      <span>Loading odds…</span>
+                    </div>
+                  )}
+
+                  {!oddsLoading && oddsError && (
+                    <div className="rounded-lg border border-zinc-800/50 bg-zinc-900/30 px-4 py-3 text-sm text-zinc-400">
+                      {oddsError}
+                    </div>
+                  )}
+
+                  {!oddsLoading && !oddsError && !odds && (
+                    <p className="text-sm text-zinc-500">
+                      No odds data available for this matchup yet.
+                    </p>
+                  )}
+
+                  {!oddsLoading && !oddsError && odds && (
+                    <div className="space-y-4">
+                      {/* Moneyline Odds */}
+                      {odds.moneyline && odds.moneyline.length > 0 && (
+                        <div className="space-y-3">
+                          <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                            Moneyline
+                          </h3>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {/* Group by team */}
+                            {[
+                              { team: awayName, label: "Away" },
+                              { team: homeName, label: "Home" },
+                            ].map(({ team, label }) => {
+                              const teamOdds = odds.moneyline.filter(
+                                (o) => o.outcome_name === team
+                              );
+                              if (teamOdds.length === 0) return null;
+
+                              return (
+                                <div key={team} className="rounded-lg border border-zinc-800/50 bg-zinc-900/30 p-4">
+                                  <div className="mb-3 flex items-center justify-between">
+                                    <div>
+                                      <span className="text-xs text-zinc-500">{label}</span>
+                                      <p className="mt-0.5 font-semibold text-zinc-200">{team}</p>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    {teamOdds.map((odd, idx) => (
+                                      <div
+                                        key={`${odd.bookmaker}-${idx}`}
+                                        className="flex items-center justify-between text-sm"
+                                      >
+                                        <span className="capitalize text-zinc-400">
+                                          {odd.bookmaker.replace("_", " ")}
+                                        </span>
+                                        <span className="font-mono font-medium text-zinc-200">
+                                          {odd.outcome_price > 0 ? "+" : ""}
+                                          {odd.outcome_price}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Spread Odds */}
+                      {odds.spreads && odds.spreads.length > 0 && (
+                        <div className="space-y-3">
+                          <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                            Spreads
+                          </h3>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {[
+                              { team: awayName, label: "Away" },
+                              { team: homeName, label: "Home" },
+                            ].map(({ team, label }) => {
+                              const teamSpreads = odds.spreads.filter(
+                                (o) => o.outcome_name === team
+                              );
+                              if (teamSpreads.length === 0) return null;
+
+                              return (
+                                <div key={team} className="rounded-lg border border-zinc-800/50 bg-zinc-900/30 p-4">
+                                  <div className="mb-3 flex items-center justify-between">
+                                    <div>
+                                      <span className="text-xs text-zinc-500">{label}</span>
+                                      <p className="mt-0.5 font-semibold text-zinc-200">{team}</p>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    {teamSpreads.map((spread, idx) => (
+                                      <div
+                                        key={`${spread.bookmaker}-${idx}`}
+                                        className="flex items-center justify-between text-sm"
+                                      >
+                                        <span className="capitalize text-zinc-400">
+                                          {spread.bookmaker.replace("_", " ")}
+                                        </span>
+                                        <span className="flex items-center gap-2">
+                                          <span className="font-medium text-blue-400">
+                                            {spread.point && spread.point > 0 ? "+" : ""}
+                                            {spread.point}
+                                          </span>
+                                          <span className="font-mono text-xs text-zinc-500">
+                                            ({spread.outcome_price > 0 ? "+" : ""}
+                                            {spread.outcome_price})
+                                          </span>
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      <p className="text-xs text-zinc-600">
+                        Odds last updated:{" "}
+                        {new Date(odds.moneyline[0]?.last_update_utc || odds.spreads[0]?.last_update_utc).toLocaleString()}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Why This Prediction Makes Sense */}
+              <div className="overflow-hidden rounded-xl border border-zinc-800/60 bg-gradient-to-br from-zinc-900/40 to-zinc-950/60 p-5 shadow-xl shadow-black/40">
+                <div className="mb-4">
+                  <h2 className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-zinc-400">
+                    <span className="text-lg">📊</span>
+                    <span>Why This Prediction</span>
+                  </h2>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Key factors influencing the model&apos;s assessment
+                  </p>
                 </div>
 
                 {insightsLoading && (
-                  <p className="text-xs text-zinc-500">
-                    Loading insights for this game…
-                  </p>
+                  <div className="flex items-center gap-2 text-sm text-zinc-500">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-blue-400" />
+                    <span>Loading factors…</span>
+                  </div>
                 )}
 
                 {!insightsLoading && insightsError && (
-                  <div className="rounded-xl border border-zinc-800 bg-zinc-950/90 px-3 py-2 text-xs text-zinc-300">
+                  <div className="rounded-lg border border-zinc-800/50 bg-zinc-900/30 px-4 py-3 text-sm text-zinc-400">
                     {insightsError}
                   </div>
                 )}
@@ -742,9 +823,8 @@ export default function GameDetailPage() {
                 {!insightsLoading &&
                   !insightsError &&
                   (!insights || insights.length === 0) && (
-                    <p className="text-xs text-zinc-500">
-                      No factor-level insights are available yet for this
-                      matchup.
+                    <p className="text-sm text-zinc-500">
+                      No detailed factors available yet for this matchup.
                     </p>
                   )}
 
@@ -755,77 +835,78 @@ export default function GameDetailPage() {
                     <>
                       {/* Key factors */}
                       {keyFactors.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">
-                            Key factors
-                          </p>
-                          <div className="space-y-2">
-                            {keyFactors.map((ins, idx) => {
-                              const magnitude = Math.min(
-                                Math.abs(ins.value ?? 0),
-                                0.4,
-                              );
-                              const barWidth = 20 + magnitude * 200; // 20–100%
+                        <div className="space-y-3">
+                          {keyFactors.map((ins, idx) => {
+                            const magnitude = Math.min(Math.abs(ins.value ?? 0), 0.4);
+                            const barWidth = 20 + magnitude * 200; // 20–100%
+                            const positive = (ins.value ?? 0) >= 0;
+                            const favoredTeam = favoriteSide === "home" ? homeName : awayName;
 
-                              const positive = (ins.value ?? 0) >= 0;
-
-                              return (
-                                <div
-                                  key={`${ins.type}-${ins.label}-${idx}`}
-                                  className="group flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950/85 px-3 py-2.5 text-xs transition-colors hover:border-sky-500/70 hover:bg-zinc-900/85"
-                                >
-                                  <div className="min-w-0 flex-1 space-y-1">
-                                    <div className="flex items-center gap-2">
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-zinc-900/90 px-2 py-0.5 text-[10px] font-medium text-zinc-100">
-                                        {positive ? "Favors pick" : "Hurts pick"}
-                                      </span>
-                                      <span className="truncate text-[11px] text-zinc-400">
-                                        {ins.label}
-                                      </span>
-                                    </div>
-                                    {ins.detail && (
-                                      <p className="line-clamp-2 text-[11px] text-zinc-400">
-                                        {ins.detail}
-                                      </p>
-                                    )}
+                            return (
+                              <div
+                                key={`${ins.type}-${ins.label}-${idx}`}
+                                className="group rounded-lg border border-zinc-800/50 bg-zinc-900/30 p-4 transition-all duration-200 hover:border-zinc-700/70 hover:bg-zinc-900/40"
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div
+                                    className={
+                                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sm " +
+                                      (positive
+                                        ? "bg-blue-500/10 text-blue-400"
+                                        : "bg-zinc-800/50 text-zinc-500")
+                                    }
+                                  >
+                                    {positive ? "+" : "−"}
                                   </div>
-                                  <div className="flex w-28 flex-col items-end gap-1">
-                                    <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-zinc-900">
-                                      <div
-                                        className={
-                                          "absolute inset-y-0 left-0 transition-all " +
-                                          (positive
-                                            ? "bg-emerald-500/80"
-                                            : "bg-red-500/80")
-                                        }
-                                        style={{ width: `${barWidth}%` }}
-                                      />
+                                  <div className="flex-1 space-y-2">
+                                    <div className="space-y-1">
+                                      <p className="text-sm font-medium text-zinc-200">
+                                        {ins.label}
+                                      </p>
+                                      {ins.detail && (
+                                        <p className="text-xs leading-relaxed text-zinc-500">
+                                          {ins.detail}
+                                        </p>
+                                      )}
                                     </div>
-                                    {typeof ins.value === "number" && (
-                                      <span
-                                        className={
-                                          "text-[10px] " +
-                                          (positive
-                                            ? "text-emerald-300"
-                                            : "text-red-300")
-                                        }
-                                      >
-                                        {(ins.value * 100).toFixed(1)}%
-                                      </span>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-900">
+                                        <div
+                                          className={
+                                            "h-full transition-all duration-500 " +
+                                            (positive ? "bg-blue-500/60" : "bg-zinc-600/60")
+                                          }
+                                          style={{ width: `${barWidth}%` }}
+                                        />
+                                      </div>
+                                      {typeof ins.value === "number" && (
+                                        <span
+                                          className={
+                                            "text-xs font-medium tabular-nums " +
+                                            (positive ? "text-blue-400" : "text-zinc-500")
+                                          }
+                                        >
+                                          {positive ? "+" : ""}
+                                          {(ins.value * 100).toFixed(1)}%
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-[10px] text-zinc-600">
+                                      {positive
+                                        ? `Pushes toward ${favoredTeam}`
+                                        : `Minimal impact on prediction`}
+                                    </p>
                                   </div>
                                 </div>
-                              );
-                            })}
-                          </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
 
                       {/* Brief note */}
-                      <p className="mt-3 text-[10px] text-zinc-500">
-                        These aren&apos;t bets or advice – just a breakdown of
-                        which inputs are nudging the model&apos;s win
-                        probability up or down.
+                      <p className="mt-4 text-xs text-zinc-500">
+                        These factors show what data points influence the model, not betting recommendations.
                       </p>
                     </>
                   )}
@@ -833,23 +914,18 @@ export default function GameDetailPage() {
             </section>
 
             {/* ========================= */}
-            {/* 3. FULL EXPLANATION       */}
+            {/* 4. CONTEXT & TRUST        */}
             {/* ========================= */}
-            <section className="space-y-3 rounded-2xl border border-zinc-800 bg-gradient-to-b from-zinc-950/95 to-black/95 p-4 shadow-sm shadow-black/60">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-900/90 text-sm">
-                    📝
-                  </span>
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
-                      Full model narrative
-                    </p>
-                    <p className="mt-0.5 text-xs text-zinc-400">
-                      A plain-language summary built from the factor-level
-                      insights.
-                    </p>
-                  </div>
+            <section className="overflow-hidden rounded-xl border border-zinc-800/60 bg-gradient-to-br from-zinc-900/40 to-zinc-950/60 p-5 shadow-xl shadow-black/40">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-zinc-400">
+                    <span className="text-lg">💬</span>
+                    <span>Plain-Language Summary</span>
+                  </h2>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Model reasoning explained in everyday terms
+                  </p>
                 </div>
                 {explanationText && (
                   <button
@@ -857,41 +933,49 @@ export default function GameDetailPage() {
                     onClick={() => {
                       void navigator.clipboard.writeText(explanationText);
                     }}
-                    className="inline-flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-950/80 px-3 py-1.5 text-[10px] font-medium text-zinc-200 transition hover:border-sky-500 hover:text-sky-100"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs font-medium text-zinc-400 transition-all duration-200 hover:border-blue-500/50 hover:bg-blue-500/10 hover:text-blue-400"
                   >
-                    Copy explanation
+                    <span>📋</span>
+                    <span>Copy</span>
                   </button>
                 )}
               </div>
 
               {explanationText ? (
-                <details className="group rounded-xl border border-zinc-800 bg-zinc-950/85 px-4 py-3 text-xs leading-relaxed text-zinc-200">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-[11px] text-zinc-400">
-                    <span>Tap to expand full explanation</span>
-                    <span className="text-xs transition-transform group-open:rotate-90">
-                      ▸
-                    </span>
-                  </summary>
-                  <div className="mt-3 space-y-2 text-[13px] leading-relaxed text-zinc-200">
-                    {explanationText.split("\n\n").map((para, idx) => (
-                      <p key={idx}>{para}</p>
-                    ))}
-                  </div>
-                </details>
+                <div className="space-y-3 rounded-lg border border-zinc-800/50 bg-zinc-900/30 p-4">
+                  {explanationText.split("\n\n").map((para, idx) => (
+                    <p key={idx} className="text-sm leading-relaxed text-zinc-300">
+                      {para}
+                    </p>
+                  ))}
+                </div>
               ) : (
-                <div className="rounded-xl border border-dashed border-zinc-700 bg-zinc-950/85 px-4 py-6 text-xs text-zinc-400">
-                  A detailed narrative explanation hasn&apos;t been generated
-                  yet for this game. As your surfaces mature, this section will
-                  tell a fuller story about why the model leans the way it
-                  does.
+                <div className="rounded-lg border border-dashed border-zinc-800/50 bg-zinc-900/20 px-4 py-8 text-center">
+                  <p className="text-sm text-zinc-500">
+                    Detailed narrative explanation not yet available
+                  </p>
+                  <p className="mt-2 text-xs text-zinc-600">
+                    As the system matures, this section will provide deeper context about the model&apos;s reasoning
+                  </p>
                 </div>
               )}
+            </section>
 
-              <p className="pt-1 text-[10px] text-zinc-500">
-                SportIQ is an analytics prototype – not a sportsbook. Use these
-                surfaces to understand games more deeply, not as direct betting
-                advice.
-              </p>
+            {/* ========================= */}
+            {/* 5. RESPONSIBLE USE        */}
+            {/* ========================= */}
+            <section className="rounded-lg border border-amber-900/30 bg-gradient-to-r from-amber-950/10 to-amber-900/5 px-5 py-4">
+              <div className="flex items-start gap-3">
+                <span className="text-xl">⚠️</span>
+                <div className="flex-1 space-y-2">
+                  <p className="text-sm font-medium text-amber-400/90">
+                    This is a model interpretation tool, not betting advice
+                  </p>
+                  <p className="text-xs leading-relaxed text-amber-600/70">
+                    SportIQ helps you understand what factors influence predictions. Models are statistical estimates based on historical data—they don&apos;t account for real-time events, injuries, or countless other variables. Use this to deepen your understanding of the game, not as direct gambling recommendations.
+                  </p>
+                </div>
+              </div>
             </section>
           </>
         )}

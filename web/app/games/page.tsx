@@ -4,8 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api, type Event, type Team } from "@/lib/api";
 import { sportLabelFromId, sportIconFromId } from "@/lib/sport";
-import { buildTeamsById, teamLabelFromMap, getTeamLabel, NHL_TEAM_NAMES } from "@/lib/teams";
-import { TeamValueBadge } from "@/lib/logos";
+import { buildTeamsById, getTeamLabel, NHL_TEAM_NAMES } from "@/lib/teams";
 
 function getLocalISODate(date: Date = new Date()): string {
   // Build YYYY-MM-DD using the local calendar date (no UTC conversion)
@@ -22,6 +21,238 @@ type SportFilterId = "all" | 1 | 2 | 3 | 4 | 5;
 function formatAmericanOdds(value: number | null | undefined): string | null {
   if (value === null || value === undefined || Number.isNaN(value)) return null;
   return value > 0 ? `+${value}` : `${value}`;
+}
+
+type OddsRecord = {
+  sport: string;
+  commence_time_utc: string;
+  home_team: string;
+  away_team: string;
+  bookmaker: string;
+  market: string;
+  outcome_name: string;
+  outcome_price: number;
+  point?: number | null;
+  last_update_utc: string;
+  source: string;
+};
+
+type ApiGameOdds = {
+  home_team: string;
+  away_team: string;
+  commence_time_utc: string;
+  moneyline: OddsRecord[];
+  spreads: OddsRecord[];
+};
+
+type AggregatedOdds = {
+  moneyline: {
+    home: number | null;
+    away: number | null;
+    bookmakers: string[];
+  };
+  spreads: {
+    home: { point: number | null; price: number | null };
+    away: { point: number | null; price: number | null };
+    bookmakers: string[];
+  };
+};
+
+const ODDS_FETCH_HOURS = 48; // default window: next 48 hours
+
+function normalizeTeamForMatch(name: string | null | undefined): string {
+  if (!name) return "";
+  const cleaned = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Handle common NBA aliases
+  const replacements: Record<string, string> = {
+    "la clippers": "los angeles clippers",
+    "la lakers": "los angeles lakers",
+    "ny knicks": "new york knicks",
+    "ny nets": "brooklyn nets",
+    "phoenix suns": "phoenix suns", // keep explicit entry to avoid fallthrough
+  };
+
+  return replacements[cleaned] ?? cleaned;
+}
+
+function buildGameKey(home: string, away: string): string {
+  return `${normalizeTeamForMatch(home)}|${normalizeTeamForMatch(away)}`;
+}
+
+function parseTimeTo24h(timeStr: string | null | undefined): string | null {
+  if (!timeStr) return null;
+  const match = timeStr
+    .trim()
+    .match(/(\d{1,2}):(\d{2})(?:\s*(AM|PM))?/i);
+
+  if (!match) return null;
+
+  let hour = parseInt(match[1], 10);
+  const minute = match[2];
+  const ampm = match[3]?.toUpperCase() ?? null;
+
+  if (ampm === "PM" && hour < 12) hour += 12;
+  if (ampm === "AM" && hour === 12) hour = 0;
+
+  const hh = String(hour).padStart(2, "0");
+  return `${hh}:${minute}`;
+}
+
+function getEventStartDateTime(
+  dateStr: string | null | undefined,
+  timeStr: string | null | undefined,
+): Date | null {
+  if (!dateStr) return null;
+  const hhmm = parseTimeTo24h(timeStr) ?? "00:00";
+  const iso = `${dateStr}T${hhmm}:00Z`;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
+function withinTwoHours(a: Date | null, b: Date | null): boolean {
+  if (!a || !b) return true; // if uncertain, allow match
+  const diff = Math.abs(a.getTime() - b.getTime());
+  return diff <= 2 * 60 * 60 * 1000;
+}
+
+function median(values: number[]): number | null {
+  if (!values.length) return null;
+  const sorted = [...values].sort((x, y) => x - y);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+  return sorted[mid];
+}
+
+function aggregateGameOdds(
+  game: ApiGameOdds,
+  homeTeam: string,
+  awayTeam: string,
+): AggregatedOdds {
+  const moneylineBooks = new Set<string>();
+  let bestHome: number | null = null;
+  let bestAway: number | null = null;
+
+  for (const row of game.moneyline) {
+    const outcome = normalizeTeamForMatch(row.outcome_name);
+    const isHome =
+      outcome === normalizeTeamForMatch(homeTeam) || outcome === "home";
+    const isAway =
+      outcome === normalizeTeamForMatch(awayTeam) || outcome === "away";
+    if (!isHome && !isAway) continue;
+
+    const price = Number(row.outcome_price);
+    if (!Number.isFinite(price)) continue;
+    moneylineBooks.add(row.bookmaker);
+
+    if (isHome) {
+      if (bestHome === null || price > bestHome) {
+        bestHome = price;
+      }
+    } else if (isAway) {
+      if (bestAway === null || price > bestAway) {
+        bestAway = price;
+      }
+    }
+  }
+
+  const spreadBooks = new Set<string>();
+  const homeSpreads: { point: number; price: number; book: string }[] = [];
+  const awaySpreads: { point: number; price: number; book: string }[] = [];
+
+  for (const row of game.spreads) {
+    const outcome = normalizeTeamForMatch(row.outcome_name);
+    const isHome =
+      outcome === normalizeTeamForMatch(homeTeam) || outcome === "home";
+    const isAway =
+      outcome === normalizeTeamForMatch(awayTeam) || outcome === "away";
+    if (!isHome && !isAway) continue;
+
+    const point =
+      row.point === null || row.point === undefined
+        ? null
+        : Number(row.point);
+    const price = Number(row.outcome_price);
+    if (!Number.isFinite(price)) continue;
+    if (point === null || Number.isNaN(point)) continue;
+
+    const target = { point, price, book: row.bookmaker };
+    spreadBooks.add(row.bookmaker);
+    if (isHome) {
+      homeSpreads.push(target);
+    } else if (isAway) {
+      awaySpreads.push(target);
+    }
+  }
+
+  const homePoint = median(homeSpreads.map((s) => s.point));
+  const awayPoint = median(awaySpreads.map((s) => s.point));
+
+  const pickPrice = (
+    spreads: { point: number; price: number; book: string }[],
+    targetPoint: number | null,
+  ): number | null => {
+    if (spreads.length === 0 || targetPoint === null) return null;
+    let closest = spreads[0];
+    let bestDiff = Math.abs(spreads[0].point - targetPoint);
+    for (const s of spreads) {
+      const diff = Math.abs(s.point - targetPoint);
+      if (diff < bestDiff) {
+        closest = s;
+        bestDiff = diff;
+      }
+    }
+    return closest.price;
+  };
+
+  return {
+    moneyline: {
+      home: bestHome,
+      away: bestAway,
+      bookmakers: Array.from(moneylineBooks).slice(0, 2),
+    },
+    spreads: {
+      home: {
+        point: homePoint,
+        price: pickPrice(homeSpreads, homePoint),
+      },
+      away: {
+        point: awayPoint,
+        price: pickPrice(awaySpreads, awayPoint),
+      },
+      bookmakers: Array.from(spreadBooks).slice(0, 2),
+    },
+  };
+}
+
+function findMatchingOddsGame(
+  index: Map<string, ApiGameOdds[]>,
+  homeTeam: string,
+  awayTeam: string,
+  eventDate: string | null | undefined,
+  eventTime: string | null | undefined,
+): ApiGameOdds | null {
+  const key = buildGameKey(homeTeam, awayTeam);
+  const candidates = index.get(key);
+  if (!candidates || candidates.length === 0) return null;
+
+  const eventStart = getEventStartDateTime(eventDate, eventTime);
+
+  for (const game of candidates) {
+    const commence = new Date(game.commence_time_utc);
+    if (Number.isNaN(commence.getTime())) continue;
+    if (withinTwoHours(eventStart, commence)) return game;
+  }
+
+  // If none fall within the tolerance, fall back to first candidate
+  return candidates[0];
 }
 
 // --- Date / year helpers ---
@@ -259,23 +490,21 @@ function SummaryBar({
       : "All dates";
 
   return (
-    <section className="mt-1 rounded-2xl border border-zinc-900/80 bg-gradient-to-r from-zinc-950/90 via-black to-zinc-950/90 px-4 py-2.5 text-xs text-zinc-300 shadow-sm shadow-black/40">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full bg-zinc-900/80 px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-zinc-300/90">
-            <span className="h-1.5 w-1.5 rounded-full bg-blue-400/80" />
-            {sportLabel}
+    <section className="px-1">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl font-bold text-white">
+            {visibleCount.toLocaleString()}
           </span>
-          <span className="text-[11px] text-zinc-400">
-            <span className="font-semibold text-zinc-100">
-              {visibleCount}
-            </span>{" "}
-            game{visibleCount === 1 ? "" : "s"}
-          </span>
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-zinc-300">
+              {visibleCount === 1 ? "Game" : "Games"}
+            </span>
+            <span className="text-xs text-zinc-500">
+              {sportLabel} · {dateLabel ?? "All time"}
+            </span>
+          </div>
         </div>
-        <span className="text-[11px] text-zinc-500">
-          {dateLabel ?? ""}
-        </span>
       </div>
     </section>
   );
@@ -304,57 +533,41 @@ function FinalScoreBlock({
   homeWin,
 }: FinalScoreBlockProps) {
   return (
-    <div className="mt-3 space-y-2 pl-1">
-      {/* Away row */}
-      <div
-        className={
-          "flex items-center justify-between gap-3 rounded-xl border px-3 py-2 transition-all duration-150 " +
-          (awayIsWinner
-            ? "border-emerald-500/70 bg-emerald-500/10 shadow-sm shadow-emerald-500/30"
-            : "border-zinc-800 bg-zinc-950/80")
-        }
-      >
-        <div className="flex flex-col">
-          <span className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">
+    <div className="space-y-3">
+      {/* Score display */}
+      <div className="flex items-center justify-center gap-4 rounded-lg bg-zinc-900/30 py-6">
+        <div className="flex flex-col items-center gap-1">
+          <span className={
+            "text-4xl font-bold tabular-nums " +
+            (awayIsWinner ? "text-emerald-400" : "text-zinc-400")
+          }>
+            {awayScore}
+          </span>
+          <span className="text-[10px] uppercase tracking-wider text-zinc-600">
             Away
           </span>
-          <span className="text-sm font-medium text-zinc-50">
-            {awayTeam}
-          </span>
         </div>
-        <span className="text-2xl font-semibold text-zinc-50">
-          {awayScore}
-        </span>
-      </div>
-
-      {/* Home row */}
-      <div
-        className={
-          "flex items-center justify-between gap-3 rounded-xl border px-3 py-2 transition-all duration-150 " +
-          (homeIsWinner
-            ? "border-emerald-500/70 bg-emerald-500/10 shadow-sm shadow-emerald-500/30"
-            : "border-zinc-800 bg-zinc-950/80")
-        }
-      >
-        <div className="flex flex-col">
-          <span className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">
+        <span className="text-xl font-bold text-zinc-600">—</span>
+        <div className="flex flex-col items-center gap-1">
+          <span className={
+            "text-4xl font-bold tabular-nums " +
+            (homeIsWinner ? "text-emerald-400" : "text-zinc-400")
+          }>
+            {homeScore}
+          </span>
+          <span className="text-[10px] uppercase tracking-wider text-zinc-600">
             Home
           </span>
-          <span className="text-sm font-medium text-zinc-50">
-            {homeTeam}
-          </span>
         </div>
-        <span className="text-2xl font-semibold text-zinc-50">
-          {homeScore}
-        </span>
       </div>
 
+      {/* Winner indicator */}
       {homeWin !== null && (
-        <div className="flex justify-end">
-          <span className="inline-flex items-center gap-1 rounded-full border border-zinc-700/80 bg-zinc-900/80 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.16em] text-zinc-200">
+        <div className="flex justify-center">
+          <div className="flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            {homeWin ? "Home team won" : "Away team won"}
-          </span>
+            <span>{homeWin ? homeTeam : awayTeam} wins</span>
+          </div>
         </div>
       )}
     </div>
@@ -414,89 +627,68 @@ function UfcResultBlock({
     const roundNum = typeof raw === 'number' ? raw : parseFloat(String(raw));
     if (isNaN(roundNum)) return null;
 
-    return `(R${Math.floor(roundNum)})`;
+    return `R${Math.floor(roundNum)}`;
   };
 
   const method = normalizeMethod(rawMethod);
   const round = formatRound(finishRound);
 
-  // Format the result string
-  let resultText = "";
-  if (winnerName) {
-    resultText = `Winner: ${winnerName}`;
-
-    // Add method and/or round
-    if (method && round) {
-      // Both available: "Winner: Name — Method (R1)"
-      resultText += ` — ${method} ${round}`;
-    } else if (method) {
-      // Only method: "Winner: Name — Method"
-      resultText += ` — ${method}`;
-    } else if (round) {
-      // Only round: "Winner: Name (R1)"
-      resultText += ` ${round}`;
-    }
-    // If neither, just show "Winner: Name"
-  } else {
-    resultText = "Result pending";
-  }
-
   const isHomeWinner = homeWin === true;
   const isAwayWinner = homeWin === false;
 
   return (
-    <div className="mt-3 space-y-2 pl-1">
-      {/* Away fighter row */}
-      <div
-        className={
-          "flex items-center justify-between gap-3 rounded-xl border px-3 py-2 transition-all duration-150 " +
-          (isAwayWinner
-            ? "border-emerald-500/70 bg-emerald-500/10 shadow-sm shadow-emerald-500/30"
-            : "border-zinc-800 bg-zinc-950/80")
-        }
-      >
-        <div className="flex flex-col">
-          <span className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">
-            Fighter
-          </span>
-          <span className="text-sm font-medium text-zinc-50">
-            {awayTeam}
-          </span>
+    <div className="space-y-3">
+      {/* Result display */}
+      <div className="rounded-lg bg-zinc-900/30 p-4">
+        <div className="space-y-3">
+          {/* Away fighter */}
+          <div className={
+            "flex items-center justify-between rounded-md p-2 transition-all " +
+            (isAwayWinner ? "bg-emerald-500/10" : "")
+          }>
+            <span className={
+              "text-sm font-medium " +
+              (isAwayWinner ? "text-emerald-400" : "text-zinc-400")
+            }>
+              {awayTeam}
+            </span>
+            {isAwayWinner && (
+              <span className="text-lg text-emerald-400">✓</span>
+            )}
+          </div>
+
+          {/* Home fighter */}
+          <div className={
+            "flex items-center justify-between rounded-md p-2 transition-all " +
+            (isHomeWinner ? "bg-emerald-500/10" : "")
+          }>
+            <span className={
+              "text-sm font-medium " +
+              (isHomeWinner ? "text-emerald-400" : "text-zinc-400")
+            }>
+              {homeTeam}
+            </span>
+            {isHomeWinner && (
+              <span className="text-lg text-emerald-400">✓</span>
+            )}
+          </div>
         </div>
-        {isAwayWinner && (
-          <span className="text-xs font-semibold text-emerald-400">✓</span>
-        )}
       </div>
 
-      {/* Home fighter row */}
-      <div
-        className={
-          "flex items-center justify-between gap-3 rounded-xl border px-3 py-2 transition-all duration-150 " +
-          (isHomeWinner
-            ? "border-emerald-500/70 bg-emerald-500/10 shadow-sm shadow-emerald-500/30"
-            : "border-zinc-800 bg-zinc-950/80")
-        }
-      >
-        <div className="flex flex-col">
-          <span className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">
-            Fighter
-          </span>
-          <span className="text-sm font-medium text-zinc-50">
-            {homeTeam}
-          </span>
-        </div>
-        {isHomeWinner && (
-          <span className="text-xs font-semibold text-emerald-400">✓</span>
-        )}
-      </div>
-
-      {/* Result text */}
+      {/* Result metadata */}
       {winnerName && (
-        <div className="flex justify-end">
-          <span className="inline-flex items-center gap-1 rounded-full border border-zinc-700/80 bg-zinc-900/80 px-2.5 py-0.5 text-[10px] text-zinc-200">
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5 text-xs text-emerald-400">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            {resultText}
-          </span>
+            <span className="font-medium">{winnerName} wins</span>
+          </div>
+          {(method || round) && (
+            <div className="text-xs text-zinc-500">
+              {method && <span>{method}</span>}
+              {method && round && <span> · </span>}
+              {round && <span>{round}</span>}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -507,8 +699,6 @@ function UfcResultBlock({
 // Subcomponent: Odds block
 // =========================
 interface OddsBlockProps {
-  homeTeam: string;
-  awayTeam: string;
   homeValue: string | null;
   awayValue: string | null;
   oddsLabel: string | null;
@@ -517,8 +707,6 @@ interface OddsBlockProps {
 }
 
 function OddsBlock({
-  homeTeam,
-  awayTeam,
   homeValue,
   awayValue,
   oddsLabel,
@@ -526,53 +714,204 @@ function OddsBlock({
   modelAwayFormatted,
 }: OddsBlockProps) {
   const showValueRow = homeValue !== null || awayValue !== null;
+  const sourceLabel =
+    oddsLabel === "Sportsbook odds"
+      ? "Market snapshot"
+      : oddsLabel === "Model odds"
+      ? "Model view"
+      : oddsLabel || null;
+  const showModelCompare =
+    oddsLabel === "Sportsbook odds" &&
+    (modelHomeFormatted || modelAwayFormatted);
 
   if (!showValueRow) return null;
 
   return (
-    <div className="mt-3 space-y-2 pl-1">
-      {/* Away odds row */}
-      <div className="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          className="flex-1 rounded-full border border-zinc-700 bg-zinc-950/80 px-1 py-0.5 text-left text-xs text-zinc-100 shadow-sm shadow-black/40 transition-all duration-150 hover:border-blue-400 hover:bg-blue-500/10 hover:shadow-blue-500/30 active:scale-[0.97]"
-        >
-          <TeamValueBadge
-            teamName={awayTeam}
-            value={awayValue}
-            variant="odds"
-          />
-        </button>
-      </div>
-
-      {/* Home odds row */}
-      <div className="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          className="flex-1 rounded-full border border-zinc-700 bg-zinc-950/80 px-1 py-0.5 text-left text-xs text-zinc-100 shadow-sm shadow-black/40 transition-all duration-150 hover:border-blue-400 hover:bg-blue-500/10 hover:shadow-blue-500/30 active:scale-[0.97]"
-        >
-          <TeamValueBadge
-            teamName={homeTeam}
-            value={homeValue}
-            variant="odds"
-          />
-        </button>
-      </div>
-
-      <div className="flex flex-col items-end gap-1">
-        {oddsLabel && (homeValue || awayValue) && (
-          <span className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
-            {oddsLabel}
-          </span>
-        )}
-        {/* Tiny secondary line to show model odds when sportsbook odds are present */}
-        {oddsLabel === "Sportsbook odds" &&
-          (modelHomeFormatted || modelAwayFormatted) && (
-            <span className="text-[10px] text-zinc-500">
-              Model: {modelAwayFormatted ?? "—"} /{" "}
-              {modelHomeFormatted ?? "—"}
+    <div className="space-y-2">
+      <div className="rounded-xl border border-zinc-800/70 bg-zinc-900/50 p-4">
+        <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-zinc-500">
+          <span title="Win-outcome odds for each team">Moneyline</span>
+          {sourceLabel && (
+            <span className="text-xs font-medium normal-case tracking-normal text-zinc-400">
+              {sourceLabel}
             </span>
           )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 pt-3">
+          <div className="rounded-lg p-2 transition-colors hover:bg-zinc-900/70">
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs font-medium text-zinc-400">Away</span>
+              <span
+                className={
+                  "text-lg font-semibold tabular-nums " +
+                  (awayValue ? "text-zinc-100" : "text-zinc-600")
+                }
+              >
+                {awayValue ?? "—"}
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-lg border-l border-zinc-800 p-2 pl-3 transition-colors hover:bg-zinc-900/70">
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs font-medium text-zinc-400">Home</span>
+              <span
+                className={
+                  "text-lg font-semibold tabular-nums " +
+                  (homeValue ? "text-zinc-100" : "text-zinc-600")
+                }
+              >
+                {homeValue ?? "—"}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {showModelCompare && (
+        <div className="flex items-center justify-between text-xs text-zinc-500">
+          <span className="flex items-center gap-1">
+            <span className="h-1 w-1 rounded-full bg-blue-400" />
+            <span>Model reference</span>
+          </span>
+          <span className="font-medium tabular-nums text-zinc-300">
+            {modelAwayFormatted ?? "—"} / {modelHomeFormatted ?? "—"}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InlineOddsRow({
+  odds,
+}: {
+  odds: AggregatedOdds | null;
+}) {
+  if (!odds) {
+    return (
+      <div className="rounded-lg border border-dashed border-zinc-800/70 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-500">
+        Market snapshot unavailable
+      </div>
+    );
+  }
+
+  const moneylineHome = formatAmericanOdds(odds.moneyline.home);
+  const moneylineAway = formatAmericanOdds(odds.moneyline.away);
+  const spreadHome =
+    odds.spreads.home.point === null || odds.spreads.home.point === undefined
+      ? null
+      : (odds.spreads.home.point > 0 ? "+" : "") + odds.spreads.home.point;
+  const spreadAway =
+    odds.spreads.away.point === null || odds.spreads.away.point === undefined
+      ? null
+      : (odds.spreads.away.point > 0 ? "+" : "") + odds.spreads.away.point;
+  const spreadHomePrice = formatAmericanOdds(odds.spreads.home.price);
+  const spreadAwayPrice = formatAmericanOdds(odds.spreads.away.price);
+
+  const books =
+    odds.moneyline.bookmakers.length > 0
+      ? odds.moneyline.bookmakers
+      : odds.spreads.bookmakers;
+  const bookAttribution =
+    books.length === 0
+      ? null
+      : books.length > 2
+      ? `${books.slice(0, 2).join(" / ")} +${books.length - 2}`
+      : books.join(" / ");
+
+  return (
+    <div className="rounded-xl border border-zinc-800/70 bg-zinc-950/60 p-4 text-xs">
+      <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-zinc-500">
+        <span title="Live lines from leading books">Market snapshot</span>
+        {bookAttribution && (
+          <span className="text-xs font-medium normal-case tracking-normal text-zinc-400">
+            {bookAttribution}
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 pt-3">
+        <div className="rounded-lg p-2 transition-colors hover:bg-zinc-900/70">
+          <div className="flex items-baseline justify-between">
+            <span className="text-xs font-medium text-zinc-400">Away</span>
+            <span
+              className={
+                "text-base font-semibold tabular-nums " +
+                (moneylineAway ? "text-white" : "text-zinc-600")
+              }
+            >
+              {moneylineAway ?? "—"}
+            </span>
+          </div>
+          <div className="mt-1 flex items-baseline justify-between text-sm">
+            <span
+              className="text-[11px] uppercase tracking-wide text-zinc-500"
+              title="Point handicap to balance outcomes"
+            >
+              Spread
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span
+                className={
+                  "text-sm font-medium tabular-nums " +
+                  (spreadAway ? "text-zinc-200" : "text-zinc-600")
+                }
+              >
+                {spreadAway ?? "—"}
+              </span>
+              <span
+                className={
+                  "text-xs tabular-nums " +
+                  (spreadAwayPrice ? "text-zinc-500" : "text-zinc-700")
+                }
+              >
+                {spreadAwayPrice ?? "—"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border-l border-zinc-800 p-2 pl-3 transition-colors hover:bg-zinc-900/70">
+          <div className="flex items-baseline justify-between">
+            <span className="text-xs font-medium text-zinc-400">Home</span>
+            <span
+              className={
+                "text-base font-semibold tabular-nums " +
+                (moneylineHome ? "text-white" : "text-zinc-600")
+              }
+            >
+              {moneylineHome ?? "—"}
+            </span>
+          </div>
+          <div className="mt-1 flex items-baseline justify-between text-sm">
+            <span
+              className="text-[11px] uppercase tracking-wide text-zinc-500"
+              title="Point handicap to balance outcomes"
+            >
+              Spread
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span
+                className={
+                  "text-sm font-medium tabular-nums " +
+                  (spreadHome ? "text-zinc-200" : "text-zinc-600")
+                }
+              >
+                {spreadHome ?? "—"}
+              </span>
+              <span
+                className={
+                  "text-xs tabular-nums " +
+                  (spreadHomePrice ? "text-zinc-500" : "text-zinc-700")
+                }
+              >
+                {spreadHomePrice ?? "—"}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -583,6 +922,8 @@ export default function GamesPage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [oddsGames, setOddsGames] = useState<ApiGameOdds[]>([]);
+  const [oddsLoaded, setOddsLoaded] = useState(false);
 
   // Season filter ("Season" dropdown) – default will be set to latest once events load
   const [selectedSport, setSelectedSport] = useState<SportFilterId>("all");
@@ -664,6 +1005,65 @@ export default function GamesPage() {
     })();
   }, []);
 
+  // Fetch odds from local Next API (parquet-backed) for NBA/NFL/NHL/UFC
+  useEffect(() => {
+    const sportsToLoad =
+      selectedSport === "all"
+        ? ["nba", "nfl", "nhl", "ufc"]
+        : selectedSport === 1
+        ? ["nba"]
+        : selectedSport === 3
+        ? ["nfl"]
+        : selectedSport === 4
+        ? ["nhl"]
+        : selectedSport === 5
+        ? ["ufc"]
+        : [];
+
+    if (sportsToLoad.length === 0) {
+      setOddsGames([]);
+      setOddsLoaded(false);
+      return;
+    }
+
+    (async () => {
+      try {
+        const responses = await Promise.all(
+          sportsToLoad.map(async (sportKey) => {
+            const query = new URLSearchParams({
+              sport: sportKey,
+              hours: String(ODDS_FETCH_HOURS),
+            });
+            const res = await fetch(`/api/odds?${query.toString()}`, {
+              cache: "no-store",
+            });
+            if (!res.ok) {
+              throw new Error(`Odds API failed for ${sportKey}: ${res.status}`);
+            }
+            const data = await res.json();
+            if (process.env.NODE_ENV !== "production") {
+              console.log(`Odds loaded (${sportKey}):`, {
+                games: data.games?.length ?? 0,
+                rows_loaded: data.meta?.rows_loaded,
+                rows_filtered: data.meta?.rows_filtered,
+                file_found: data.meta?.file_found,
+              });
+            }
+            return data.games ?? [];
+          }),
+        );
+
+        const merged = responses.flat();
+        setOddsGames(merged);
+      } catch (err) {
+        console.error("Failed to load odds", err);
+        setOddsGames([]);
+      } finally {
+        setOddsLoaded(true);
+      }
+    })();
+  }, [selectedSport]);
+
   // 2) After events load, default Season filter to latest year ("current season")
   useEffect(() => {
     if (events.length === 0) return;
@@ -738,9 +1138,48 @@ export default function GamesPage() {
   // Team lookup using shared helpers
   const teamsById = useMemo(() => buildTeamsById(teams), [teams]);
 
-  function teamLabel(id: number | null): string {
-    return teamLabelFromMap(teamsById, id);
-  }
+  // Index odds by normalized matchup for quick lookup
+  const oddsIndex = useMemo(() => {
+    const map = new Map<string, ApiGameOdds[]>();
+    for (const game of oddsGames) {
+      const key = buildGameKey(game.home_team, game.away_team);
+      const existing = map.get(key) ?? [];
+      existing.push(game);
+      map.set(key, existing);
+    }
+    return map;
+  }, [oddsGames]);
+
+  useEffect(() => {
+    if (!oddsGames.length || !events.length) return;
+    if (process.env.NODE_ENV === "production") return;
+    const nbaEvents = events.filter((e) => e.sport_id === 1);
+    const nflEvents = events.filter((e) => e.sport_id === 3);
+    const nhlEvents = events.filter((e) => e.sport_id === 4);
+    const ufcEvents = events.filter((e) => e.sport_id === 5);
+
+    const countMatches = (items: Event[], label: string) => {
+      let matched = 0;
+      for (const e of items) {
+        const homeName = getTeamLabel(e, "home", teamsById);
+        const awayName = getTeamLabel(e, "away", teamsById);
+        const game = findMatchingOddsGame(
+          oddsIndex,
+          homeName,
+          awayName,
+          e.date,
+          (e as any).start_time ?? (e as any).start_et ?? null,
+        );
+        if (game) matched += 1;
+      }
+      console.log(`Odds matching: matched ${matched}/${items.length} ${label} games`);
+    };
+
+    countMatches(nbaEvents, "NBA");
+    countMatches(nflEvents, "NFL");
+    countMatches(nhlEvents, "NHL");
+    countMatches(ufcEvents, "UFC");
+  }, [oddsGames, events, teamsById, oddsIndex]);
 
   // Sport filters (UI only)
   const sportFilters: { id: SportFilterId; label: string }[] = SPORT_FILTERS;
@@ -897,20 +1336,19 @@ export default function GamesPage() {
   const isTruncated = visibleEvents.length > MAX_EVENTS_TO_RENDER;
 
   return (
-    <main className="min-h-screen bg-black px-4 pb-12 pt-7 text-white">
-      <div className="mx-auto w-full max-w-6xl space-y-5">
+    <main className="min-h-screen bg-black px-4 pb-12 pt-6 text-white">
+      <div className="mx-auto w-full max-w-7xl space-y-6">
         {/* ========================= */}
         {/* 1. PAGE HEADER            */}
         {/* ========================= */}
-        <section className="rounded-2xl border border-slate-900 bg-gradient-to-b from-slate-950/90 to-black/90 px-5 py-4 shadow-sm shadow-black/40">
-          <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <section className="px-1">
+          <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
                 Games
               </h1>
-              <p className="mt-1 max-w-xl text-xs text-zinc-400 sm:text-sm">
-                Browse live lines and historical results across leagues. Fan
-                view powered by your SportIQ models.
+              <p className="mt-1.5 max-w-2xl text-sm text-zinc-400">
+                Live lines, model predictions, and historical results across all major leagues
               </p>
             </div>
           </header>
@@ -919,185 +1357,171 @@ export default function GamesPage() {
         {/* ========================= */}
         {/* 2. FILTER BAR             */}
         {/* ========================= */}
-        <section className="space-y-3 rounded-2xl border border-zinc-900/80 bg-black/90 px-4 py-3 shadow-sm shadow-black/40">
-          <div className="space-y-2.5">
-            {/* Tier 1: Date + Today + Sport pills */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              {/* Date controls */}
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <div className="flex items-center gap-2">
-                  {/* Previous day */}
+        <section className="overflow-hidden rounded-2xl border border-zinc-900/50 bg-gradient-to-br from-zinc-950/40 via-zinc-950/60 to-zinc-950/40 backdrop-blur-sm">
+          <div className="space-y-4 p-5">
+            {/* Sport pills - Primary filter */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                  League
+                </h3>
+                {loading && (
+                  <span className="text-xs text-zinc-500">Loading…</span>
+                )}
+                {error && (
+                  <span className="text-xs text-red-400/90">{error}</span>
+                )}
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-zinc-800">
+                {sportFilters.map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setSelectedSport(f.id)}
+                    aria-pressed={selectedSport === f.id}
+                    className={
+                      "group relative shrink-0 overflow-hidden rounded-xl border px-4 py-2.5 text-sm font-medium shadow-lg transition-all duration-200 " +
+                      (selectedSport === f.id
+                        ? "border-blue-500/50 bg-gradient-to-br from-blue-500/20 to-blue-600/10 text-blue-100 shadow-blue-500/20"
+                        : "border-zinc-800/80 bg-zinc-900/40 text-zinc-400 shadow-black/20 hover:border-zinc-700 hover:bg-zinc-900/60 hover:text-zinc-200 active:scale-[0.98]")
+                    }
+                  >
+                    {selectedSport === f.id && (
+                      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent" />
+                    )}
+                    <span className="relative inline-flex items-center gap-2">
+                      {f.id !== "all" && (
+                        <span className="text-base">
+                          {sportIconFromId(f.id as number)}
+                        </span>
+                      )}
+                      <span>{f.label}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Secondary filters: Date + Season + Team */}
+            <div className="grid gap-4 border-t border-zinc-800/50 pt-4 sm:grid-cols-3">
+              {/* Date navigation */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                  Date
+                </label>
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => handleShiftDate(-1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/90 text-xs text-zinc-300 shadow-sm shadow-black/30 transition-all duration-150 hover:border-blue-500 hover:bg-blue-500/10 hover:text-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 active:scale-95"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/60 text-sm text-zinc-400 shadow-sm transition-all duration-150 hover:border-zinc-700 hover:bg-zinc-800/80 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 active:scale-95"
                     aria-label="Previous day"
                   >
                     ←
                   </button>
-
-                  {/* Calendar style date input */}
-                  <div className="relative flex items-center">
-                    <span className="pointer-events-none absolute left-2 text-[13px] text-zinc-500">
-                      📅
-                    </span>
-                    <input
-                      type="date"
-                      value={dateFilter ?? ""}
-                      onChange={(e) =>
-                        setDateFilter(
-                          e.target.value === "" ? null : e.target.value,
-                        )
-                      }
-                      className="min-w-[170px] rounded-full border border-zinc-700/80 bg-zinc-950 pl-7 pr-3 py-1.5 text-xs text-zinc-100 shadow-sm shadow-black/50 transition-all duration-150 focus:outline-none focus-visible:border-blue-500/80 focus-visible:ring-2 focus-visible:ring-blue-500/70"
-                    />
-                  </div>
-
-                  {/* Next day */}
+                  <input
+                    type="date"
+                    value={dateFilter ?? ""}
+                    onChange={(e) =>
+                      setDateFilter(
+                        e.target.value === "" ? null : e.target.value,
+                      )
+                    }
+                    className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-200 shadow-sm transition-all duration-150 focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
                   <button
                     type="button"
                     onClick={() => handleShiftDate(1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/90 text-xs text-zinc-300 shadow-sm shadow-black/30 transition-all duration-150 hover:border-blue-500 hover:bg-blue-500/10 hover:text-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 active:scale-95"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/60 text-sm text-zinc-400 shadow-sm transition-all duration-150 hover:border-zinc-700 hover:bg-zinc-800/80 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 active:scale-95"
                     aria-label="Next day"
                   >
                     →
                   </button>
-
-                  {/* Today ghost-button */}
                   <button
                     type="button"
                     onClick={handleJumpToToday}
                     title="Jump to today"
-                    className="rounded-full border border-zinc-700/80 bg-transparent px-2.5 py-1 text-[11px] text-zinc-200 shadow-sm shadow-black/20 transition-all duration-150 hover:border-blue-500 hover:bg-blue-500/10 hover:text-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 active:scale-95"
+                    className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs font-medium text-zinc-400 shadow-sm transition-all duration-150 hover:border-zinc-700 hover:bg-zinc-800/80 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 active:scale-95"
                   >
                     Today
                   </button>
                 </div>
               </div>
 
-              {/* Sport pills */}
-              <div className="flex w-full items-center gap-2 sm:w-auto">
-                <div className="flex gap-2 overflow-x-auto py-1 text-[11px] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-zinc-800">
-                  {sportFilters.map((f) => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      onClick={() => setSelectedSport(f.id)}
-                      aria-pressed={selectedSport === f.id}
-                      className={
-                        "shrink-0 rounded-full border px-3 py-1.5 text-xs shadow-sm transition-all duration-150 " +
-                        (selectedSport === f.id
-                          ? "border-blue-400 bg-blue-500/25 text-blue-50 shadow-blue-500/40 ring-1 ring-blue-500/60"
-                          : "border-zinc-700 bg-zinc-950/80 text-zinc-400 hover:border-zinc-500 hover:bg-zinc-900 hover:text-zinc-200 active:scale-95")
-                      }
-                    >
-                      <span className="inline-flex items-center gap-1">
-                        {f.id !== "all" && (
-                          <span className="text-[12px]">
-                            {sportIconFromId(f.id as number)}
-                          </span>
-                        )}
-                        <span>{f.label}</span>
-                      </span>
-                    </button>
-                  ))}
+              {/* Season selector */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                  Season
+                </label>
+                <div className="relative">
+                  <select
+                    value={yearFilter}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setYearFilter(value);
+                      setDateFilter(null);
+                    }}
+                    className="w-full appearance-none rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 pr-9 text-sm text-zinc-200 shadow-sm transition-all duration-150 focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  >
+                    <option value="all">All seasons</option>
+                    {yearOptions.map((y) => (
+                      <option key={y} value={y}>
+                        {y} season
+                      </option>
+                    ))}
+                  </select>
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">
+                    ▼
+                  </span>
                 </div>
               </div>
-            </div>
 
-            {/* Tier 2: Season + Team + mini insight */}
-            <div className="flex flex-col gap-3 border-t border-zinc-800/80 pt-2.5 text-xs sm:flex-row sm:items-center sm:justify-between">
-              {/* Season + Team */}
-              <div className="flex flex-wrap items-center gap-4">
-                {/* Season selector */}
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
-                    Season
-                  </span>
-                  <div className="relative inline-flex items-center">
-                    <select
-                      value={yearFilter}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setYearFilter(value);
-                        // Clear any specific date filter when switching seasons
-                        setDateFilter(null);
-                      }}
-                      className="rounded-full border border-zinc-700/80 bg-zinc-950 px-3 py-1.5 pr-7 text-xs text-zinc-100 shadow-sm shadow-black/40 transition focus:outline-none focus-visible:border-blue-500/80 focus-visible:ring-2 focus-visible:ring-blue-500/70"
-                    >
-                      <option value="all">All years</option>
-                      {yearOptions.map((y) => (
-                        <option key={y} value={y}>
-                          {y}
+              {/* Team selector */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                  Team
+                  {!isTeamDisabled && (
+                    <span className="ml-1.5 text-[10px] font-normal text-zinc-600">
+                      ({teamLeagueLabel})
+                    </span>
+                  )}
+                </label>
+                <div className="relative">
+                  <select
+                    value={teamFilter}
+                    onChange={(e) => setTeamFilter(e.target.value)}
+                    disabled={isTeamDisabled}
+                    className={
+                      "w-full appearance-none rounded-lg border px-3 py-2 pr-9 text-sm shadow-sm transition-all duration-150 " +
+                      (isTeamDisabled
+                        ? "cursor-not-allowed border-zinc-800/50 bg-zinc-900/30 text-zinc-600"
+                        : "border-zinc-800 bg-zinc-900/60 text-zinc-200 focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20")
+                    }
+                  >
+                    <option value="all">
+                      {isTeamDisabled
+                        ? "Select a league first"
+                        : "All teams"}
+                    </option>
+                    {!isTeamDisabled &&
+                      teamOptions.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
                         </option>
                       ))}
-                    </select>
-                    <span className="pointer-events-none absolute right-2 text-[10px] text-zinc-500">
-                      ⌄
-                    </span>
-                  </div>
-                </div>
-
-                {/* Team selector */}
-                <div className="flex items-center gap-2">
-                  <span className="flex items-center gap-1 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
-                    Team
-                    <span className="inline-flex items-center gap-1 rounded-full bg-zinc-900/90 px-1.5 py-[2px] text-[9px] font-medium text-zinc-300">
-                      <span className="h-1.5 w-1.5 rounded-full bg-blue-400/80" />
-                      {teamLeagueLabel}
-                    </span>
+                  </select>
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">
+                    ▼
                   </span>
-                  <div className="relative inline-flex items-center">
-                    <select
-                      value={teamFilter}
-                      onChange={(e) => setTeamFilter(e.target.value)}
-                      disabled={isTeamDisabled}
-                      className={
-                        "rounded-full border px-3 py-1.5 pr-7 text-xs shadow-sm shadow-black/40 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 " +
-                        (isTeamDisabled
-                          ? "cursor-not-allowed border-zinc-800 bg-zinc-950/60 text-zinc-500"
-                          : "border-zinc-700/80 bg-zinc-950 text-zinc-100 focus-visible:border-blue-500/80")
-                      }
-                    >
-                      <option value="all">
-                        {isTeamDisabled
-                          ? "Select a sport to filter teams"
-                          : "All teams"}
-                      </option>
-                      {!isTeamDisabled &&
-                        teamOptions.map((name) => (
-                          <option key={name} value={name}>
-                            {name}
-                          </option>
-                        ))}
-                    </select>
-                    <span className="pointer-events-none absolute right-2 text-[10px] text-zinc-500">
-                      ⌄
-                    </span>
-                  </div>
                 </div>
-              </div>
-
-              {/* Mini insight (loading + errors handled below) */}
-              <div className="mt-1 flex flex-1 items-center justify-end gap-2 sm:mt-0">
-                {loading && (
-                  <span className="text-[10px] text-zinc-500">
-                    Loading games…
-                  </span>
-                )}
-                {error && (
-                  <span className="text-[10px] text-red-400">{error}</span>
-                )}
               </div>
             </div>
 
             {/* Empty-state helper message */}
             {!loading && !error && visibleEvents.length === 0 && (
-              <div className="mt-1 rounded-xl border border-zinc-800 bg-zinc-950/80 px-4 py-3 text-[11px] text-zinc-400">
-                <p className="font-medium text-zinc-200">No games found</p>
-                <p className="mt-1">
-                  Try changing the date, selecting a different sport, or clearing
-                  your team filter.
+              <div className="rounded-lg border border-zinc-800/50 bg-zinc-900/40 px-4 py-3 text-sm">
+                <p className="font-medium text-zinc-300">No games found</p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Try adjusting your filters or selecting a different date range
                 </p>
               </div>
             )}
@@ -1117,14 +1541,23 @@ export default function GamesPage() {
         {/* ========================= */}
         {/* 4. GAME CARDS GRID        */}
         {/* ========================= */}
-        <section className="pt-1">
+        <section className="space-y-5">
           {isTruncated && (
-            <div className="mb-3 rounded-xl border border-zinc-800 bg-zinc-950/80 px-4 py-2 text-[11px] text-zinc-400">
-              Showing the first {MAX_EVENTS_TO_RENDER} games. Try narrowing the
-              date, season, sport, or team filters to see a smaller set.
+            <div className="rounded-lg border border-amber-900/30 bg-gradient-to-r from-amber-950/20 to-amber-900/10 px-4 py-3">
+              <div className="flex items-start gap-3">
+                <span className="text-lg">⚡</span>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-400/90">
+                    Showing first {MAX_EVENTS_TO_RENDER.toLocaleString()} games
+                  </p>
+                  <p className="mt-1 text-xs text-amber-600/80">
+                    Refine your filters to narrow results or scroll down to load more
+                  </p>
+                </div>
+              </div>
             </div>
           )}
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
             {eventsToRender.map((e) => {
               // Combine *_score with *_pts so 2025 games show as Final
               const homeScoreRaw =
@@ -1153,57 +1586,6 @@ export default function GamesPage() {
 
               const homeIsWinner = isFinal && homeWin === true;
               const awayIsWinner = isFinal && homeWin === false;
-
-              // --- Odds (for scheduled games) ---
-              const modelHomeOddsRaw =
-                (e as any).model_home_american_odds ?? null;
-              const modelAwayOddsRaw =
-                (e as any).model_away_american_odds ?? null;
-
-              const bookHomeOddsRaw =
-                (e as any).sportsbook_home_american_odds ?? null;
-              const bookAwayOddsRaw =
-                (e as any).sportsbook_away_american_odds ?? null;
-
-              const hasSportsbookOdds =
-                bookHomeOddsRaw !== null && bookAwayOddsRaw !== null;
-
-              const homeOddsToShow = hasSportsbookOdds
-                ? bookHomeOddsRaw
-                : modelHomeOddsRaw;
-              const awayOddsToShow = hasSportsbookOdds
-                ? bookAwayOddsRaw
-                : modelAwayOddsRaw;
-
-              const homeOddsFormatted = formatAmericanOdds(homeOddsToShow);
-              const awayOddsFormatted = formatAmericanOdds(awayOddsToShow);
-
-              const status = getEventStatus(e, isFinal);
-
-              const statusClasses =
-                status === "final"
-                  ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-300"
-                  : status === "live"
-                  ? "border-red-500/70 bg-red-500/10 text-red-300"
-                  : "border-zinc-700/70 bg-zinc-900/70 text-zinc-200";
-
-              const statusLabel =
-                status === "final"
-                  ? "Final"
-                  : status === "live"
-                  ? "Live"
-                  : "Upcoming";
-
-              const oddsLabel = isFinal
-                ? null
-                : hasSportsbookOdds
-                ? "Sportsbook odds"
-                : "Model odds";
-
-              const modelHomeFormatted =
-                formatAmericanOdds(modelHomeOddsRaw);
-              const modelAwayFormatted =
-                formatAmericanOdds(modelAwayOddsRaw);
 
               // Prefer explicit team name fields from the event (needed for NFL),
               // then fall back to the shared teams lookup, then finally "TBD".
@@ -1253,6 +1635,78 @@ export default function GamesPage() {
               const finalHomeTeamName = homeTeamName;
               const finalAwayTeamName = awayTeamName;
 
+              const eventStartTimeStr =
+                (e as any).start_time ?? (e as any).start_et ?? null;
+
+              const sportSupportsOdds =
+                e.sport_id === 1 || e.sport_id === 3 || e.sport_id === 4 || e.sport_id === 5;
+
+              const matchedOddsGame =
+                sportSupportsOdds
+                  ? findMatchingOddsGame(
+                      oddsIndex,
+                      finalHomeTeamName,
+                      finalAwayTeamName,
+                      e.date,
+                      eventStartTimeStr,
+                    )
+                  : null;
+
+              const aggregatedOdds =
+                matchedOddsGame && !isFinal
+                  ? aggregateGameOdds(
+                      matchedOddsGame,
+                      finalHomeTeamName,
+                      finalAwayTeamName,
+                    )
+                  : null;
+
+              // --- Odds (for scheduled games) ---
+              const modelHomeOddsRaw =
+                (e as any).model_home_american_odds ?? null;
+              const modelAwayOddsRaw =
+                (e as any).model_away_american_odds ?? null;
+
+              const bookHomeOddsRaw =
+                (e as any).sportsbook_home_american_odds ?? null;
+              const bookAwayOddsRaw =
+                (e as any).sportsbook_away_american_odds ?? null;
+
+              const hasSportsbookOdds =
+                bookHomeOddsRaw !== null && bookAwayOddsRaw !== null;
+
+              const homeOddsToShow =
+                aggregatedOdds?.moneyline.home ??
+                (hasSportsbookOdds ? bookHomeOddsRaw : modelHomeOddsRaw);
+              const awayOddsToShow =
+                aggregatedOdds?.moneyline.away ??
+                (hasSportsbookOdds ? bookAwayOddsRaw : modelAwayOddsRaw);
+
+              const homeOddsFormatted = formatAmericanOdds(homeOddsToShow);
+              const awayOddsFormatted = formatAmericanOdds(awayOddsToShow);
+
+              const status = getEventStatus(e, isFinal);
+
+              const statusLabel =
+                status === "final"
+                  ? "Final"
+                  : status === "live"
+                  ? "Live"
+                  : "Upcoming";
+
+              const oddsLabel = isFinal
+                ? null
+                : aggregatedOdds
+                ? "Sportsbook odds"
+                : hasSportsbookOdds
+                ? "Sportsbook odds"
+                : "Model odds";
+
+              const modelHomeFormatted =
+                formatAmericanOdds(modelHomeOddsRaw);
+              const modelAwayFormatted =
+                formatAmericanOdds(modelAwayOddsRaw);
+
               // 🚫 Hide bogus rows where we never resolved either team.
               // These show up as "TBD @ TBD" and likely aren't real games.
               const isNflTbdMatchup =
@@ -1275,103 +1729,122 @@ export default function GamesPage() {
                   key={e.event_id}
                   href={`/games/${e.event_id}`}
                   prefetch={false}
-                  className="group relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-zinc-800/90 bg-gradient-to-br from-zinc-950/95 via-black to-zinc-950/90 px-5 py-4 shadow-sm shadow-black/60 transition-all duration-200 hover:-translate-y-[2px] hover:border-blue-500/70 hover:shadow-blue-500/25 active:scale-[0.99]"
+                  className="group relative flex flex-col overflow-hidden rounded-xl border border-zinc-800/60 bg-gradient-to-br from-zinc-900/40 to-zinc-950/60 shadow-xl shadow-black/40 backdrop-blur-sm transition-all duration-300 hover:border-blue-500/50 hover:shadow-2xl hover:shadow-blue-500/10 active:scale-[0.99]"
                 >
-                  {/* Vertical accent bar */}
-                  <div className="pointer-events-none absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-blue-500 via-sky-500 to-transparent opacity-70" />
+                  {/* Subtle top gradient accent */}
+                  <div className="pointer-events-none absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-zinc-600/30 to-transparent" />
 
-                  {/* Top row: matchup + league/status badges */}
-                  <div className="flex items-start justify-between gap-3 pl-1">
-                    <div className="min-w-0 flex-1">
-                      {/* Matchup: main headline */}
-                      <h2 className="truncate text-sm font-semibold leading-snug text-zinc-50 sm:text-[15px]">
-                        {finalAwayTeamName}{" "}
-                        <span className="text-zinc-500">{e.sport_id === 5 ? "vs" : "@"}</span>{" "}
-                        {finalHomeTeamName}
-                      </h2>
+                  {/* Status indicator stripe */}
+                  <div className={
+                    "absolute left-0 top-0 h-full w-1 transition-all duration-300 " +
+                    (status === "final"
+                      ? "bg-gradient-to-b from-emerald-500/60 to-emerald-600/20"
+                      : status === "live"
+                      ? "bg-gradient-to-b from-red-500/80 to-red-600/30 animate-pulse"
+                      : "bg-gradient-to-b from-blue-500/40 to-blue-600/10")
+                  } />
 
-                      {/* Date row */}
-                      <p className="mt-1 text-[11px] text-zinc-400">
-                        {formatDateWithTime(e.date, e.start_time) ?? e.date}
-                      </p>
-                    </div>
-
-                    {/* League + status badges */}
-                    <div className="flex flex-col items-end gap-1">
-                      <span className="inline-flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-900/80 px-2 py-0.5 text-[9px] uppercase tracking-[0.16em] text-zinc-300">
-                        <span className="text-xs">
+                  <div className="flex flex-col gap-4 p-5">
+                    {/* Header: League, Status, Date */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">
                           {sportIconFromId(e.sport_id)}
                         </span>
-                        <span>{sportLabelFromId(e.sport_id)}</span>
-                      </span>
-
-                      <span
-                        className={
-                          "inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-[0.16em] " +
-                          statusClasses
-                        }
-                      >
-                        {status === "live" && (
-                          <span className="mr-1 inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
-                        )}
-                        {statusLabel}
-                      </span>
+                        <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                          {sportLabelFromId(e.sport_id)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-500">
+                          {formatDateWithTime(e.date, e.start_time) ?? e.date}
+                        </span>
+                        <span
+                          className={
+                            "rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wider " +
+                            (status === "final"
+                              ? "bg-emerald-500/15 text-emerald-400"
+                              : status === "live"
+                              ? "bg-red-500/15 text-red-400"
+                              : "bg-zinc-800/60 text-zinc-400")
+                          }
+                        >
+                          {status === "live" && (
+                            <span className="mr-1 inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
+                          )}
+                          {statusLabel}
+                        </span>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Value block – final vs scheduled */}
-                  {e.sport_id === 5 && isFinal ? (
-                    // UFC: Show winner and method instead of numeric scores
-                    <UfcResultBlock
-                      homeTeam={finalHomeTeamName}
-                      awayTeam={finalAwayTeamName}
-                      homeWin={homeWin}
-                      event={e}
-                    />
-                  ) : isFinal && hasScores && homeScore !== null && awayScore !== null ? (
-                    // Other sports: Show numeric scores
-                    <FinalScoreBlock
-                      homeTeam={finalHomeTeamName}
-                      awayTeam={finalAwayTeamName}
-                      homeScore={homeScore}
-                      awayScore={awayScore}
-                      homeIsWinner={homeIsWinner}
-                      awayIsWinner={awayIsWinner}
-                      homeWin={homeWin}
-                    />
-                  ) : (
-                    // Scheduled games: Show odds
-                    <OddsBlock
-                      homeTeam={finalHomeTeamName}
-                      awayTeam={finalAwayTeamName}
-                      homeValue={homeOddsFormatted}
-                      awayValue={awayOddsFormatted}
-                      oddsLabel={oddsLabel}
-                      modelHomeFormatted={modelHomeFormatted}
-                      modelAwayFormatted={modelAwayFormatted}
-                    />
-                  )}
+                    {/* Matchup */}
+                    <div className="space-y-1">
+                      <h2 className="text-lg font-bold leading-tight text-white">
+                        {finalAwayTeamName}
+                      </h2>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium uppercase tracking-wider text-zinc-600">
+                          {e.sport_id === 5 ? "vs" : "at"}
+                        </span>
+                      </div>
+                      <h2 className="text-lg font-bold leading-tight text-white">
+                        {finalHomeTeamName}
+                      </h2>
+                    </div>
 
-                  {/* Footer actions */}
-                  <div className="mt-3 flex items-center justify-between border-t border-zinc-800/70 pt-2.5 pl-1 text-[11px]">
-                    <span
-                      className="inline-flex items-center gap-1 text-zinc-500"
-                      title="Model powered by your NBA logreg engine"
-                    >
-                      <span className="h-1.5 w-1.5 rounded-full bg-blue-400/80" />
-                      <span className="font-mono text-[10px] text-zinc-300/90">
-                        model: logreg_v1
-                      </span>
-                    </span>
-                    <div className="flex items-center gap-2 text-blue-400 group-hover:text-blue-300">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px]">
-                        <span className="text-xs">📊</span>
-                        <span>Box score</span>
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px]">
-                        <span className="text-xs">🤖</span>
-                        <span>AI view</span>
-                      </span>
+                    {/* Value block – final vs scheduled */}
+                    {e.sport_id === 5 && isFinal ? (
+                      <UfcResultBlock
+                        homeTeam={finalHomeTeamName}
+                        awayTeam={finalAwayTeamName}
+                        homeWin={homeWin}
+                        event={e}
+                      />
+                    ) : isFinal && hasScores && homeScore !== null && awayScore !== null ? (
+                      <FinalScoreBlock
+                        homeTeam={finalHomeTeamName}
+                        awayTeam={finalAwayTeamName}
+                        homeScore={homeScore}
+                        awayScore={awayScore}
+                        homeIsWinner={homeIsWinner}
+                        awayIsWinner={awayIsWinner}
+                        homeWin={homeWin}
+                      />
+                    ) : (
+                      <>
+                        <OddsBlock
+                          homeValue={homeOddsFormatted}
+                          awayValue={awayOddsFormatted}
+                          oddsLabel={oddsLabel}
+                          modelHomeFormatted={modelHomeFormatted}
+                          modelAwayFormatted={modelAwayFormatted}
+                        />
+                        {sportSupportsOdds && oddsLoaded && (
+                          <div className="pt-2">
+                            <InlineOddsRow odds={aggregatedOdds ?? null} />
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Footer: Model info + Actions */}
+                    <div className="flex items-center justify-between border-t border-zinc-800/40 pt-4">
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-500/70" />
+                        <span className="font-mono text-[10px] text-zinc-500">
+                          logreg_v1
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 rounded-lg bg-zinc-800/40 px-2.5 py-1.5 text-[11px] font-medium text-zinc-400 transition-colors group-hover:bg-blue-500/10 group-hover:text-blue-400">
+                          <span className="text-sm">📊</span>
+                          <span>Stats</span>
+                        </div>
+                        <div className="flex items-center gap-1 rounded-lg bg-zinc-800/40 px-2.5 py-1.5 text-[11px] font-medium text-zinc-400 transition-colors group-hover:bg-blue-500/10 group-hover:text-blue-400">
+                          <span className="text-sm">✨</span>
+                          <span>Analysis</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </Link>
@@ -1385,7 +1858,7 @@ export default function GamesPage() {
         <button
           type="button"
           onClick={scrollToTop}
-          className="fixed bottom-6 right-6 inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/90 text-zinc-200 shadow-lg shadow-black/50 backdrop-blur transition-all duration-150 hover:border-blue-500 hover:bg-blue-500/20 hover:text-blue-100 active:scale-95"
+          className="fixed bottom-8 right-8 inline-flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-800/60 bg-gradient-to-br from-zinc-900/90 to-zinc-950/90 text-lg text-zinc-300 shadow-2xl shadow-black/60 backdrop-blur-md transition-all duration-300 hover:border-blue-500/50 hover:bg-gradient-to-br hover:from-blue-500/20 hover:to-blue-600/10 hover:text-blue-100 hover:shadow-blue-500/20 active:scale-95"
           aria-label="Back to top"
         >
           ↑
