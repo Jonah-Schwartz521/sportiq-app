@@ -32,6 +32,8 @@ data/
 !model/data/processed/nhl/nhl_games_with_scores.parquet
 !model/data/processed/odds/nba_odds.parquet
 !model/data/processed/odds/nfl_odds.parquet
+!model/data/processed/odds/nhl_odds.parquet
+!model/data/processed/odds/ufc_odds.parquet
 logs/  
 # Virtualenvs
 .venv*/

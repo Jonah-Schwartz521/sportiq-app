@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Fetch moneyline and spread odds from The Odds API for NBA and NFL.
+Fetch moneyline and spread odds from The Odds API for NBA, NFL, NHL, and UFC.
 
 Optimizations for free tier (500 requests/month):
 - Single endpoint per sport (not per-game)
@@ -14,6 +14,8 @@ Security:
 Output:
 - model/data/processed/odds/nba_odds.parquet
 - model/data/processed/odds/nfl_odds.parquet
+- model/data/processed/odds/nhl_odds.parquet
+- model/data/processed/odds/ufc_odds.parquet
 
 Schema:
 sport, commence_time_utc, home_team, away_team, bookmaker, market,
@@ -38,17 +40,21 @@ DATE_FORMAT = "iso"
 SPORTS = {
     "nba": "basketball_nba",
     "nfl": "americanfootball_nfl",
+    "nhl": "icehockey_nhl",
+    "ufc": "mma_mixed_martial_arts",
 }
 
-# Markets to fetch (minimize API usage)
+# Markets to fetch (minimize API usage); UFC will override to h2h-only
 MARKETS = ["h2h", "spreads"]
 
-# Bookmakers to include (limit to 5 popular US books to reduce payload)
-# Using common books with good coverage
-BOOKMAKERS = [
+# Preferred bookmakers (safe keys known to work with US major sports)
+# If these cause 422, we'll retry without the filter and post-filter later
+PREFERRED_BOOKMAKERS = [
     "fanduel",
     "draftkings",
     "betmgm",
+    "caesars",
+    "bet365",
     "pointsbetus",
     "bovada",
 ]
@@ -70,9 +76,39 @@ def get_api_key() -> str:
     return api_key
 
 
+def format_datetime_for_api(dt: datetime) -> str:
+    """
+    Format datetime to conservative ISO-8601 format accepted by The Odds API.
+
+    Uses YYYY-MM-DDTHH:MM:SSZ format (no microseconds, UTC with Z suffix).
+
+    Args:
+        dt: datetime object in UTC
+
+    Returns:
+        ISO-8601 formatted string
+    """
+    # Remove microseconds and format with Z suffix
+    return dt.replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def log_http_error(response: requests.Response) -> None:
+    """Print status code and response body (JSON or text) for debugging."""
+    status = response.status_code
+    print(f"❌ HTTP {status} error: {response.url}", file=sys.stderr)
+
+    try:
+        body = response.json()
+        print(f"   Error details: {body}", file=sys.stderr)
+    except Exception:
+        print(f"   Error body: {response.text}", file=sys.stderr)
+
+
 def fetch_odds_for_sport(
     sport_key: str,
     api_key: str,
+    use_bookmaker_filter: bool = True,
+    markets: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Fetch odds for a single sport using the most efficient endpoint.
@@ -82,32 +118,40 @@ def fetch_odds_for_sport(
     Args:
         sport_key: The Odds API sport key (e.g., 'basketball_nba')
         api_key: The Odds API key
+        use_bookmaker_filter: Whether to filter by preferred bookmakers
 
     Returns:
         List of game data with odds
     """
-    # Calculate time window
+    # Calculate time window with conservative formatting
     now = datetime.now(timezone.utc)
-    commence_time_from = now.isoformat()
-    commence_time_to = (now + timedelta(hours=HOURS_AHEAD)).isoformat()
+    commence_time_from = format_datetime_for_api(now)
+    commence_time_to = format_datetime_for_api(now + timedelta(hours=HOURS_AHEAD))
 
     url = f"{API_BASE_URL}/sports/{sport_key}/odds"
+
+    target_markets = markets or MARKETS
 
     params = {
         "apiKey": api_key,
         "regions": "us",  # US bookmakers only
-        "markets": ",".join(MARKETS),
+        "markets": ",".join(target_markets),
         "oddsFormat": ODDS_FORMAT,
         "dateFormat": DATE_FORMAT,
-        "bookmakers": ",".join(BOOKMAKERS),
         "commenceTimeFrom": commence_time_from,
         "commenceTimeTo": commence_time_to,
     }
 
-    print(f"📡 Fetching {sport_key} odds...")
-    print(f"   Time window: next {HOURS_AHEAD} hours")
-    print(f"   Markets: {', '.join(MARKETS)}")
-    print(f"   Bookmakers: {', '.join(BOOKMAKERS)}")
+    # Optionally add bookmaker filter
+    if use_bookmaker_filter:
+        params["bookmakers"] = ",".join(PREFERRED_BOOKMAKERS)
+        print(f"📡 Fetching {sport_key} odds (filtered to {len(PREFERRED_BOOKMAKERS)} bookmakers)...")
+        print(f"   Bookmakers: {', '.join(PREFERRED_BOOKMAKERS)}")
+    else:
+        print(f"📡 Fetching {sport_key} odds (all bookmakers)...")
+
+    print(f"   Time window: {commence_time_from} to {commence_time_to}")
+    print(f"   Markets: {', '.join(target_markets)}")
 
     try:
         response = requests.get(url, params=params, timeout=30)
@@ -124,14 +168,29 @@ def fetch_odds_for_sport(
 
         return data
 
+    except requests.exceptions.HTTPError as e:
+        if e.response is not None:
+            log_http_error(e.response)
+        else:
+            print(f"❌ HTTP error for {sport_key}: {e}", file=sys.stderr)
+
+        # If 422 and we used bookmaker filter, signal for retry
+        if e.response is not None and e.response.status_code == 422 and use_bookmaker_filter:
+            print(f"   → Will retry without bookmaker filter", file=sys.stderr)
+            raise  # Re-raise to trigger retry logic
+
+        return []
+
     except requests.exceptions.RequestException as e:
-        print(f"❌ Error fetching odds for {sport_key}: {e}", file=sys.stderr)
+        print(f"❌ Request error for {sport_key}: {e}", file=sys.stderr)
         return []
 
 
 def normalize_odds_data(
     games: List[Dict[str, Any]],
     sport_name: str,
+    preferred_bookmakers: Optional[List[str]] = None,
+    force_market: Optional[str] = None,
 ) -> pd.DataFrame:
     """
     Normalize raw API response into flat dataframe with standard schema.
@@ -139,6 +198,7 @@ def normalize_odds_data(
     Args:
         games: List of game data from API
         sport_name: Short sport name (e.g., 'nba', 'nfl')
+        preferred_bookmakers: Optional list to filter bookmakers in post-processing
 
     Returns:
         DataFrame with normalized odds data
@@ -155,15 +215,23 @@ def normalize_odds_data(
         for bookmaker_data in game.get("bookmakers", []):
             bookmaker = bookmaker_data.get("key")
 
+            # Optional post-filter by preferred bookmakers
+            if preferred_bookmakers and bookmaker not in preferred_bookmakers:
+                continue
+
             # Process each market (h2h, spreads)
             for market_data in bookmaker_data.get("markets", []):
-                market = market_data.get("key")
+                market = force_market or market_data.get("key")
 
                 # Process each outcome
                 for outcome in market_data.get("outcomes", []):
                     outcome_name = outcome.get("name")
                     outcome_price = outcome.get("price")
-                    point = outcome.get("point")  # Will be None for h2h, float for spreads
+                    point = (
+                        None
+                        if force_market == "h2h"
+                        else outcome.get("point")
+                    )  # Will be None for h2h, float for spreads
 
                     rows.append({
                         "sport": sport_name,
@@ -283,16 +351,51 @@ def main():
         print(f"Processing {sport_name.upper()}")
         print(f"{'=' * 60}")
 
-        # Fetch odds
-        games = fetch_odds_for_sport(sport_key, api_key)
+        games = []
+
+        # UFC uses only h2h market
+        target_markets = ["h2h"] if sport_name == "ufc" else MARKETS
+
+        # Try with bookmaker filter first
+        try:
+            games = fetch_odds_for_sport(
+                sport_key,
+                api_key,
+                use_bookmaker_filter=True,
+                markets=target_markets,
+            )
+        except requests.exceptions.HTTPError as e:
+            # If 422 error, retry without bookmaker filter
+            if e.response.status_code == 422:
+                print(f"⚠️  Retrying without bookmaker filter...")
+                games = fetch_odds_for_sport(
+                  sport_key,
+                  api_key,
+                  use_bookmaker_filter=False,
+                  markets=target_markets,
+                )
+            else:
+                # Other HTTP errors, don't retry
+                games = []
 
         if not games:
             print(f"⚠️  No upcoming games found for {sport_name} in next {HOURS_AHEAD} hours")
             print()
             continue
 
-        # Normalize data
-        df = normalize_odds_data(games, sport_name)
+        # Normalize data (with post-filter to preferred bookmakers if we got all)
+        df = normalize_odds_data(
+            games,
+            sport_name,
+            preferred_bookmakers=PREFERRED_BOOKMAKERS,
+            force_market="h2h" if sport_name == "ufc" else None,
+        )
+
+        if df.empty:
+            print(f"⚠️  No odds from preferred bookmakers")
+            print()
+            continue
+
         print(f"📊 Normalized {len(df)} odds records")
 
         # Upsert to parquet

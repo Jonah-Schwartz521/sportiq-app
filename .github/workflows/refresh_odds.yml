@@ -86,9 +86,11 @@ jobs:
           echo "======================================"
           echo ""
 
-          # Force add both parquet files even if gitignore would block them
+          # Force add parquet files even if gitignore would block them
           git add -f model/data/processed/odds/nba_odds.parquet 2>/dev/null || echo "NBA odds file doesn't exist yet"
           git add -f model/data/processed/odds/nfl_odds.parquet 2>/dev/null || echo "NFL odds file doesn't exist yet"
+          git add -f model/data/processed/odds/nhl_odds.parquet 2>/dev/null || echo "NHL odds file doesn't exist yet"
+          git add -f model/data/processed/odds/ufc_odds.parquet 2>/dev/null || echo "UFC odds file doesn't exist yet"
 
           echo "✓ Files force-added to staging area"
           echo ""
@@ -128,18 +130,20 @@ jobs:
           body: |
             ## Automated Odds Refresh
 
-            This PR updates NBA and NFL odds data from The Odds API.
+            This PR updates NBA, NFL, NHL, and UFC odds data from The Odds API.
 
             - **Run time**: ${{ github.event.repository.updated_at }}
             - **Workflow**: Nightly Odds Refresh
             - **Trigger**: ${{ github.event_name }}
             - **Markets**: Moneyline (h2h) + Spreads
-            - **Bookmakers**: FanDuel, DraftKings, BetMGM, PointsBet, Bovada
+            - **Bookmakers**: FanDuel, DraftKings, BetMGM, Caesars, Bet365, PointsBetUS, Bovada
             - **Time window**: Next 24 hours
 
             ### Files Updated
             - `model/data/processed/odds/nba_odds.parquet`
             - `model/data/processed/odds/nfl_odds.parquet`
+            - `model/data/processed/odds/nhl_odds.parquet`
+            - `model/data/processed/odds/ufc_odds.parquet`
 
             This is an automated nightly refresh. Review and merge if the data looks correct.
 
