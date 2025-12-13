@@ -57,6 +57,29 @@ export type Insight = {
   value?: number | null;
 };
 
+export type OddsRecord = {
+  sport: string;
+  commence_time_utc: string;
+  home_team: string;
+  away_team: string;
+  bookmaker: string;
+  market: string; // 'h2h' or 'spreads'
+  outcome_name: string;
+  outcome_price: number; // American odds
+  point?: number | null; // Spread value (null for moneyline)
+  last_update_utc: string;
+  source: string;
+};
+
+export type OddsForEvent = {
+  event_id?: number | null;
+  home_team: string;
+  away_team: string;
+  commence_time_utc: string;
+  moneyline: OddsRecord[];
+  spreads: OddsRecord[];
+};
+
 // --- prediction log types (admin recent predictions) ----------------
 
 export type PredictionLogItem = {
@@ -169,4 +192,15 @@ export const api = {
       generated_at: string;
       insights: Insight[];
     }>(`/insights/${eventId}`),
+
+  // --- odds ---
+  // Get odds for a specific matchup
+  oddsForEvent: (homeTeam: string, awayTeam: string, sport?: string) => {
+    const query = buildQueryString({
+      home_team: homeTeam,
+      away_team: awayTeam,
+      sport: sport,
+    });
+    return getJSON<OddsForEvent>(`/odds/event${query}`);
+  },
 };
