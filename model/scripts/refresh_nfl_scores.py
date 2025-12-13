@@ -2,11 +2,14 @@
 """
 Nightly NFL scores refresh using nfl_data_py.
 
-Fetches recent games (yesterday + today) from NFL schedule data and upserts
-into local parquet storage. Designed to run via GitHub Actions nightly.
+Fetches recent games (yesterday + today by default) from NFL schedule data and upserts
+into local parquet storage without losing historical data. Designed to run via
+GitHub Actions nightly.
 """
 
 import sys
+import argparse
+import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -16,22 +19,23 @@ import pandas as pd
 # Configuration
 OUTPUT_DIR = Path(__file__).parent.parent / "data" / "processed" / "nfl"
 OUTPUT_FILE = OUTPUT_DIR / "nfl_games_with_scores.parquet"
+BASE_FILE = OUTPUT_DIR / "nfl_games.parquet"
 DENVER_TZ = ZoneInfo("America/Denver")
 MAX_RETRIES = 3
 
 
-def get_date_window() -> tuple[str, str]:
+def get_date_window(days: int = 2) -> tuple[str, str]:
     """
-    Calculate yesterday and today in America/Denver timezone.
+    Calculate (today - days + 1) through today in America/Denver timezone.
 
     Returns:
         Tuple of (start_date, end_date) in YYYY-MM-DD format
     """
     now_denver = datetime.now(DENVER_TZ)
     today = now_denver.date()
-    yesterday = today - timedelta(days=1)
+    start = today - timedelta(days=days - 1)
 
-    return yesterday.isoformat(), today.isoformat()
+    return start.isoformat(), today.isoformat()
 
 
 def get_seasons_to_fetch(start_date: str, end_date: str) -> list[int]:
@@ -104,7 +108,11 @@ def fetch_nfl_schedules(seasons: list[int]) -> pd.DataFrame:
     return pd.DataFrame()  # Should never reach here
 
 
-def normalize_nfl_data(schedules: pd.DataFrame, start_date: str, end_date: str) -> pd.DataFrame:
+def normalize_nfl_data(
+    schedules: pd.DataFrame,
+    start_date: str | None,
+    end_date: str | None,
+) -> pd.DataFrame:
     """
     Normalize NFL schedule data into consistent schema and filter to date window.
 
@@ -137,16 +145,20 @@ def normalize_nfl_data(schedules: pd.DataFrame, start_date: str, end_date: str) 
 
     print(f"Normalizing {len(schedules)} games...")
 
-    # Filter to date window first
+    # Filter to date window first (if provided)
     # nfl_data_py uses 'gameday' column for dates
-    if 'gameday' in schedules.columns:
+    if start_date and end_date and 'gameday' in schedules.columns:
         # Ensure gameday is string for comparison
         schedules['gameday'] = schedules['gameday'].astype(str)
         in_window = (schedules['gameday'] >= start_date) & (schedules['gameday'] <= end_date)
         filtered = schedules[in_window].copy()
         print(f"  Filtered to {len(filtered)} games in date window ({start_date} to {end_date})")
+        if not filtered.empty:
+            print(f"  Window gameday min/max: {filtered['gameday'].min()} → {filtered['gameday'].max()}")
     else:
-        print("  WARNING: 'gameday' column not found, using all games")
+        if 'gameday' in schedules.columns:
+            schedules['gameday'] = schedules['gameday'].astype(str)
+        print("  No date window filtering applied (using all games)")
         filtered = schedules.copy()
 
     if filtered.empty:
@@ -286,6 +298,20 @@ def upsert_to_parquet(new_data: pd.DataFrame, output_path: Path) -> tuple[int, i
 
 def main():
     """Main execution flow."""
+    parser = argparse.ArgumentParser(description="Refresh NFL scores parquet.")
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=2,
+        help="Number of days to include ending today (default: 2, i.e., yesterday + today) in America/Denver",
+    )
+    parser.add_argument(
+        "--full-rebuild",
+        action="store_true",
+        help="Rebuild with_scores from base history plus updates; ignore existing with_scores file.",
+    )
+    args = parser.parse_args()
+
     print("=" * 60)
     print("NFL Scores Refresh - nfl_data_py")
     print("=" * 60)
@@ -293,7 +319,7 @@ def main():
     print()
 
     # Calculate date window in Denver timezone
-    start_date, end_date = get_date_window()
+    start_date, end_date = get_date_window(days=args.days)
     print(f"Date window (America/Denver): {start_date} to {end_date}")
     print()
 
@@ -306,23 +332,238 @@ def main():
     schedules = fetch_nfl_schedules(seasons)
     print()
 
-    # Normalize and filter
-    normalized = normalize_nfl_data(schedules, start_date, end_date)
+    # Build updates for the date window only (to keep network usage light)
+    updates = normalize_nfl_data(schedules, start_date, end_date)
+    update_rows = len(updates)
     print()
 
-    # Upsert to parquet
-    inserted, updated = upsert_to_parquet(normalized, OUTPUT_FILE)
-    print()
+    # Load base dataset with robust selection
+    base_df = pd.DataFrame()
+    base_rows = -1
+    with_rows = -1
+    base_exists = BASE_FILE.exists()
+    with_exists = OUTPUT_FILE.exists()
+
+    if base_exists:
+        base_rows = len(pd.read_parquet(BASE_FILE, columns=None))
+        print(f"Detected base history file {BASE_FILE} with {base_rows} rows.")
+    else:
+        print(f"Base history file {BASE_FILE} not found.")
+
+    if with_exists:
+        with_rows = len(pd.read_parquet(OUTPUT_FILE, columns=None))
+        print(f"Detected with_scores file {OUTPUT_FILE} with {with_rows} rows.")
+    else:
+        print(f"with_scores file {OUTPUT_FILE} not found.")
+
+    chosen_path: Path | None = None
+    reason = ""
+
+    if args.full_rebuild:
+        if base_exists:
+            chosen_path = BASE_FILE
+            reason = "--full-rebuild specified; using full history base file"
+        elif with_exists:
+            chosen_path = OUTPUT_FILE
+            reason = "--full-rebuild specified but base missing; using with_scores"
+    else:
+        if base_exists and with_exists:
+            if base_rows > with_rows:
+                chosen_path = BASE_FILE
+                reason = "base has more rows than with_scores"
+            elif with_rows < 0.3 * base_rows:
+                chosen_path = BASE_FILE
+                reason = "with_scores is suspiciously small (<30% of base); recovering from base"
+            else:
+                chosen_path = OUTPUT_FILE
+                reason = "with_scores chosen (>= base rows or acceptable size)"
+        elif base_exists:
+            chosen_path = BASE_FILE
+            reason = "only base exists"
+        elif with_exists:
+            chosen_path = OUTPUT_FILE
+            reason = "only with_scores exists"
+
+    if chosen_path:
+        print(f"Base dataset chosen: {chosen_path} ({reason})")
+        base_df = pd.read_parquet(chosen_path)
+    else:
+        print("No existing base found; initializing from full schedules")
+        base_df = normalize_nfl_data(schedules, None, None)
+        reason = "initialized from schedules"
+
+    if base_df.empty:
+        print("ERROR: Base NFL dataset is empty; aborting to avoid data loss.", file=sys.stderr)
+        sys.exit(1)
+
+    # Ensure critical columns exist and have consistent types
+    for col in ["game_id", "season", "week", "game_date", "gameday", "home_team", "away_team", "home_score", "away_score"]:
+        if col not in base_df.columns:
+            base_df[col] = None
+    base_df["season"] = pd.to_numeric(base_df["season"], errors="coerce").astype("Int64")
+    base_df["week"] = pd.to_numeric(base_df["week"], errors="coerce").astype("Int64")
+    if "gameday" in base_df.columns and "game_date" not in base_df.columns:
+        base_df["game_date"] = base_df["gameday"]
+    if "game_date" in base_df.columns and base_df["game_date"].dtype != "string":
+        base_df["game_date"] = base_df["game_date"].astype("string")
+    if "gameday" in base_df.columns and base_df["gameday"].dtype != "string":
+        base_df["gameday"] = base_df["gameday"].astype("string")
+
+    # Suspicious small with_scores recovery
+    if (
+        not args.full_rebuild
+        and base_exists
+        and with_exists
+        and with_rows >= 0
+        and base_rows > 0
+        and with_rows < 0.3 * base_rows
+    ):
+        print(
+            f"with_scores file is <30% of base rows ({with_rows} vs {base_rows}); recovering using base history."
+        )
+        base_df = pd.read_parquet(BASE_FILE)
+        base_df["season"] = pd.to_numeric(base_df["season"], errors="coerce").astype("Int64")
+        if "gameday" in base_df.columns and "game_date" not in base_df.columns:
+            base_df["game_date"] = base_df["gameday"]
+
+    # Prepare composite key when game_id is missing
+    def composite_key(df: pd.DataFrame) -> pd.Series:
+        if "gameday" in df.columns:
+            date_col = df["gameday"]
+        elif "game_date" in df.columns:
+            date_col = df["game_date"]
+        else:
+            date_col = pd.Series([""] * len(df), index=df.index)
+
+        return (
+            df["season"].astype(str).fillna("")
+            + "|"
+            + df["week"].astype(str).fillna("")
+            + "|"
+            + df["home_team"].astype(str).fillna("")
+            + "|"
+            + df["away_team"].astype(str).fillna("")
+            + "|"
+            + date_col.astype(str).fillna("")
+        )
+
+    if updates.empty:
+        print("No updates found in the date window; keeping base dataset unchanged.")
+        merged = base_df.copy()
+        updated_games = 0
+    else:
+        updates = updates.copy()
+        updates["season"] = pd.to_numeric(updates["season"], errors="coerce").astype("Int64")
+        updates["week"] = pd.to_numeric(updates["week"], errors="coerce").astype("Int64")
+        if "gameday" in updates.columns and "game_date" not in updates.columns:
+            updates["game_date"] = updates["gameday"]
+        if "game_date" in updates.columns and updates["game_date"].dtype != "string":
+            updates["game_date"] = updates["game_date"].astype("string")
+        updates["composite_key"] = composite_key(updates)
+        updates["primary_key"] = updates["game_id"].where(
+            updates["game_id"].notna() & (updates["game_id"].astype(str) != ""),
+            updates["composite_key"],
+        )
+        updates["primary_key"] = updates["primary_key"].astype(str)
+
+        base = base_df.copy()
+        base["season"] = pd.to_numeric(base["season"], errors="coerce").astype("Int64")
+        base["week"] = pd.to_numeric(base["week"], errors="coerce").astype("Int64")
+        base["composite_key"] = composite_key(base)
+        base["primary_key"] = base["game_id"].where(
+            base["game_id"].notna() & (base["game_id"].astype(str) != ""),
+            base["composite_key"],
+        )
+        base["primary_key"] = base["primary_key"].astype(str)
+
+        # Union columns
+        union_cols = sorted(set(base.columns) | set(updates.columns))
+        base = base.reindex(columns=union_cols)
+        updates = updates.reindex(columns=union_cols)
+
+        # Update only score/status/time-related fields when a match exists
+        update_targets = {
+            "home_score": ["home_score"],
+            "away_score": ["away_score"],
+            "status": ["status", "game_status"],
+            "game_datetime_utc": ["game_datetime_utc"],
+            "game_date": ["game_date", "gameday"],
+            "gameday": ["gameday", "game_date"],
+            "week": ["week"],
+            "season": ["season"],
+            "neutral_site": ["neutral_site"],
+            "postseason": ["postseason"],
+        }
+
+        base_index = {pk: idx for idx, pk in base["primary_key"].items()}
+        updated_games = 0
+
+        for _, row in updates.iterrows():
+            pk = row["primary_key"]
+            if pk in base_index:
+                updated_games += 1
+                idx = base_index[pk]
+                for src_col, dest_cols in update_targets.items():
+                    if src_col not in updates.columns:
+                        continue
+                    val = row[src_col]
+                    if pd.isna(val):
+                        continue
+                    for dest_col in dest_cols:
+                        if dest_col in base.columns:
+                            base.at[idx, dest_col] = val
+            else:
+                # New game not in base; append
+                base = pd.concat([base, row.to_frame().T], ignore_index=True)
+                base_index[pk] = len(base_index)
+
+        merged = base
+
+    # Safety guard: prevent accidental wipe
+    if len(merged) < len(base_df):
+        print(
+            f"ERROR: Merged rows ({len(merged)}) < base rows ({len(base_df)}). Aborting write.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if len(base_df) > 0 and len(merged) < 0.95 * len(base_df):
+        print(
+            f"ERROR: Merged rows ({len(merged)}) < 95% of base rows ({len(base_df)}). Aborting write.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Sort for consistency
+    sort_cols = [c for c in ["season", "week", "game_date", "game_id"] if c in merged.columns]
+    if sort_cols:
+        merged = merged.sort_values(sort_cols).reset_index(drop=True)
+
+    # Write atomically: temp then replace; keep backup
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    tmp_path = OUTPUT_FILE.with_suffix(".parquet.tmp")
+    bak_path = OUTPUT_FILE.with_suffix(".parquet.bak")
+
+    print(f"Writing merged dataset to temp file {tmp_path} ...")
+    merged.to_parquet(tmp_path, index=False, engine="pyarrow")
+
+    if OUTPUT_FILE.exists():
+        print(f"Creating backup at {bak_path}")
+        shutil.copy2(OUTPUT_FILE, bak_path)
+
+    print(f"Replacing {OUTPUT_FILE} with merged dataset")
+    tmp_path.replace(OUTPUT_FILE)
 
     # Summary
     print("=" * 60)
     print("SUMMARY")
     print("=" * 60)
-    print(f"Seasons fetched: {seasons}")
-    print(f"Games in window: {len(normalized)}")
-    print(f"New games:       {inserted}")
-    print(f"Updated games:   {updated}")
-    print(f"Output file:     {OUTPUT_FILE}")
+    print(f"Base rows:    {len(base_df)}")
+    print(f"Update rows:  {update_rows}")
+    print(f"Merged rows:  {len(merged)}")
+    print(f"Games updated (by key overlap): {updated_games}")
+    if not updates.empty and 'game_date' in updates.columns:
+        print(f"Update window game_date min/max: {updates['game_date'].min()} → {updates['game_date'].max()}")
+    print(f"Output file:  {OUTPUT_FILE}")
     print()
     print("✓ Refresh complete")
 
