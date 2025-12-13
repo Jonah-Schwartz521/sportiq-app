@@ -166,31 +166,43 @@ def load_games_table() -> pd.DataFrame:
         logger.info("MLB model_input not found at %s; skipping MLB.", mlb_path)
 
     # --- NFL historical games ---
+    nfl_hist_with_scores = NFL_PROCESSED_DIR / "nfl_games_with_scores.parquet"
     nfl_hist_path = NFL_PROCESSED_DIR / "nfl_games.parquet"
-    if nfl_hist_path.exists():
-        logger.info("Loading NFL historical games from %s ...", nfl_hist_path)
-        nfl_hist = pd.read_parquet(nfl_hist_path).copy()
+    nfl_hist_source: Path | None = None
+
+    if nfl_hist_with_scores.exists():
+        nfl_hist_source = nfl_hist_with_scores
+    elif nfl_hist_path.exists():
+        nfl_hist_source = nfl_hist_path
+
+    if nfl_hist_source is not None:
+        logger.info("Loading NFL historical games from %s ...", nfl_hist_source)
+        nfl_hist = pd.read_parquet(nfl_hist_source).copy()
 
         nfl_hist["sport"] = "NFL"
+        rename_map = {
+            "home_team_name": "home_team",
+            "away_team_name": "away_team",
+            "home_score": "home_pts",
+            "away_score": "away_pts",
+            "gameday": "date",  # Normalize NFL date column
+        }
         nfl_hist = nfl_hist.rename(
-            columns={
-                "home_team_name": "home_team",
-                "away_team_name": "away_team",
-                "home_score": "home_pts",
-                "away_score": "away_pts",
-                "gameday": "date",  # Normalize NFL date column
-            }
+            columns={k: v for k, v in rename_map.items() if k in nfl_hist.columns}
         )
 
-        # Ensure score columns exist
-        if "home_pts" not in nfl_hist.columns:
-            nfl_hist["home_pts"] = None
-        if "away_pts" not in nfl_hist.columns:
-            nfl_hist["away_pts"] = None
+        # Ensure required columns exist even if schema differs
+        for col in ["home_team", "away_team", "home_pts", "away_pts", "date"]:
+            if col not in nfl_hist.columns:
+                nfl_hist[col] = None
 
         frames.append(nfl_hist)
     else:
-        logger.info("NFL historical games parquet not found at %s; skipping.", nfl_hist_path)
+        logger.info(
+            "NFL historical games parquet not found at %s or %s; skipping.",
+            nfl_hist_with_scores,
+            nfl_hist_path,
+        )
 
     # --- NFL future schedule ---
     nfl_future_path = NFL_PROCESSED_DIR / "nfl_future_games.parquet"
@@ -1883,4 +1895,3 @@ def metrics() -> MetricsResponse:
         accuracy=accuracy,
         brier_score=brier_score,
     )
-
