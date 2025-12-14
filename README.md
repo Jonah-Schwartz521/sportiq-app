@@ -108,3 +108,23 @@ POST /predict/ufc
   "win_probabilities":{"fighter_a":0.55,"fighter_b":0.45},
   "generated_at":"2025-11-11T06:40:00Z"
 }
+
+## NHL model pipeline (win probability)
+
+Run end-to-end:
+
+```bash
+make nhl-all     # build features, train baseline, predict upcoming
+```
+
+Individual steps:
+```bash
+make nhl-build   # builds model/data/processed/nhl/nhl_model_games.parquet
+make nhl-train   # trains logistic regression -> model/artifacts/nhl/*
+make nhl-predict # writes model/data/processed/nhl/nhl_predictions_future.parquet
+```
+
+The FastAPI backend loads `nhl_predictions_future.parquet`, joins by
+`nhl_game_id_str = YYYY_MM_DD_HOME_AWAY`, and exposes the AI Win Probability
+bar for upcoming NHL games only. Final games show scores; upcoming games show
+model_snapshot.
