@@ -48,3 +48,15 @@ test:
 
 train-nba:
 	python models/nba/train_baseline.py
+
+# --- NHL model pipeline ---
+nhl-build:
+	python model/scripts/build_nhl_model_games.py
+
+nhl-train: nhl-build
+	python model/scripts/train_nhl_baseline.py
+
+nhl-predict: nhl-build
+	python model/scripts/predict_future_nhl.py
+
+nhl-all: nhl-build nhl-train nhl-predict
