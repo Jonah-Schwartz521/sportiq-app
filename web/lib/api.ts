@@ -29,6 +29,11 @@ export type Event = {
   model_away_american_odds?: number | null;
   sportsbook_home_american_odds?: number | null;
   sportsbook_away_american_odds?: number | null;
+  model_snapshot?: {
+    source: string;
+    p_home_win: number;
+    p_away_win: number;
+  } | null;
 };
 
 // For places that just need a lightweight event (like pickers)

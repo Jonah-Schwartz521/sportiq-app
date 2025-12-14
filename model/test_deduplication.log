@@ -1,0 +1,1993 @@
+INFO:     Will watch for changes in these directories: ['/Volumes/easystore/Projects/sportiq-app/model']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [78020] using WatchFiles
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [78023]
+INFO:     Waiting for application startup.
+2025-12-13 21:53:23,662 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 21:53:23,662 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 21:53:24,763 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 21:53:24,800 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 21:53:24,831 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 21:53:25,009 [INFO] model_api.main: NFL historical: normalized team names (home: 35→32 unique, away: 35→32 unique)
+2025-12-13 21:53:25,060 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 21:53:25,117 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 21:53:25,165 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:529: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:529: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:529: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:529: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:529: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 21:53:25,727 [INFO] model_api.main: Created event_key for 76604 games
+2025-12-13 21:53:26,055 [INFO] model_api.main: Removed 934 duplicate games (event_key deduplication)
+2025-12-13 21:53:26,056 [INFO] model_api.main:   - MLB: 415 duplicates removed
+2025-12-13 21:53:26,056 [INFO] model_api.main:     Duplicated event_keys: ['MLB|2015-05-06|Colorado Rockies|Arizona Diamondbacks', 'MLB|2015-05-09|Chicago White Sox|Cincinnati Reds', 'MLB|2015-05-23|Colorado Rockies|San Francisco Giants', 'MLB|2015-05-28|Baltimore Orioles|Chicago White Sox', 'MLB|2015-06-02|Colorado Rockies|Los Angeles Dodgers', 'MLB|2015-06-02|Washington Nationals|Toronto Blue Jays', 'MLB|2015-06-03|Boston Red Sox|Minnesota Twins', 'MLB|2015-06-28|Baltimore Orioles|Cleveland Indians', 'MLB|2015-06-28|Philadelphia Phillies|Washington Nationals', 'MLB|2015-07-07|Chicago Cubs|St. Louis Cardinals']
+2025-12-13 21:53:26,056 [INFO] model_api.main:     ... and 405 more
+2025-12-13 21:53:26,056 [INFO] model_api.main:   - NFL: 59 duplicates removed
+2025-12-13 21:53:26,056 [INFO] model_api.main:     Duplicated event_keys: ['NFL|2025-12-07|Arizona Cardinals|Los Angeles Rams', 'NFL|2025-12-07|Atlanta Falcons|Seattle Seahawks', 'NFL|2025-12-07|Baltimore Ravens|Pittsburgh Steelers', 'NFL|2025-12-07|Buffalo Bills|Cincinnati Bengals', 'NFL|2025-12-07|Cleveland Browns|Tennessee Titans', 'NFL|2025-12-07|Green Bay Packers|Chicago Bears', 'NFL|2025-12-07|Jacksonville Jaguars|Indianapolis Colts', 'NFL|2025-12-07|Las Vegas Raiders|Denver Broncos', 'NFL|2025-12-07|Minnesota Vikings|Washington', 'NFL|2025-12-07|New York Jets|Miami Dolphins']
+2025-12-13 21:53:26,056 [INFO] model_api.main:     ... and 49 more
+2025-12-13 21:53:26,056 [INFO] model_api.main:   - NHL: 460 duplicates removed
+2025-12-13 21:53:26,056 [INFO] model_api.main:     Duplicated event_keys: ['NHL|2025-10-07|Florida Panthers|Chicago Blackhawks', 'NHL|2025-10-07|Los Angeles Kings|Colorado Avalanche', 'NHL|2025-10-07|New York Rangers|Pittsburgh Penguins', 'NHL|2025-10-08|Edmonton Oilers|Calgary Flames', 'NHL|2025-10-08|Toronto Maple Leafs|Montreal Canadiens', 'NHL|2025-10-08|Vegas Golden Knights|Los Angeles Kings', 'NHL|2025-10-08|Washington Capitals|Boston Bruins', 'NHL|2025-10-09|Boston Bruins|Chicago Blackhawks', 'NHL|2025-10-09|Buffalo Sabres|New York Rangers', 'NHL|2025-10-09|Carolina Hurricanes|New Jersey Devils']
+2025-12-13 21:53:26,056 [INFO] model_api.main:     ... and 450 more
+2025-12-13 21:53:26,072 [INFO] model_api.main: Loaded combined games table with 75670 rows (NBA=14056, MLB=24778, NFL=7281, NHL=23027, UFC=6528).
+2025-12-13 21:53:26,110 [INFO] model_api.main: Assigning 14645 missing game_id values starting at 2025023861.
+2025-12-13 21:53:26,198 [INFO] model_api.main: Built team lookups for 2239 teams.
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/sklearn/base.py:463: InconsistentVersionWarning: Trying to unpickle estimator LogisticRegression from version 1.7.2 when using version 1.8.0. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:
+https://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations
+  warnings.warn(
+2025-12-13 21:53:29,977 [INFO] model_api.main: Loading future NFL predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_predictions_future.parquet ...
+2025-12-13 21:53:30,005 [INFO] model_api.main:   Loaded 77 future predictions with event_key
+2025-12-13 21:53:30,006 [INFO] model_api.main: Combined 77 total NFL predictions
+2025-12-13 21:53:30,006 [INFO] model_api.main: Loaded 77 NFL predictions (100.0% unique event_keys)
+2025-12-13 21:53:30,006 [INFO] model_api.main: Joining NFL predictions via event_key...
+2025-12-13 21:53:30,160 [INFO] model_api.main: Joined NFL predictions: 0/7281 NFL games have predictions (0.0%)
+2025-12-13 21:53:30,161 [INFO] model_api.main: Loading historical NBA predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nba_predictions_b2b_2022plus.parquet ...
+2025-12-13 21:53:30,209 [INFO] model_api.main:   Loaded 3435 historical predictions with event_key
+2025-12-13 21:53:30,209 [INFO] model_api.main: Loading future NBA predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nba_predictions_future.parquet ...
+2025-12-13 21:53:30,212 [INFO] model_api.main:   Loaded 866 future predictions with event_key
+2025-12-13 21:53:30,214 [INFO] model_api.main: Combined 4301 total NBA predictions
+2025-12-13 21:53:30,216 [INFO] model_api.main: Loaded 4301 NBA predictions (100.0% unique event_keys)
+2025-12-13 21:53:30,216 [INFO] model_api.main: Joining NBA predictions via event_key...
+2025-12-13 21:53:30,320 [INFO] model_api.main: Joined NBA predictions: 4301/14056 NBA games have predictions (30.6%)
+2025-12-13 21:53:30,331 [INFO] model_api.main: Startup complete: games + models + lookups loaded (num_games=75670).
+INFO:     Application startup complete.
+2025-12-13 21:53:53,418 [INFO] model_api.main: NFL final deduplication: no duplicates found (verified 100 unique games)
+Loading NBA model from: /Volumes/easystore/Projects/sportiq-app/model/nba_logreg_b2b_v1.joblib
+INFO:     127.0.0.1:62041 - "GET /events?sport_id=3&limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62089 - "GET /teams?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62088 - "GET /events?limit=20000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62101 - "GET /teams?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62100 - "GET /events?limit=20000 HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [78023]
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [85302]
+INFO:     Waiting for application startup.
+2025-12-13 22:04:15,404 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:04:15,404 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:04:16,537 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:04:16,572 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:04:16,606 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:04:16,784 [INFO] model_api.main: NFL historical: normalized team names (home: 35→32 unique, away: 35→32 unique)
+2025-12-13 22:04:16,845 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:04:16,924 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:04:16,973 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:530: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:530: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:530: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:530: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:530: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:04:17,571 [INFO] model_api.main: Created event_key for 76604 games
+2025-12-13 22:04:17,900 [INFO] model_api.main: Removed 934 duplicate games (event_key deduplication)
+2025-12-13 22:04:17,900 [INFO] model_api.main:   - MLB: 415 duplicates removed
+2025-12-13 22:04:17,900 [INFO] model_api.main:     Duplicated event_keys: ['MLB|2015-05-06|Colorado Rockies|Arizona Diamondbacks', 'MLB|2015-05-09|Chicago White Sox|Cincinnati Reds', 'MLB|2015-05-23|Colorado Rockies|San Francisco Giants', 'MLB|2015-05-28|Baltimore Orioles|Chicago White Sox', 'MLB|2015-06-02|Colorado Rockies|Los Angeles Dodgers', 'MLB|2015-06-02|Washington Nationals|Toronto Blue Jays', 'MLB|2015-06-03|Boston Red Sox|Minnesota Twins', 'MLB|2015-06-28|Baltimore Orioles|Cleveland Indians', 'MLB|2015-06-28|Philadelphia Phillies|Washington Nationals', 'MLB|2015-07-07|Chicago Cubs|St. Louis Cardinals']
+2025-12-13 22:04:17,900 [INFO] model_api.main:     ... and 405 more
+2025-12-13 22:04:17,900 [INFO] model_api.main:   - NFL: 59 duplicates removed
+2025-12-13 22:04:17,900 [INFO] model_api.main:     Duplicated event_keys: ['NFL|2025-12-07|Arizona Cardinals|Los Angeles Rams', 'NFL|2025-12-07|Atlanta Falcons|Seattle Seahawks', 'NFL|2025-12-07|Baltimore Ravens|Pittsburgh Steelers', 'NFL|2025-12-07|Buffalo Bills|Cincinnati Bengals', 'NFL|2025-12-07|Cleveland Browns|Tennessee Titans', 'NFL|2025-12-07|Green Bay Packers|Chicago Bears', 'NFL|2025-12-07|Jacksonville Jaguars|Indianapolis Colts', 'NFL|2025-12-07|Las Vegas Raiders|Denver Broncos', 'NFL|2025-12-07|Minnesota Vikings|Washington', 'NFL|2025-12-07|New York Jets|Miami Dolphins']
+2025-12-13 22:04:17,900 [INFO] model_api.main:     ... and 49 more
+2025-12-13 22:04:17,900 [INFO] model_api.main:   - NHL: 460 duplicates removed
+2025-12-13 22:04:17,900 [INFO] model_api.main:     Duplicated event_keys: ['NHL|2025-10-07|Florida Panthers|Chicago Blackhawks', 'NHL|2025-10-07|Los Angeles Kings|Colorado Avalanche', 'NHL|2025-10-07|New York Rangers|Pittsburgh Penguins', 'NHL|2025-10-08|Edmonton Oilers|Calgary Flames', 'NHL|2025-10-08|Toronto Maple Leafs|Montreal Canadiens', 'NHL|2025-10-08|Vegas Golden Knights|Los Angeles Kings', 'NHL|2025-10-08|Washington Capitals|Boston Bruins', 'NHL|2025-10-09|Boston Bruins|Chicago Blackhawks', 'NHL|2025-10-09|Buffalo Sabres|New York Rangers', 'NHL|2025-10-09|Carolina Hurricanes|New Jersey Devils']
+2025-12-13 22:04:17,900 [INFO] model_api.main:     ... and 450 more
+2025-12-13 22:04:17,916 [INFO] model_api.main: Loaded combined games table with 75670 rows (NBA=14056, MLB=24778, NFL=7281, NHL=23027, UFC=6528).
+2025-12-13 22:04:17,953 [INFO] model_api.main: Assigning 14645 missing game_id values starting at 2025023861.
+2025-12-13 22:04:18,069 [INFO] model_api.main: Built team lookups for 2239 teams.
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/sklearn/base.py:463: InconsistentVersionWarning: Trying to unpickle estimator LogisticRegression from version 1.7.2 when using version 1.8.0. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:
+https://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations
+  warnings.warn(
+2025-12-13 22:04:22,013 [INFO] model_api.main: Loading future NFL predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_predictions_future.parquet ...
+2025-12-13 22:04:22,047 [INFO] model_api.main:   Loaded 77 future predictions with event_key
+2025-12-13 22:04:22,047 [INFO] model_api.main: Combined 77 total NFL predictions
+2025-12-13 22:04:22,048 [INFO] model_api.main: Loaded 77 NFL predictions (100.0% unique event_keys)
+2025-12-13 22:04:22,048 [INFO] model_api.main: Joining NFL predictions via event_key...
+2025-12-13 22:04:22,180 [INFO] model_api.main: Joined NFL predictions: 0/7281 NFL games have predictions (0.0%)
+2025-12-13 22:04:22,180 [INFO] model_api.main: Loading historical NBA predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nba_predictions_b2b_2022plus.parquet ...
+2025-12-13 22:04:22,224 [INFO] model_api.main:   Loaded 3435 historical predictions with event_key
+2025-12-13 22:04:22,224 [INFO] model_api.main: Loading future NBA predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nba_predictions_future.parquet ...
+2025-12-13 22:04:22,228 [INFO] model_api.main:   Loaded 866 future predictions with event_key
+2025-12-13 22:04:22,229 [INFO] model_api.main: Combined 4301 total NBA predictions
+2025-12-13 22:04:22,231 [INFO] model_api.main: Loaded 4301 NBA predictions (100.0% unique event_keys)
+2025-12-13 22:04:22,231 [INFO] model_api.main: Joining NBA predictions via event_key...
+2025-12-13 22:04:22,333 [INFO] model_api.main: Joined NBA predictions: 4301/14056 NBA games have predictions (30.6%)
+2025-12-13 22:04:22,344 [INFO] model_api.main: Startup complete: games + models + lookups loaded (num_games=75670).
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [85302]
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [85580]
+INFO:     Waiting for application startup.
+2025-12-13 22:04:30,061 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:04:30,061 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:04:30,192 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:04:30,196 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:04:30,227 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1575, in startup_event
+    games = load_games_table()
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 285, in load_games_table
+    nfl_hist["home_team"] = nfl_hist["home_team"].astype(str).str.strip().map(
+                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        lambda x: NFL_TEAM_NAME_MAP.get(x, x)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/series.py", line 4719, in map
+    new_values = self._map_values(arg, na_action=na_action)
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/base.py", line 925, in _map_values
+    return algorithms.map_array(arr, mapper, na_action=na_action, convert=convert)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/algorithms.py", line 1743, in map_array
+    return lib.map_infer(values, mapper, convert=convert)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "pandas/_libs/lib.pyx", line 2999, in pandas._libs.lib.map_infer
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 286, in <lambda>
+    lambda x: NFL_TEAM_NAME_MAP.get(x, x)
+              ^^^^^^^^^^^^^^^^^
+NameError: name 'NFL_TEAM_NAME_MAP' is not defined
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [86108]
+INFO:     Waiting for application startup.
+2025-12-13 22:05:31,081 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:05:31,081 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:05:32,159 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:05:32,194 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:05:32,227 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1738, in startup_event
+    logger.info("Startup: loading games table, team lookups, and models.")
+            ^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 448, in load_games_table
+    # Apply mapping, keep original if not in map
+                            ^^^^^^^^^^^^^^^^^^^^
+    nfl_hist["home_team"] = nfl_hist["home_team"].astype(str).str.strip().map(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda x: NFL_TEAM_NAME_MAP.get(x, x)
+    
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/series.py", line 4719, in map
+    new_values = self._map_values(arg, na_action=na_action)
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/base.py", line 925, in _map_values
+    return algorithms.map_array(arr, mapper, na_action=na_action, convert=convert)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/algorithms.py", line 1743, in map_array
+    return lib.map_infer(values, mapper, convert=convert)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "pandas/_libs/lib.pyx", line 2999, in pandas._libs.lib.map_infer
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 449, in <lambda>
+    nfl_hist["home_team"] = nfl_hist["home_team"].astype(str).str.strip().map(
+                  ^^^^^^^^^^^^^^^^^
+NameError: name 'NFL_TEAM_NAME_MAP' is not defined
+
+ERROR:    Application startup failed. Exiting.
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [86278]
+INFO:     Waiting for application startup.
+2025-12-13 22:05:36,204 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:05:36,219 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:05:36,347 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:05:36,352 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:05:36,370 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1739, in startup_event
+    games = load_games_table()
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 449, in load_games_table
+    nfl_hist["home_team"] = nfl_hist["home_team"].astype(str).str.strip().map(
+                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        lambda x: NFL_TEAM_NAME_MAP.get(x, x)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/series.py", line 4719, in map
+    new_values = self._map_values(arg, na_action=na_action)
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/base.py", line 925, in _map_values
+    return algorithms.map_array(arr, mapper, na_action=na_action, convert=convert)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/algorithms.py", line 1743, in map_array
+    return lib.map_infer(values, mapper, convert=convert)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "pandas/_libs/lib.pyx", line 2999, in pandas._libs.lib.map_infer
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 450, in <lambda>
+    lambda x: NFL_TEAM_NAME_MAP.get(x, x)
+              ^^^^^^^^^^^^^^^^^
+NameError: name 'NFL_TEAM_NAME_MAP' is not defined
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [86391]
+INFO:     Waiting for application startup.
+2025-12-13 22:05:42,735 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:05:42,735 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:05:42,858 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:05:42,863 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:05:42,882 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:05:45,182 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1709, in startup_event
+    games = load_games_table()
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 485, in load_games_table
+    nfl_future["home_team"] = nfl_future["home_team"].astype(str).str.strip().map(
+                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        lambda x: NFL_TEAM_NAME_MAP.get(x, x)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/series.py", line 4719, in map
+    new_values = self._map_values(arg, na_action=na_action)
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/base.py", line 925, in _map_values
+    return algorithms.map_array(arr, mapper, na_action=na_action, convert=convert)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/algorithms.py", line 1743, in map_array
+    return lib.map_infer(values, mapper, convert=convert)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "pandas/_libs/lib.pyx", line 2999, in pandas._libs.lib.map_infer
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 486, in <lambda>
+    lambda x: NFL_TEAM_NAME_MAP.get(x, x)
+              ^^^^^^^^^^^^^^^^^
+NameError: name 'NFL_TEAM_NAME_MAP' is not defined
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [86537]
+INFO:     Waiting for application startup.
+2025-12-13 22:05:51,553 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:05:51,553 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:05:51,868 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:05:51,920 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:05:51,941 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:05:54,303 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:05:54,459 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:05:54,543 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:573: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:573: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:573: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:05:55,081 [INFO] model_api.main: Created event_key for 76604 games
+2025-12-13 22:05:55,462 [INFO] model_api.main: Removed 934 duplicate games (event_key deduplication)
+2025-12-13 22:05:55,462 [INFO] model_api.main:   - MLB: 415 duplicates removed
+2025-12-13 22:05:55,462 [INFO] model_api.main:     Duplicated event_keys: ['MLB|2015-05-06|Colorado Rockies|Arizona Diamondbacks', 'MLB|2015-05-09|Chicago White Sox|Cincinnati Reds', 'MLB|2015-05-23|Colorado Rockies|San Francisco Giants', 'MLB|2015-05-28|Baltimore Orioles|Chicago White Sox', 'MLB|2015-06-02|Colorado Rockies|Los Angeles Dodgers', 'MLB|2015-06-02|Washington Nationals|Toronto Blue Jays', 'MLB|2015-06-03|Boston Red Sox|Minnesota Twins', 'MLB|2015-06-28|Baltimore Orioles|Cleveland Indians', 'MLB|2015-06-28|Philadelphia Phillies|Washington Nationals', 'MLB|2015-07-07|Chicago Cubs|St. Louis Cardinals']
+2025-12-13 22:05:55,462 [INFO] model_api.main:     ... and 405 more
+2025-12-13 22:05:55,462 [INFO] model_api.main:   - NFL: 59 duplicates removed
+2025-12-13 22:05:55,462 [INFO] model_api.main:     Duplicated event_keys: ['NFL|2025-12-07|Arizona Cardinals|Los Angeles Rams', 'NFL|2025-12-07|Atlanta Falcons|Seattle Seahawks', 'NFL|2025-12-07|Baltimore Ravens|Pittsburgh Steelers', 'NFL|2025-12-07|Buffalo Bills|Cincinnati Bengals', 'NFL|2025-12-07|Cleveland Browns|Tennessee Titans', 'NFL|2025-12-07|Green Bay Packers|Chicago Bears', 'NFL|2025-12-07|Jacksonville Jaguars|Indianapolis Colts', 'NFL|2025-12-07|Las Vegas Raiders|Denver Broncos', 'NFL|2025-12-07|Minnesota Vikings|Washington Commanders', 'NFL|2025-12-07|New York Jets|Miami Dolphins']
+2025-12-13 22:05:55,462 [INFO] model_api.main:     ... and 49 more
+2025-12-13 22:05:55,462 [INFO] model_api.main:   - NHL: 460 duplicates removed
+2025-12-13 22:05:55,462 [INFO] model_api.main:     Duplicated event_keys: ['NHL|2025-10-07|Florida Panthers|Chicago Blackhawks', 'NHL|2025-10-07|Los Angeles Kings|Colorado Avalanche', 'NHL|2025-10-07|New York Rangers|Pittsburgh Penguins', 'NHL|2025-10-08|Edmonton Oilers|Calgary Flames', 'NHL|2025-10-08|Toronto Maple Leafs|Montreal Canadiens', 'NHL|2025-10-08|Vegas Golden Knights|Los Angeles Kings', 'NHL|2025-10-08|Washington Capitals|Boston Bruins', 'NHL|2025-10-09|Boston Bruins|Chicago Blackhawks', 'NHL|2025-10-09|Buffalo Sabres|New York Rangers', 'NHL|2025-10-09|Carolina Hurricanes|New Jersey Devils']
+2025-12-13 22:05:55,462 [INFO] model_api.main:     ... and 450 more
+2025-12-13 22:05:55,478 [INFO] model_api.main: Loaded combined games table with 75670 rows (NBA=14056, MLB=24778, NFL=7281, NHL=23027, UFC=6528).
+2025-12-13 22:05:55,516 [INFO] model_api.main: Assigning 14645 missing game_id values starting at 2025023861.
+2025-12-13 22:05:55,601 [INFO] model_api.main: Built team lookups for 2239 teams.
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/sklearn/base.py:463: InconsistentVersionWarning: Trying to unpickle estimator LogisticRegression from version 1.7.2 when using version 1.8.0. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:
+https://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations
+  warnings.warn(
+2025-12-13 22:05:59,414 [INFO] model_api.main: Loading future NFL predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_predictions_future.parquet ...
+2025-12-13 22:05:59,440 [INFO] model_api.main:   Loaded 77 future predictions with event_key
+2025-12-13 22:05:59,441 [INFO] model_api.main: Combined 77 total NFL predictions
+2025-12-13 22:05:59,441 [INFO] model_api.main: Loaded 77 NFL predictions (100.0% unique event_keys)
+2025-12-13 22:05:59,441 [INFO] model_api.main: Joining NFL predictions via event_key...
+2025-12-13 22:05:59,566 [INFO] model_api.main: Joined NFL predictions: 0/7281 NFL games have predictions (0.0%)
+2025-12-13 22:05:59,570 [INFO] model_api.main: Loading historical NBA predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nba_predictions_b2b_2022plus.parquet ...
+2025-12-13 22:05:59,617 [INFO] model_api.main:   Loaded 3435 historical predictions with event_key
+2025-12-13 22:05:59,617 [INFO] model_api.main: Loading future NBA predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nba_predictions_future.parquet ...
+2025-12-13 22:05:59,620 [INFO] model_api.main:   Loaded 866 future predictions with event_key
+2025-12-13 22:05:59,622 [INFO] model_api.main: Combined 4301 total NBA predictions
+2025-12-13 22:05:59,623 [INFO] model_api.main: Loaded 4301 NBA predictions (100.0% unique event_keys)
+2025-12-13 22:05:59,624 [INFO] model_api.main: Joining NBA predictions via event_key...
+2025-12-13 22:05:59,734 [INFO] model_api.main: Joined NBA predictions: 4301/14056 NBA games have predictions (30.6%)
+2025-12-13 22:05:59,745 [INFO] model_api.main: Startup complete: games + models + lookups loaded (num_games=75670).
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [86537]
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [86855]
+INFO:     Waiting for application startup.
+2025-12-13 22:06:24,554 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:06:24,554 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:06:24,731 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:06:24,735 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:06:24,768 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:06:26,931 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:06:27,021 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:06:27,055 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:06:27,483 [INFO] model_api.main: Created event_key for 76604 games
+2025-12-13 22:06:27,805 [INFO] model_api.main: Removed 934 duplicate games (event_key deduplication)
+2025-12-13 22:06:27,806 [INFO] model_api.main:   - MLB: 415 duplicates removed
+2025-12-13 22:06:27,806 [INFO] model_api.main:     Duplicated event_keys: ['MLB|2015-05-06|Colorado Rockies|Arizona Diamondbacks', 'MLB|2015-05-09|Chicago White Sox|Cincinnati Reds', 'MLB|2015-05-23|Colorado Rockies|San Francisco Giants', 'MLB|2015-05-28|Baltimore Orioles|Chicago White Sox', 'MLB|2015-06-02|Colorado Rockies|Los Angeles Dodgers', 'MLB|2015-06-02|Washington Nationals|Toronto Blue Jays', 'MLB|2015-06-03|Boston Red Sox|Minnesota Twins', 'MLB|2015-06-28|Baltimore Orioles|Cleveland Indians', 'MLB|2015-06-28|Philadelphia Phillies|Washington Nationals', 'MLB|2015-07-07|Chicago Cubs|St. Louis Cardinals']
+2025-12-13 22:06:27,806 [INFO] model_api.main:     ... and 405 more
+2025-12-13 22:06:27,806 [INFO] model_api.main:   - NFL: 59 duplicates removed
+2025-12-13 22:06:27,806 [INFO] model_api.main:     Duplicated event_keys: ['NFL|2025-12-07|Arizona Cardinals|Los Angeles Rams', 'NFL|2025-12-07|Atlanta Falcons|Seattle Seahawks', 'NFL|2025-12-07|Baltimore Ravens|Pittsburgh Steelers', 'NFL|2025-12-07|Buffalo Bills|Cincinnati Bengals', 'NFL|2025-12-07|Cleveland Browns|Tennessee Titans', 'NFL|2025-12-07|Green Bay Packers|Chicago Bears', 'NFL|2025-12-07|Jacksonville Jaguars|Indianapolis Colts', 'NFL|2025-12-07|Las Vegas Raiders|Denver Broncos', 'NFL|2025-12-07|Minnesota Vikings|Washington Commanders', 'NFL|2025-12-07|New York Jets|Miami Dolphins']
+2025-12-13 22:06:27,806 [INFO] model_api.main:     ... and 49 more
+2025-12-13 22:06:27,806 [INFO] model_api.main:   - NHL: 460 duplicates removed
+2025-12-13 22:06:27,806 [INFO] model_api.main:     Duplicated event_keys: ['NHL|2025-10-07|Florida Panthers|Chicago Blackhawks', 'NHL|2025-10-07|Los Angeles Kings|Colorado Avalanche', 'NHL|2025-10-07|New York Rangers|Pittsburgh Penguins', 'NHL|2025-10-08|Edmonton Oilers|Calgary Flames', 'NHL|2025-10-08|Toronto Maple Leafs|Montreal Canadiens', 'NHL|2025-10-08|Vegas Golden Knights|Los Angeles Kings', 'NHL|2025-10-08|Washington Capitals|Boston Bruins', 'NHL|2025-10-09|Boston Bruins|Chicago Blackhawks', 'NHL|2025-10-09|Buffalo Sabres|New York Rangers', 'NHL|2025-10-09|Carolina Hurricanes|New Jersey Devils']
+2025-12-13 22:06:27,806 [INFO] model_api.main:     ... and 450 more
+2025-12-13 22:06:27,822 [INFO] model_api.main: Loaded combined games table with 75670 rows (NBA=14056, MLB=24778, NFL=7281, NHL=23027, UFC=6528).
+2025-12-13 22:06:27,860 [INFO] model_api.main: Assigning 14645 missing game_id values starting at 2025023861.
+2025-12-13 22:06:27,943 [INFO] model_api.main: Built team lookups for 2239 teams.
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/sklearn/base.py:463: InconsistentVersionWarning: Trying to unpickle estimator LogisticRegression from version 1.7.2 when using version 1.8.0. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:
+https://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations
+  warnings.warn(
+2025-12-13 22:06:31,590 [INFO] model_api.main: Loading future NFL predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_predictions_future.parquet ...
+2025-12-13 22:06:31,628 [INFO] model_api.main:   Loaded 77 future predictions with event_key
+2025-12-13 22:06:31,629 [INFO] model_api.main: Combined 77 total NFL predictions
+2025-12-13 22:06:31,629 [INFO] model_api.main: Loaded 77 NFL predictions (100.0% unique event_keys)
+2025-12-13 22:06:31,629 [INFO] model_api.main: Joining NFL predictions via event_key...
+2025-12-13 22:06:31,713 [INFO] model_api.main: Joined NFL predictions: 0/7281 NFL games have predictions (0.0%)
+2025-12-13 22:06:31,713 [INFO] model_api.main: Loading historical NBA predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nba_predictions_b2b_2022plus.parquet ...
+2025-12-13 22:06:31,749 [INFO] model_api.main:   Loaded 3435 historical predictions with event_key
+2025-12-13 22:06:31,750 [INFO] model_api.main: Loading future NBA predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nba_predictions_future.parquet ...
+2025-12-13 22:06:31,753 [INFO] model_api.main:   Loaded 866 future predictions with event_key
+2025-12-13 22:06:31,754 [INFO] model_api.main: Combined 4301 total NBA predictions
+2025-12-13 22:06:31,756 [INFO] model_api.main: Loaded 4301 NBA predictions (100.0% unique event_keys)
+2025-12-13 22:06:31,756 [INFO] model_api.main: Joining NBA predictions via event_key...
+2025-12-13 22:06:31,864 [INFO] model_api.main: Joined NBA predictions: 4301/14056 NBA games have predictions (30.6%)
+2025-12-13 22:06:31,876 [INFO] model_api.main: Startup complete: games + models + lookups loaded (num_games=75670).
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [86855]
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [87192]
+INFO:     Waiting for application startup.
+2025-12-13 22:06:54,889 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:06:54,889 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:06:55,028 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:06:55,033 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:06:55,065 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:06:57,179 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:06:57,332 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:06:57,354 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:06:57,766 [INFO] model_api.main: Created event_key for 76604 games
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1732, in startup_event
+    games = load_games_table()
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 662, in load_games_table
+    games = dedupe_nfl_games(games)
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 316, in dedupe_nfl_games
+    nfl_df.loc[has_pred, "row_quality_score"] += 100
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1185, in __getitem__
+    return self._getitem_tuple(key)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1378, in _getitem_tuple
+    return self._getitem_tuple_same_dim(tup)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1024, in _getitem_tuple_same_dim
+    assert retval.ndim == self.ndim
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [87688]
+INFO:     Waiting for application startup.
+2025-12-13 22:07:49,410 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:07:49,410 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:07:50,504 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:07:50,540 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:07:50,585 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:07:52,990 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:07:53,057 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:07:53,097 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:07:53,624 [INFO] model_api.main: Created event_key for 76604 games
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1730, in startup_event
+    games = load_games_table()
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 662, in load_games_table
+    games = dedupe_nfl_games(games)
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 316, in dedupe_nfl_games
+    nfl_df.loc[has_pred, "row_quality_score"] += 100
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1185, in __getitem__
+    return self._getitem_tuple(key)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1378, in _getitem_tuple
+    return self._getitem_tuple_same_dim(tup)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1024, in _getitem_tuple_same_dim
+    assert retval.ndim == self.ndim
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [87887]
+INFO:     Waiting for application startup.
+2025-12-13 22:07:58,766 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:07:58,766 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:07:58,893 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:07:58,898 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:07:58,918 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:08:01,034 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:08:01,157 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:08:01,185 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:08:01,588 [INFO] model_api.main: Created event_key for 76604 games
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1733, in startup_event
+    games = load_games_table()
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 662, in load_games_table
+    games = dedupe_nfl_games(games)
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 316, in dedupe_nfl_games
+    nfl_df.loc[has_pred, "row_quality_score"] += 100
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1185, in __getitem__
+    return self._getitem_tuple(key)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1378, in _getitem_tuple
+    return self._getitem_tuple_same_dim(tup)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1024, in _getitem_tuple_same_dim
+    assert retval.ndim == self.ndim
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [88035]
+INFO:     Waiting for application startup.
+2025-12-13 22:08:09,817 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:08:09,817 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:08:09,938 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:08:09,942 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:08:09,974 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:08:12,074 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:08:12,200 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:08:12,220 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:08:12,670 [INFO] model_api.main: Created event_key for 76604 games
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1739, in startup_event
+    games = load_games_table()
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 662, in load_games_table
+    games = dedupe_nfl_games(games)
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 316, in dedupe_nfl_games
+    nfl_df.loc[has_pred, "row_quality_score"] += 100
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1185, in __getitem__
+    return self._getitem_tuple(key)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1378, in _getitem_tuple
+    return self._getitem_tuple_same_dim(tup)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1024, in _getitem_tuple_same_dim
+    assert retval.ndim == self.ndim
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [88340]
+INFO:     Waiting for application startup.
+2025-12-13 22:08:35,298 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:08:35,298 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:08:36,440 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:08:36,468 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:08:36,496 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:08:38,692 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:08:38,841 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:08:38,891 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:08:39,397 [INFO] model_api.main: Created event_key for 76604 games
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1740, in startup_event
+    games = load_games_table()
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 662, in load_games_table
+    games = dedupe_nfl_games(games)
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 316, in dedupe_nfl_games
+    nfl_df.loc[has_pred, "row_quality_score"] += 100
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1185, in __getitem__
+    return self._getitem_tuple(key)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1378, in _getitem_tuple
+    return self._getitem_tuple_same_dim(tup)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1024, in _getitem_tuple_same_dim
+    assert retval.ndim == self.ndim
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [88574]
+INFO:     Waiting for application startup.
+2025-12-13 22:08:53,342 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:08:53,342 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:08:54,381 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:08:54,412 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:08:54,441 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+2025-12-13 22:08:56,663 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:08:56,727 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:08:56,754 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:08:57,265 [INFO] model_api.main: Created event_key for 76604 games
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1740, in startup_event
+    games = load_games_table()
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 662, in load_games_table
+    games = dedupe_nfl_games(games)
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 316, in dedupe_nfl_games
+    nfl_df.loc[has_pred, "row_quality_score"] += 100
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1185, in __getitem__
+    return self._getitem_tuple(key)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1378, in _getitem_tuple
+    return self._getitem_tuple_same_dim(tup)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1024, in _getitem_tuple_same_dim
+    assert retval.ndim == self.ndim
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+ERROR:    Application startup failed. Exiting.
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [88707]
+INFO:     Waiting for application startup.
+2025-12-13 22:09:00,813 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:09:00,813 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:09:00,960 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:09:00,964 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:09:00,984 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+2025-12-13 22:09:03,235 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:09:03,280 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:09:03,292 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:09:03,716 [INFO] model_api.main: Created event_key for 76604 games
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1740, in startup_event
+    games = load_games_table()
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 662, in load_games_table
+    games = dedupe_nfl_games(games)
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 316, in dedupe_nfl_games
+    nfl_df.loc[has_pred, "row_quality_score"] += 100
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1185, in __getitem__
+    return self._getitem_tuple(key)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1378, in _getitem_tuple
+    return self._getitem_tuple_same_dim(tup)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1024, in _getitem_tuple_same_dim
+    assert retval.ndim == self.ndim
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+ERROR:    Application startup failed. Exiting.
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [88819]
+INFO:     Waiting for application startup.
+2025-12-13 22:09:07,148 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:09:07,148 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:09:07,282 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:09:07,286 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:09:07,306 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:09:09,434 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:09:09,487 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:09:09,516 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:09:09,931 [INFO] model_api.main: Created event_key for 76604 games
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1740, in startup_event
+    games = load_games_table()
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 662, in load_games_table
+    games = dedupe_nfl_games(games)
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 316, in dedupe_nfl_games
+    nfl_df.loc[has_pred, "row_quality_score"] += 100
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1185, in __getitem__
+    return self._getitem_tuple(key)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1378, in _getitem_tuple
+    return self._getitem_tuple_same_dim(tup)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1024, in _getitem_tuple_same_dim
+    assert retval.ndim == self.ndim
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  WatchFiles detected changes in 'scripts/predict_future_nfl.py'. Reloading...
+WARNING:  WatchFiles detected changes in 'scripts/predict_future_nfl.py'. Reloading...
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [89180]
+INFO:     Waiting for application startup.
+2025-12-13 22:09:29,832 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:09:29,833 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:09:30,558 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:09:30,567 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:09:30,595 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:09:32,837 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:09:32,908 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:09:32,917 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:09:33,522 [INFO] model_api.main: Created event_key for 76604 games
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1740, in startup_event
+    games = load_games_table()
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 662, in load_games_table
+    games = dedupe_nfl_games(games)
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 316, in dedupe_nfl_games
+    nfl_df.loc[has_pred, "row_quality_score"] += 100
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1185, in __getitem__
+    return self._getitem_tuple(key)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1378, in _getitem_tuple
+    return self._getitem_tuple_same_dim(tup)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1024, in _getitem_tuple_same_dim
+    assert retval.ndim == self.ndim
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+ERROR:    Application startup failed. Exiting.
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [89361]
+INFO:     Waiting for application startup.
+2025-12-13 22:09:36,797 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:09:36,797 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:09:36,925 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:09:36,930 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:09:36,950 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:09:39,092 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:09:39,219 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:09:39,248 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:09:39,684 [INFO] model_api.main: Created event_key for 76604 games
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1740, in startup_event
+    games = load_games_table()
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 662, in load_games_table
+    games = dedupe_nfl_games(games)
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 316, in dedupe_nfl_games
+    nfl_df.loc[has_pred, "row_quality_score"] += 100
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1185, in __getitem__
+    return self._getitem_tuple(key)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1378, in _getitem_tuple
+    return self._getitem_tuple_same_dim(tup)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1024, in _getitem_tuple_same_dim
+    assert retval.ndim == self.ndim
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  WatchFiles detected changes in 'scripts/predict_future_nfl.py'. Reloading...
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [89540]
+INFO:     Waiting for application startup.
+2025-12-13 22:09:46,623 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:09:46,624 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:09:46,748 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:09:46,752 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:09:46,772 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:09:48,887 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:09:49,009 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:09:49,042 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:09:49,475 [INFO] model_api.main: Created event_key for 76604 games
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1740, in startup_event
+    games = load_games_table()
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 662, in load_games_table
+    games = dedupe_nfl_games(games)
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 316, in dedupe_nfl_games
+    nfl_df.loc[has_pred, "row_quality_score"] += 100
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1185, in __getitem__
+    return self._getitem_tuple(key)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1378, in _getitem_tuple
+    return self._getitem_tuple_same_dim(tup)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1024, in _getitem_tuple_same_dim
+    assert retval.ndim == self.ndim
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [90052]
+INFO:     Waiting for application startup.
+2025-12-13 22:10:40,044 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:10:40,044 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:10:41,772 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:10:41,799 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:10:41,828 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:10:44,146 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:10:44,236 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:10:44,272 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:10:44,773 [INFO] model_api.main: Created event_key for 76604 games
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1740, in startup_event
+    games = load_games_table()
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 662, in load_games_table
+    games = dedupe_nfl_games(games)
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 316, in dedupe_nfl_games
+    nfl_df.loc[has_pred, "row_quality_score"] += 100
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1185, in __getitem__
+    return self._getitem_tuple(key)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1378, in _getitem_tuple
+    return self._getitem_tuple_same_dim(tup)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1024, in _getitem_tuple_same_dim
+    assert retval.ndim == self.ndim
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+ERROR:    Application startup failed. Exiting.
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [90277]
+INFO:     Waiting for application startup.
+2025-12-13 22:10:48,613 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:10:48,613 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+2025-12-13 22:10:48,771 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:10:48,776 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:10:48,795 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:10:51,032 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:10:51,153 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:10:51,181 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:10:51,609 [INFO] model_api.main: Created event_key for 76604 games
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1740, in startup_event
+    games = load_games_table()
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 662, in load_games_table
+    games = dedupe_nfl_games(games)
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 316, in dedupe_nfl_games
+    nfl_df.loc[has_pred, "row_quality_score"] += 100
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1185, in __getitem__
+    return self._getitem_tuple(key)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1378, in _getitem_tuple
+    return self._getitem_tuple_same_dim(tup)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1024, in _getitem_tuple_same_dim
+    assert retval.ndim == self.ndim
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+ERROR:    Application startup failed. Exiting.
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [90429]
+INFO:     Waiting for application startup.
+2025-12-13 22:10:55,216 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:10:55,216 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:10:55,347 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:10:55,351 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:10:55,371 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:10:57,437 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:10:57,563 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:10:57,592 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:632: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:10:58,044 [INFO] model_api.main: Created event_key for 76604 games
+ERROR:    Traceback (most recent call last):
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 672, in startup
+    handler()
+    ~~~~~~~^^
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 1740, in startup_event
+    games = load_games_table()
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 662, in load_games_table
+    games = dedupe_nfl_games(games)
+  File "/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py", line 316, in dedupe_nfl_games
+    nfl_df.loc[has_pred, "row_quality_score"] += 100
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1185, in __getitem__
+    return self._getitem_tuple(key)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1378, in _getitem_tuple
+    return self._getitem_tuple_same_dim(tup)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pandas/core/indexing.py", line 1024, in _getitem_tuple_same_dim
+    assert retval.ndim == self.ndim
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [91481]
+INFO:     Waiting for application startup.
+2025-12-13 22:12:10,452 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:12:10,500 [INFO] model_api.main: Loaded NFL team lookup from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_team_lookup.csv (rows=32)
+2025-12-13 22:12:10,500 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:12:10,851 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:12:10,860 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:12:10,893 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:12:13,279 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:12:13,326 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:12:13,348 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:634: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:634: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:634: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:12:13,817 [INFO] model_api.main: Created event_key for 76604 games
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+2025-12-13 22:12:14,665 [INFO] model_api.main: Removed 875 duplicate games via event_key (non-NFL).
+2025-12-13 22:12:14,665 [INFO] model_api.main:   - MLB: 415 duplicates removed
+2025-12-13 22:12:14,665 [INFO] model_api.main:     Duplicated event_keys: ['MLB|2015-05-06|Colorado Rockies|Arizona Diamondbacks', 'MLB|2015-05-09|Chicago White Sox|Cincinnati Reds', 'MLB|2015-05-23|Colorado Rockies|San Francisco Giants', 'MLB|2015-05-28|Baltimore Orioles|Chicago White Sox', 'MLB|2015-06-02|Colorado Rockies|Los Angeles Dodgers', 'MLB|2015-06-02|Washington Nationals|Toronto Blue Jays', 'MLB|2015-06-03|Boston Red Sox|Minnesota Twins', 'MLB|2015-06-28|Baltimore Orioles|Cleveland Indians', 'MLB|2015-06-28|Philadelphia Phillies|Washington Nationals', 'MLB|2015-07-07|Chicago Cubs|St. Louis Cardinals']
+2025-12-13 22:12:14,665 [INFO] model_api.main:     ... and 405 more
+2025-12-13 22:12:14,665 [INFO] model_api.main:   - NHL: 460 duplicates removed
+2025-12-13 22:12:14,665 [INFO] model_api.main:     Duplicated event_keys: ['NHL|2025-10-07|Florida Panthers|Chicago Blackhawks', 'NHL|2025-10-07|Los Angeles Kings|Colorado Avalanche', 'NHL|2025-10-07|New York Rangers|Pittsburgh Penguins', 'NHL|2025-10-08|Edmonton Oilers|Calgary Flames', 'NHL|2025-10-08|Toronto Maple Leafs|Montreal Canadiens', 'NHL|2025-10-08|Vegas Golden Knights|Los Angeles Kings', 'NHL|2025-10-08|Washington Capitals|Boston Bruins', 'NHL|2025-10-09|Boston Bruins|Chicago Blackhawks', 'NHL|2025-10-09|Buffalo Sabres|New York Rangers', 'NHL|2025-10-09|Carolina Hurricanes|New Jersey Devils']
+2025-12-13 22:12:14,665 [INFO] model_api.main:     ... and 450 more
+2025-12-13 22:12:15,026 [INFO] model_api.main: Loaded combined games table with 75729 rows (NBA=14056, MLB=24778, NFL=7340, NHL=23027, UFC=6528).
+2025-12-13 22:12:15,209 [INFO] model_api.main: Assigning 14645 missing game_id values starting at 2025023861.
+2025-12-13 22:12:15,357 [INFO] model_api.main: Built team lookups for 2239 teams.
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/sklearn/base.py:463: InconsistentVersionWarning: Trying to unpickle estimator LogisticRegression from version 1.7.2 when using version 1.8.0. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:
+https://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations
+  warnings.warn(
+2025-12-13 22:12:19,857 [INFO] model_api.main: Startup NFL snapshot: games=7340, unique_nfl_ids=7340
+2025-12-13 22:12:19,858 [INFO] model_api.main: Loading historical NFL predictions from /Volumes/easystore/Projects/sportiq-app/model/artifacts/nfl/nfl_predictions.parquet ...
+2025-12-13 22:12:20,195 [INFO] model_api.main: Loading future NFL predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_predictions_future.parquet ...
+2025-12-13 22:12:20,266 [INFO] model_api.main: Loaded 7277 NFL predictions (unique game_ids=7277, dropped_duplicates=0)
+2025-12-13 22:12:20,267 [INFO] model_api.main: Joining NFL predictions via nfl_game_id (pred_rows=7277, unique_ids=7277)...
+2025-12-13 22:12:20,485 [INFO] model_api.main: Joined NFL predictions: 7200/7340 NFL games have predictions (98.1%)
+2025-12-13 22:12:20,485 [INFO] model_api.main: Loading historical NBA predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nba_predictions_b2b_2022plus.parquet ...
+2025-12-13 22:12:20,554 [INFO] model_api.main:   Loaded 3435 historical predictions with event_key
+2025-12-13 22:12:20,554 [INFO] model_api.main: Loading future NBA predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nba_predictions_future.parquet ...
+2025-12-13 22:12:20,566 [INFO] model_api.main:   Loaded 866 future predictions with event_key
+2025-12-13 22:12:20,568 [INFO] model_api.main: Combined 4301 total NBA predictions
+2025-12-13 22:12:20,569 [INFO] model_api.main: Loaded 4301 NBA predictions (100.0% unique event_keys)
+2025-12-13 22:12:20,569 [INFO] model_api.main: Joining NBA predictions via event_key...
+2025-12-13 22:12:20,676 [INFO] model_api.main: Joined NBA predictions: 4301/14056 NBA games have predictions (30.6%)
+2025-12-13 22:12:20,693 [INFO] model_api.main: Startup complete: games + models + lookups loaded (num_games=75729).
+INFO:     Application startup complete.
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [91842]
+INFO:     Waiting for application startup.
+2025-12-13 22:12:23,608 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:12:23,618 [INFO] model_api.main: Loaded NFL team lookup from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_team_lookup.csv (rows=32)
+2025-12-13 22:12:23,618 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:12:23,736 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:12:23,741 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:12:23,772 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:12:25,979 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:12:26,097 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:12:26,125 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:634: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:634: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:634: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:12:26,604 [INFO] model_api.main: Created event_key for 76604 games
+2025-12-13 22:12:27,544 [INFO] model_api.main: Removed 875 duplicate games via event_key (non-NFL).
+2025-12-13 22:12:27,545 [INFO] model_api.main:   - MLB: 415 duplicates removed
+2025-12-13 22:12:27,545 [INFO] model_api.main:     Duplicated event_keys: ['MLB|2015-05-06|Colorado Rockies|Arizona Diamondbacks', 'MLB|2015-05-09|Chicago White Sox|Cincinnati Reds', 'MLB|2015-05-23|Colorado Rockies|San Francisco Giants', 'MLB|2015-05-28|Baltimore Orioles|Chicago White Sox', 'MLB|2015-06-02|Colorado Rockies|Los Angeles Dodgers', 'MLB|2015-06-02|Washington Nationals|Toronto Blue Jays', 'MLB|2015-06-03|Boston Red Sox|Minnesota Twins', 'MLB|2015-06-28|Baltimore Orioles|Cleveland Indians', 'MLB|2015-06-28|Philadelphia Phillies|Washington Nationals', 'MLB|2015-07-07|Chicago Cubs|St. Louis Cardinals']
+2025-12-13 22:12:27,545 [INFO] model_api.main:     ... and 405 more
+2025-12-13 22:12:27,545 [INFO] model_api.main:   - NHL: 460 duplicates removed
+2025-12-13 22:12:27,545 [INFO] model_api.main:     Duplicated event_keys: ['NHL|2025-10-07|Florida Panthers|Chicago Blackhawks', 'NHL|2025-10-07|Los Angeles Kings|Colorado Avalanche', 'NHL|2025-10-07|New York Rangers|Pittsburgh Penguins', 'NHL|2025-10-08|Edmonton Oilers|Calgary Flames', 'NHL|2025-10-08|Toronto Maple Leafs|Montreal Canadiens', 'NHL|2025-10-08|Vegas Golden Knights|Los Angeles Kings', 'NHL|2025-10-08|Washington Capitals|Boston Bruins', 'NHL|2025-10-09|Boston Bruins|Chicago Blackhawks', 'NHL|2025-10-09|Buffalo Sabres|New York Rangers', 'NHL|2025-10-09|Carolina Hurricanes|New Jersey Devils']
+2025-12-13 22:12:27,545 [INFO] model_api.main:     ... and 450 more
+2025-12-13 22:12:27,896 [INFO] model_api.main: Loaded combined games table with 75729 rows (NBA=14056, MLB=24778, NFL=7340, NHL=23027, UFC=6528).
+2025-12-13 22:12:28,090 [INFO] model_api.main: Assigning 14645 missing game_id values starting at 2025023861.
+2025-12-13 22:12:28,209 [INFO] model_api.main: Built team lookups for 2239 teams.
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/sklearn/base.py:463: InconsistentVersionWarning: Trying to unpickle estimator LogisticRegression from version 1.7.2 when using version 1.8.0. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:
+https://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations
+  warnings.warn(
+2025-12-13 22:12:31,483 [INFO] model_api.main: Startup NFL snapshot: games=7340, unique_nfl_ids=7340
+2025-12-13 22:12:31,483 [INFO] model_api.main: Loading historical NFL predictions from /Volumes/easystore/Projects/sportiq-app/model/artifacts/nfl/nfl_predictions.parquet ...
+2025-12-13 22:12:31,772 [INFO] model_api.main: Loading future NFL predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_predictions_future.parquet ...
+2025-12-13 22:12:31,931 [INFO] model_api.main: Loaded 7277 NFL predictions (unique game_ids=7277, dropped_duplicates=0)
+2025-12-13 22:12:31,933 [INFO] model_api.main: Joining NFL predictions via nfl_game_id (pred_rows=7277, unique_ids=7277)...
+2025-12-13 22:12:32,012 [INFO] model_api.main: Joined NFL predictions: 7200/7340 NFL games have predictions (98.1%)
+2025-12-13 22:12:32,012 [INFO] model_api.main: Loading historical NBA predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nba_predictions_b2b_2022plus.parquet ...
+2025-12-13 22:12:32,031 [INFO] model_api.main:   Loaded 3435 historical predictions with event_key
+2025-12-13 22:12:32,031 [INFO] model_api.main: Loading future NBA predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nba_predictions_future.parquet ...
+2025-12-13 22:12:32,035 [INFO] model_api.main:   Loaded 866 future predictions with event_key
+2025-12-13 22:12:32,036 [INFO] model_api.main: Combined 4301 total NBA predictions
+2025-12-13 22:12:32,038 [INFO] model_api.main: Loaded 4301 NBA predictions (100.0% unique event_keys)
+2025-12-13 22:12:32,038 [INFO] model_api.main: Joining NBA predictions via event_key...
+2025-12-13 22:12:32,131 [INFO] model_api.main: Joined NBA predictions: 4301/14056 NBA games have predictions (30.6%)
+2025-12-13 22:12:32,143 [INFO] model_api.main: Startup complete: games + models + lookups loaded (num_games=75729).
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'model_api/main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [91842]
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_loaded" in HealthResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_win_prob" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_home_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_away_american_odds" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_snapshot" in EventOut has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_key" in InsightsResponse has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_pick" in PredictionHistoryItem has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [92326]
+INFO:     Waiting for application startup.
+2025-12-13 22:12:57,545 [INFO] model_api.main: Startup: loading games table, team lookups, and models.
+2025-12-13 22:12:57,562 [INFO] model_api.main: Loaded NFL team lookup from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_team_lookup.csv (rows=32)
+2025-12-13 22:12:57,562 [INFO] model_api.main: Loading NBA games table from /Volumes/easystore/Projects/sportiq-app/model/data/processed/games_with_scores_and_future.parquet ...
+2025-12-13 22:12:57,709 [INFO] model_api.main: Filtered out 13512 non-NBA games from NBA parquet (league != 'NBA')
+2025-12-13 22:12:57,713 [INFO] model_api.main: Loading MLB model_input from /Volumes/easystore/Projects/sportiq-app/model/data/processed/mlb/mlb_model_input.parquet ...
+2025-12-13 22:12:57,748 [INFO] model_api.main: Loading NFL historical games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_games_with_scores.parquet ...
+2025-12-13 22:12:59,987 [INFO] model_api.main: Loading NFL future schedule from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_future_games.parquet ...
+2025-12-13 22:13:00,140 [INFO] model_api.main: Loading NHL games from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nhl/nhl_games_for_app.parquet ...
+2025-12-13 22:13:00,180 [INFO] model_api.main: Loading UFC fights from /Volumes/easystore/Projects/sportiq-app/model/data/processed/ufc/ufc_fights_for_app.parquet ...
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:635: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:635: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+/Volumes/easystore/Projects/sportiq-app/model/model_api/main.py:635: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  games = pd.concat(frames, ignore_index=True)
+2025-12-13 22:13:00,626 [INFO] model_api.main: Created event_key for 76604 games
+2025-12-13 22:13:01,545 [INFO] model_api.main: Removed 875 duplicate games via event_key (non-NFL).
+2025-12-13 22:13:01,556 [INFO] model_api.main:   - MLB: 415 duplicates removed
+2025-12-13 22:13:01,556 [INFO] model_api.main:     Duplicated event_keys: ['MLB|2015-05-06|Colorado Rockies|Arizona Diamondbacks', 'MLB|2015-05-09|Chicago White Sox|Cincinnati Reds', 'MLB|2015-05-23|Colorado Rockies|San Francisco Giants', 'MLB|2015-05-28|Baltimore Orioles|Chicago White Sox', 'MLB|2015-06-02|Colorado Rockies|Los Angeles Dodgers', 'MLB|2015-06-02|Washington Nationals|Toronto Blue Jays', 'MLB|2015-06-03|Boston Red Sox|Minnesota Twins', 'MLB|2015-06-28|Baltimore Orioles|Cleveland Indians', 'MLB|2015-06-28|Philadelphia Phillies|Washington Nationals', 'MLB|2015-07-07|Chicago Cubs|St. Louis Cardinals']
+2025-12-13 22:13:01,556 [INFO] model_api.main:     ... and 405 more
+2025-12-13 22:13:01,556 [INFO] model_api.main:   - NHL: 460 duplicates removed
+2025-12-13 22:13:01,556 [INFO] model_api.main:     Duplicated event_keys: ['NHL|2025-10-07|Florida Panthers|Chicago Blackhawks', 'NHL|2025-10-07|Los Angeles Kings|Colorado Avalanche', 'NHL|2025-10-07|New York Rangers|Pittsburgh Penguins', 'NHL|2025-10-08|Edmonton Oilers|Calgary Flames', 'NHL|2025-10-08|Toronto Maple Leafs|Montreal Canadiens', 'NHL|2025-10-08|Vegas Golden Knights|Los Angeles Kings', 'NHL|2025-10-08|Washington Capitals|Boston Bruins', 'NHL|2025-10-09|Boston Bruins|Chicago Blackhawks', 'NHL|2025-10-09|Buffalo Sabres|New York Rangers', 'NHL|2025-10-09|Carolina Hurricanes|New Jersey Devils']
+2025-12-13 22:13:01,556 [INFO] model_api.main:     ... and 450 more
+2025-12-13 22:13:01,897 [INFO] model_api.main: Loaded combined games table with 75729 rows (NBA=14056, MLB=24778, NFL=7340, NHL=23027, UFC=6528).
+2025-12-13 22:13:02,007 [INFO] model_api.main: Assigning 14645 missing game_id values starting at 2025023861.
+2025-12-13 22:13:02,104 [INFO] model_api.main: Built team lookups for 2239 teams.
+/Volumes/easystore/Projects/sportiq-app/.venv/lib/python3.13/site-packages/sklearn/base.py:463: InconsistentVersionWarning: Trying to unpickle estimator LogisticRegression from version 1.7.2 when using version 1.8.0. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:
+https://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations
+  warnings.warn(
+2025-12-13 22:13:08,456 [INFO] model_api.main: Startup NFL snapshot: games=7340, unique_nfl_ids=7340
+2025-12-13 22:13:08,456 [INFO] model_api.main: Loading historical NFL predictions from /Volumes/easystore/Projects/sportiq-app/model/artifacts/nfl/nfl_predictions.parquet ...
+2025-12-13 22:13:08,766 [INFO] model_api.main: Loading future NFL predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nfl/nfl_predictions_future.parquet ...
+2025-12-13 22:13:08,809 [INFO] model_api.main: Loaded 7277 NFL predictions (unique game_ids=7277, dropped_duplicates=0)
+2025-12-13 22:13:08,811 [INFO] model_api.main: Joining NFL predictions via nfl_game_id (pred_rows=7277, unique_ids=7277)...
+2025-12-13 22:13:08,908 [INFO] model_api.main: Joined NFL predictions: 7272/7340 NFL games have predictions (99.1%)
+2025-12-13 22:13:08,909 [INFO] model_api.main: Loading historical NBA predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nba_predictions_b2b_2022plus.parquet ...
+2025-12-13 22:13:08,954 [INFO] model_api.main:   Loaded 3435 historical predictions with event_key
+2025-12-13 22:13:08,954 [INFO] model_api.main: Loading future NBA predictions from /Volumes/easystore/Projects/sportiq-app/model/data/processed/nba_predictions_future.parquet ...
+2025-12-13 22:13:08,958 [INFO] model_api.main:   Loaded 866 future predictions with event_key
+2025-12-13 22:13:08,959 [INFO] model_api.main: Combined 4301 total NBA predictions
+2025-12-13 22:13:08,961 [INFO] model_api.main: Loaded 4301 NBA predictions (100.0% unique event_keys)
+2025-12-13 22:13:08,961 [INFO] model_api.main: Joining NBA predictions via event_key...
+2025-12-13 22:13:09,091 [INFO] model_api.main: Joined NBA predictions: 4301/14056 NBA games have predictions (30.6%)
+2025-12-13 22:13:09,110 [INFO] model_api.main: Startup complete: games + models + lookups loaded (num_games=75729).
+INFO:     Application startup complete.
