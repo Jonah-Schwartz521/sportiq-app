@@ -61,6 +61,7 @@ from src.nba_inference import load_nba_model, predict_home_win_proba
 GAMES_DF: Optional[pd.DataFrame] = None
 NFL_PREDICTIONS_DF: Optional[pd.DataFrame] = None  # NFL model predictions
 NBA_PREDICTIONS_DF: Optional[pd.DataFrame] = None  # NBA model predictions
+NHL_PREDICTIONS_DF: Optional[pd.DataFrame] = None  # NHL model predictions
 
 # simple in-memory lookup tables
 TEAM_NAME_TO_ID: Dict[str, int] = {}
@@ -300,6 +301,49 @@ def attach_nfl_game_id(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.copy()
     df["nfl_game_id"] = df.apply(build_id, axis=1)
+    return df
+
+
+def attach_nhl_game_id(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add canonical nhl_game_id_str = YYYY_MM_DD_HOME_AWAY (uppercase, no spaces).
+    Uses abbreviations when available, otherwise falls back to team names.
+    """
+    if df.empty:
+        return df
+
+    def _canon_team(val: Any, fallback: Any = None) -> Optional[str]:
+        candidate = val if pd.notna(val) else fallback
+        if candidate is None or pd.isna(candidate):
+            return None
+        return (
+            str(candidate)
+            .upper()
+            .replace(" ", "")
+            .replace(".", "")
+            .replace("-", "")
+            .replace("_", "")
+        )
+
+    def build(row: pd.Series) -> Optional[str]:
+        dt = pd.to_datetime(row.get("date"), errors="coerce")
+        if pd.isna(dt):
+            return None
+
+        home = _canon_team(
+            row.get("raw_home_team_abbrev"),
+            row.get("home_team_abbrev", row.get("home_team")),
+        )
+        away = _canon_team(
+            row.get("raw_away_team_abbrev"),
+            row.get("away_team_abbrev", row.get("away_team")),
+        )
+        if home is None or away is None:
+            return None
+        return f"{dt.strftime('%Y_%m_%d')}_{home}_{away}"
+
+    df = df.copy()
+    df["nhl_game_id_str"] = df.apply(build, axis=1)
     return df
 
 
@@ -575,6 +619,58 @@ def dedupe_nfl_games(df: pd.DataFrame) -> pd.DataFrame:
 
     return pd.concat([other_df, nfl_df], ignore_index=True)
 
+
+def dedupe_nhl_games(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Deterministic NHL deduplication:
+      - key: YYYY-MM-DD + home_team + away_team (upper/trim)
+      - preference: has scores > has predictions > has odds > most recent row
+    """
+    if df.empty or "sport" not in df.columns:
+        return df
+
+    nhl_mask = df["sport"].astype(str).str.upper() == "NHL"
+    if nhl_mask.sum() == 0:
+        return df
+
+    nhl_df = df[nhl_mask].copy()
+    other_df = df[~nhl_mask].copy()
+
+    nhl_df["date"] = pd.to_datetime(nhl_df.get("date"), utc=True, errors="coerce").dt.tz_localize(None)
+    nhl_df["date_str"] = nhl_df["date"].dt.strftime("%Y-%m-%d")
+
+    home_norm = nhl_df.get("home_team", pd.Series([""] * len(nhl_df))).astype(str).str.strip().str.upper()
+    away_norm = nhl_df.get("away_team", pd.Series([""] * len(nhl_df))).astype(str).str.strip().str.upper()
+
+    nhl_df["nhl_dedupe_key"] = "NHL|" + nhl_df["date_str"] + "|" + home_norm + "|" + away_norm
+
+    default_series = pd.Series([None] * len(nhl_df), index=nhl_df.index)
+    has_scores = nhl_df.get("home_pts", default_series).notna() & nhl_df.get("away_pts", default_series).notna()
+    has_preds = nhl_df.get("nhl_p_home_win", default_series).notna()
+    has_odds = (
+        nhl_df.get("home_moneyline", default_series).notna()
+        | nhl_df.get("spread_line", default_series).notna()
+        | nhl_df.get("market_snapshot", default_series).notna()
+    )
+
+    nhl_df["_quality"] = 0
+    nhl_df.loc[has_scores, "_quality"] += 10000
+    nhl_df.loc[has_preds, "_quality"] += 1000
+    nhl_df.loc[has_odds, "_quality"] += 100
+    nhl_df["_quality"] += (nhl_df["date"].astype("int64") // 10**9).fillna(0)
+
+    nhl_df = nhl_df.sort_values(["nhl_dedupe_key", "_quality"], ascending=[True, False])
+    dup_mask = nhl_df.duplicated(subset=["nhl_dedupe_key"], keep="first")
+    removed = int(dup_mask.sum())
+
+    if removed > 0:
+        logger.info("🏒 NHL dedupe: removed %d duplicate rows", removed)
+
+    nhl_df = nhl_df.drop_duplicates(subset=["nhl_dedupe_key"], keep="first")
+    nhl_df = nhl_df.drop(columns=["_quality"], errors="ignore")
+
+    return pd.concat([other_df, nhl_df], ignore_index=True)
+
 # --- Sports Odds API config ---------------------------------------
 # Default to your free Odds API key, but allow overriding via environment
 SPORTS_ODDS_API_KEY = os.getenv(
@@ -812,6 +908,15 @@ def load_games_table() -> pd.DataFrame:
         if "away_pts" not in nhl_df.columns:
             nhl_df["away_pts"] = None
 
+        nhl_df["date"] = pd.to_datetime(nhl_df["date"], utc=True, errors="coerce").dt.tz_localize(None)
+
+        # If the game is in the future, force scores to NaN so it is treated as UPCOMING
+        future_mask = nhl_df["date"] > datetime.utcnow()
+        if future_mask.any():
+            nhl_df.loc[future_mask, ["home_pts", "away_pts"]] = None
+
+        nhl_df = attach_nhl_game_id(nhl_df)
+
         frames.append(nhl_df)
     else:
         logger.info("NHL games parquet not found at %s; skipping NHL.", nhl_path)
@@ -970,50 +1075,54 @@ def load_games_table() -> pd.DataFrame:
         non_nfl = games[non_nfl_mask].copy()
         nfl_only = games[~non_nfl_mask].copy()
 
-        if not non_nfl.empty:
-            non_nfl["row_quality_score"] = 0
+        nhl_mask = non_nfl["sport"].astype(str).str.upper() == "NHL"
+        nhl_only = non_nfl[nhl_mask].copy()
+        other_non_nfl = non_nfl[~nhl_mask].copy()
 
-            default_series = pd.Series([None] * len(non_nfl), index=non_nfl.index)
+        if not other_non_nfl.empty:
+            other_non_nfl["row_quality_score"] = 0
+
+            default_series = pd.Series([None] * len(other_non_nfl), index=other_non_nfl.index)
             has_pred = (
-                non_nfl.get("p_home_win", default_series).notna()
-                | non_nfl.get("nba_p_home_win", default_series).notna()
+                other_non_nfl.get("p_home_win", default_series).notna()
+                | other_non_nfl.get("nba_p_home_win", default_series).notna()
             )
-            non_nfl.loc[has_pred, "row_quality_score"] += 100
+            other_non_nfl.loc[has_pred, "row_quality_score"] += 100
 
-            has_scores = non_nfl.get("home_pts", default_series).notna() & non_nfl.get("away_pts", default_series).notna()
-            non_nfl.loc[has_scores, "row_quality_score"] += 50
+            has_scores = other_non_nfl.get("home_pts", default_series).notna() & other_non_nfl.get("away_pts", default_series).notna()
+            other_non_nfl.loc[has_scores, "row_quality_score"] += 50
 
             has_market = (
-                non_nfl.get("home_moneyline", default_series).notna() |
-                non_nfl.get("spread_line", default_series).notna()
+                other_non_nfl.get("home_moneyline", default_series).notna() |
+                other_non_nfl.get("spread_line", default_series).notna()
             )
-            non_nfl.loc[has_market, "row_quality_score"] += 10
+            other_non_nfl.loc[has_market, "row_quality_score"] += 10
 
-            non_nfl = non_nfl.sort_values(["event_key", "row_quality_score"], ascending=[True, False])
+            other_non_nfl = other_non_nfl.sort_values(["event_key", "row_quality_score"], ascending=[True, False])
 
-            duplicate_mask = non_nfl.duplicated(subset=["event_key"], keep="first")
+            duplicate_mask = other_non_nfl.duplicated(subset=["event_key"], keep="first")
             duplicates_by_sport = {}
             duplicated_event_keys = {}
 
-            if "sport" in non_nfl.columns:
-                for sport in non_nfl["sport"].unique():
+            if "sport" in other_non_nfl.columns:
+                for sport in other_non_nfl["sport"].unique():
                     if pd.notna(sport):
-                        sport_mask = non_nfl["sport"] == sport
+                        sport_mask = other_non_nfl["sport"] == sport
                         sport_dupes = duplicate_mask & sport_mask
                         count = sport_dupes.sum()
                         if count > 0:
                             duplicates_by_sport[sport] = count
-                            sport_df = non_nfl[sport_mask]
+                            sport_df = other_non_nfl[sport_mask]
                             dup_keys = sport_df[sport_df.duplicated(subset=["event_key"], keep=False)]["event_key"].unique()
                             duplicated_event_keys[sport] = list(dup_keys)
 
-            non_nfl = non_nfl.drop_duplicates(subset=["event_key"], keep="first")
-            non_nfl = non_nfl.drop(columns=["row_quality_score"])
+            other_non_nfl = other_non_nfl.drop_duplicates(subset=["event_key"], keep="first")
+            other_non_nfl = other_non_nfl.drop(columns=["row_quality_score"])
 
-            total_removed = initial_count - len(nfl_only) - len(non_nfl)
+            total_removed = initial_count - len(nfl_only) - len(other_non_nfl) - len(nhl_only)
             if total_removed > 0:
                 logger.info(
-                    "Removed %d duplicate games via event_key (non-NFL).",
+                    "Removed %d duplicate games via event_key (non-NFL/NHL).",
                     total_removed
                 )
                 for sport, count in duplicates_by_sport.items():
@@ -1024,7 +1133,7 @@ def load_games_table() -> pd.DataFrame:
                         if len(duplicated_event_keys[sport]) > 10:
                             logger.info("    ... and %d more", len(duplicated_event_keys[sport]) - 10)
 
-            games = pd.concat([nfl_only, non_nfl], ignore_index=True)
+            games = pd.concat([nfl_only, nhl_only, other_non_nfl], ignore_index=True)
 
     logger.info(
         "Loaded combined games table with %d rows (NBA=%d, MLB=%d, NFL=%d, NHL=%d, UFC=%d).",
@@ -1247,6 +1356,49 @@ def load_nfl_predictions() -> Optional[pd.DataFrame]:
 
         NFL_PREDICTIONS_DF = preds_df
         return NFL_PREDICTIONS_DF
+    except Exception as e:
+        logger.error("Failed to combine NFL predictions: %s", e, exc_info=True)
+        NFL_PREDICTIONS_DF = None
+        return None
+
+
+def load_nhl_predictions() -> Optional[pd.DataFrame]:
+    """
+    Load future NHL predictions from processed parquet.
+    Expected columns: nhl_game_id_str, p_home_win, p_away_win, source.
+    """
+    global NHL_PREDICTIONS_DF
+    if NHL_PREDICTIONS_DF is not None:
+        return NHL_PREDICTIONS_DF
+
+    path = PROCESSED_DIR / "nhl" / "nhl_predictions_future.parquet"
+    if not path.exists():
+        logger.info("No NHL predictions found at %s; skipping NHL join.", path)
+        NHL_PREDICTIONS_DF = None
+        return NHL_PREDICTIONS_DF
+
+    try:
+        preds = pd.read_parquet(path)
+        if "p_away_win" not in preds.columns and "p_home_win" in preds.columns:
+            preds["p_away_win"] = 1 - preds["p_home_win"]
+        preds["nhl_game_id_str"] = preds.get("nhl_game_id_str")
+        preds = preds.dropna(subset=["nhl_game_id_str"])
+        # De-dupe predictions by id (keep latest)
+        before = len(preds)
+        preds = preds.sort_values("generated_at" if "generated_at" in preds.columns else preds.index)
+        preds = preds.drop_duplicates(subset=["nhl_game_id_str"], keep="last")
+        logger.info(
+            "Loaded NHL predictions from %s (rows=%d, dropped_dups=%d)",
+            path,
+            len(preds),
+            before - len(preds),
+        )
+        NHL_PREDICTIONS_DF = preds
+        return NHL_PREDICTIONS_DF
+    except Exception as exc:
+        logger.error("Failed to load NHL predictions from %s: %s", path, exc)
+        NHL_PREDICTIONS_DF = None
+        return NHL_PREDICTIONS_DF
 
     except Exception as e:
         logger.error("Failed to combine NFL predictions: %s", e, exc_info=True)
@@ -2177,8 +2329,68 @@ def startup_event():
             coverage_pct
         )
 
+    # Load NHL predictions and join via nhl_game_id_str
+    nhl_preds = load_nhl_predictions()
+    if nhl_preds is not None:
+        if "nhl_game_id_str" not in games.columns:
+            games = attach_nhl_game_id(games)
+
+        nhl_preds_renamed = nhl_preds.rename(
+            columns={
+                "p_home_win": "nhl_p_home_win",
+                "p_away_win": "nhl_p_away_win",
+                "source": "nhl_source",
+            }
+        )
+
+        games = games.merge(
+            nhl_preds_renamed,
+            on="nhl_game_id_str",
+            how="left",
+            suffixes=("", "_nhl_pred"),
+        )
+
+        nhl_mask = games["sport"].astype(str).str.upper() == "NHL"
+        upcoming_mask = nhl_mask & games["home_pts"].isna() & games["away_pts"].isna()
+        with_preds = upcoming_mask & games["nhl_p_home_win"].notna()
+        logger.info(
+            "Joined NHL predictions: upcoming=%d with_preds=%d (%.1f%% coverage)",
+            int(upcoming_mask.sum()),
+            int(with_preds.sum()),
+            100 * int(with_preds.sum()) / int(upcoming_mask.sum()) if upcoming_mask.sum() > 0 else 0,
+        )
+
+        # Do not keep predictions on rows with final scores
+        not_future = nhl_mask & ~upcoming_mask
+        if not_future.any():
+            games.loc[
+                not_future,
+                ["nhl_p_home_win", "nhl_p_away_win", "nhl_source", "model_home_win_prob", "model_away_win_prob"],
+            ] = None
+
+        # Expose generic model_home_win_prob/away for convenience
+        games.loc[with_preds, "model_home_win_prob"] = games.loc[
+            with_preds, "nhl_p_home_win"
+        ]
+        games.loc[with_preds, "model_away_win_prob"] = games.loc[
+            with_preds, "nhl_p_away_win"
+        ]
+
     # Update global games table
     games = dedupe_nfl_games(games)
+    games = dedupe_nhl_games(games)
+
+    # NHL snapshot logging
+    if "sport" in games.columns:
+        nhl_rows = games[games["sport"].astype(str).str.upper() == "NHL"]
+        nhl_upcoming = nhl_rows["home_pts"].isna() & nhl_rows["away_pts"].isna()
+        nhl_with_preds = nhl_upcoming & nhl_rows.get("nhl_p_home_win", pd.Series([None] * len(nhl_rows))).notna()
+        logger.info(
+            "🏒 NHL snapshot: total=%d upcoming=%d with_preds=%d",
+            len(nhl_rows),
+            int(nhl_upcoming.sum()),
+            int(nhl_with_preds.sum()),
+        )
     GAMES_DF = games
 
     logger.info(
@@ -2453,6 +2665,15 @@ def list_events(
                 "p_home_win": p_home,
                 "p_away_win": p_away
             }
+        elif sport_str == "NHL" and "nhl_p_home_win" in row and pd.notna(row["nhl_p_home_win"]):
+            p_home = float(row["nhl_p_home_win"])
+            p_away = float(row.get("nhl_p_away_win", 1.0 - p_home))
+            source = str(row.get("nhl_source", "nhl_logreg_v1"))
+            model_snapshot = {
+                "source": source,
+                "p_home_win": p_home,
+                "p_away_win": p_away
+            }
 
         # Determine sport_id per row (NBA vs MLB vs NFL vs NHL vs UFC)
         if sport_str == "MLB":
@@ -2601,6 +2822,15 @@ def get_event(event_id: int) -> EventOut:
         p_home = float(row["nba_p_home_win"])
         p_away = float(row.get("nba_p_away_win", 1.0 - p_home))
         source = str(row.get("nba_source", "nba_b2b_logreg_v1"))
+        model_snapshot = {
+            "source": source,
+            "p_home_win": p_home,
+            "p_away_win": p_away
+        }
+    elif sport_str == "NHL" and "nhl_p_home_win" in row and pd.notna(row["nhl_p_home_win"]):
+        p_home = float(row["nhl_p_home_win"])
+        p_away = float(row.get("nhl_p_away_win", 1.0 - p_home))
+        source = str(row.get("nhl_source", "nhl_logreg_v1"))
         model_snapshot = {
             "source": source,
             "p_home_win": p_home,
