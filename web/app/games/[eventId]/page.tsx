@@ -164,7 +164,7 @@ export default function GameDetailPage() {
         setPredLoading(true);
         setPredError(null);
         setPrediction(null);
-        setSelectedSide(null);
+        // setSelectedSide(null); // Removed - setSelectedSide is not defined
 
         const result = await api.predict(event.event_id);
         setPrediction(result);
@@ -459,7 +459,8 @@ export default function GameDetailPage() {
             {/* ========================= */}
             {/* 2. THE TAKEAWAY (NEW)     */}
             {/* ========================= */}
-            {!predLoading && !predError && prediction && (
+            {/* Only show model predictions for upcoming games, not finished games */}
+            {!isFinal && !predLoading && !predError && prediction && (
               <section className="overflow-hidden rounded-xl border border-blue-900/30 bg-gradient-to-br from-blue-950/20 via-zinc-950/40 to-zinc-950/20 p-6">
                 <div className="flex items-start gap-4">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-2xl">
@@ -507,16 +508,23 @@ export default function GameDetailPage() {
             {/* ========================= */}
             {/* 3. MODEL PREDICTION GRID  */}
             {/* ========================= */}
+            {/* Only show for upcoming games */}
+            {!isFinal && (
             <section className="space-y-5">
               {/* Model prediction card */}
               <div className="overflow-hidden rounded-xl border border-zinc-800/60 bg-gradient-to-br from-zinc-900/40 to-zinc-950/60 p-5 shadow-xl shadow-black/40">
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-sm font-medium uppercase tracking-wider text-zinc-400">
-                    Win Probabilities
-                  </h2>
-                  <span className="rounded-md bg-zinc-900/60 px-2 py-1 text-[10px] text-zinc-500">
-                    Pre-game estimate
-                  </span>
+                <div className="mb-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-medium uppercase tracking-wider text-zinc-400">
+                      Win Probabilities
+                    </h2>
+                    <span className="rounded-md bg-zinc-900/60 px-2 py-1 text-[10px] text-zinc-500">
+                      Pre-game estimate
+                    </span>
+                  </div>
+                  <p className="text-xs text-indigo-400/80">
+                    Model estimate · Not betting odds
+                  </p>
                 </div>
 
                 {predLoading && (
@@ -532,9 +540,89 @@ export default function GameDetailPage() {
                   </div>
                 )}
 
-                {!predLoading && !predError && !prediction && (
+                {/* Show model_snapshot if available (for NFL baseline) */}
+                {!predLoading && !predError && !prediction && event?.model_snapshot && (
+                  <>
+                    {/* Simplified probability display from model_snapshot */}
+                    <div className="space-y-3">
+                      {/* Away */}
+                      <div className="rounded-lg border border-zinc-800/50 bg-zinc-900/30 p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-xs text-zinc-500">Away</span>
+                            <p className="mt-1 text-lg font-bold text-zinc-200">
+                              {awayName}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-3xl font-bold tabular-nums text-white">
+                              {(event.model_snapshot.p_away_win * 100).toFixed(1)}%
+                            </p>
+                            {event.model_snapshot.p_away_win && event.model_snapshot.p_away_win > 0 && (
+                              <p className="mt-0.5 font-mono text-xs text-zinc-500">
+                                {impliedOdds(event.model_snapshot.p_away_win)}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-900">
+                          <div
+                            className="h-full bg-gradient-to-r from-violet-500/80 to-violet-600/60 transition-all duration-500"
+                            style={{
+                              width: `${Math.min(100, Math.max(0, event.model_snapshot.p_away_win * 100))}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Home */}
+                      <div className="rounded-lg border border-zinc-800/50 bg-zinc-900/30 p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-xs text-zinc-500">Home</span>
+                            <p className="mt-1 text-lg font-bold text-zinc-200">
+                              {homeName}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-3xl font-bold tabular-nums text-white">
+                              {(event.model_snapshot.p_home_win * 100).toFixed(1)}%
+                            </p>
+                            {event.model_snapshot.p_home_win && event.model_snapshot.p_home_win > 0 && (
+                              <p className="mt-0.5 font-mono text-xs text-zinc-500">
+                                {impliedOdds(event.model_snapshot.p_home_win)}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-900">
+                          <div
+                            className="h-full bg-gradient-to-r from-indigo-500/80 to-indigo-600/60 transition-all duration-500"
+                            style={{
+                              width: `${Math.min(100, Math.max(0, event.model_snapshot.p_home_win * 100))}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="mt-4 text-xs text-zinc-500">
+                      Pre-game estimates from {event.model_snapshot.source}. Does not account for last-minute roster changes or breaking news.
+                    </p>
+
+                    <p className="mt-3 text-[10px] text-zinc-500">
+                      Generated at{" "}
+                      <span className="text-zinc-300">
+                        {formatDateTime(generatedAt)}
+                      </span>
+                      .
+                    </p>
+                  </>
+                )}
+
+                {!predLoading && !predError && !prediction && !event?.model_snapshot && (
                   <p className="text-sm text-zinc-500">
-                    No prediction available yet for this game.
+                    No model snapshot available for this game.
                   </p>
                 )}
 
@@ -564,7 +652,7 @@ export default function GameDetailPage() {
                         </div>
                         <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-900">
                           <div
-                            className="h-full bg-gradient-to-r from-blue-500/80 to-blue-600/60 transition-all duration-500"
+                            className="h-full bg-gradient-to-r from-violet-500/80 to-violet-600/60 transition-all duration-500"
                             style={{
                               width: `${Math.min(100, Math.max(0, (prediction.p_away || 0) * 100))}%`,
                             }}
@@ -594,7 +682,7 @@ export default function GameDetailPage() {
                         </div>
                         <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-900">
                           <div
-                            className="h-full bg-gradient-to-r from-blue-500/80 to-blue-600/60 transition-all duration-500"
+                            className="h-full bg-gradient-to-r from-indigo-500/80 to-indigo-600/60 transition-all duration-500"
                             style={{
                               width: `${Math.min(100, Math.max(0, (prediction.p_home || 0) * 100))}%`,
                             }}
@@ -912,6 +1000,7 @@ export default function GameDetailPage() {
                   )}
               </div>
             </section>
+            )}
 
             {/* ========================= */}
             {/* 4. CONTEXT & TRUST        */}

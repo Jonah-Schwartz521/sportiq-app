@@ -917,6 +917,105 @@ function InlineOddsRow({
   );
 }
 
+function ModelSnapshotRow({
+  modelSnapshot,
+  awayTeam,
+  homeTeam,
+}: {
+  modelSnapshot: { source: string; p_home_win: number; p_away_win: number } | null | undefined;
+  awayTeam?: string;
+  homeTeam?: string;
+}) {
+  if (!modelSnapshot) {
+    return (
+      <div className="rounded-lg border border-dashed border-zinc-800/70 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-500">
+        No AI estimate available
+      </div>
+    );
+  }
+
+  const homeProb = modelSnapshot.p_home_win * 100;
+  const awayProb = modelSnapshot.p_away_win * 100;
+  const favorite = homeProb >= awayProb ? "home" : "away";
+
+  // Shorten team names for compact display
+  const shortTeamName = (name: string | undefined) => {
+    if (!name) return "";
+    // For long names, take first word or first 3 letters
+    const words = name.split(" ");
+    if (words.length > 1) {
+      // Multi-word: use first word (e.g., "Los Angeles" -> "LA", "Golden State" -> "Golden")
+      return words[0];
+    }
+    // Single word: truncate if very long
+    return name.length > 12 ? name.substring(0, 10) + "..." : name;
+  };
+
+  const awayShort = shortTeamName(awayTeam);
+  const homeShort = shortTeamName(homeTeam);
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-indigo-900/40 bg-gradient-to-br from-indigo-950/20 via-violet-950/10 to-zinc-950/40 p-4">
+      {/* Header */}
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-base">🤖</span>
+          <span className="text-xs font-medium uppercase tracking-wider text-indigo-400">
+            AI Win Probability
+          </span>
+        </div>
+        <span className="text-[10px] text-zinc-500">Model estimate</span>
+      </div>
+
+      {/* Horizontal probability split */}
+      <div className="space-y-3">
+        {/* Visual bar showing split */}
+        <div className="relative h-10 overflow-hidden rounded-lg bg-zinc-900/60">
+          {/* Away side (left) */}
+          <div
+            className="absolute left-0 top-0 h-full bg-gradient-to-r from-violet-500/30 to-violet-600/20 transition-all duration-500"
+            style={{ width: `${awayProb}%` }}
+          />
+          {/* Home side (right) */}
+          <div
+            className="absolute right-0 top-0 h-full bg-gradient-to-l from-indigo-500/30 to-indigo-600/20 transition-all duration-500"
+            style={{ width: `${homeProb}%` }}
+          />
+
+          {/* Overlaid text */}
+          <div className="relative flex h-full items-center justify-between px-3 text-sm">
+            <div className="flex items-center gap-2">
+              {awayShort && (
+                <span className={`text-xs font-medium ${favorite === "away" ? "text-violet-300" : "text-zinc-400"}`}>
+                  {awayShort}
+                </span>
+              )}
+              <span className={`text-lg font-bold tabular-nums ${favorite === "away" ? "text-white" : "text-zinc-300"}`}>
+                {awayProb.toFixed(0)}%
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-lg font-bold tabular-nums ${favorite === "home" ? "text-white" : "text-zinc-300"}`}>
+                {homeProb.toFixed(0)}%
+              </span>
+              {homeShort && (
+                <span className={`text-xs font-medium ${favorite === "home" ? "text-indigo-300" : "text-zinc-400"}`}>
+                  {homeShort}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Disclaimer */}
+        <p className="text-center text-[10px] text-zinc-500">
+          Model estimate · Not betting odds
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function GamesPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -1318,6 +1417,19 @@ export default function GamesPage() {
         (awayTeamName === "TBD");
 
       return !isNflTbdMatchup;
+    });
+
+    // Sort to show games with model predictions first, then by date descending
+    filtered.sort((a, b) => {
+      const aHasSnapshot = !!a.model_snapshot;
+      const bHasSnapshot = !!b.model_snapshot;
+
+      // Prioritize games with model_snapshot
+      if (aHasSnapshot && !bHasSnapshot) return -1;
+      if (!aHasSnapshot && bHasSnapshot) return 1;
+
+      // If both have or don't have snapshot, sort by date descending (newest first)
+      return b.date.localeCompare(a.date);
     });
 
     return filtered;
@@ -1822,6 +1934,15 @@ export default function GamesPage() {
                         {sportSupportsOdds && oddsLoaded && (
                           <div className="pt-2">
                             <InlineOddsRow odds={aggregatedOdds ?? null} />
+                          </div>
+                        )}
+                        {e.model_snapshot && (
+                          <div className="pt-2">
+                            <ModelSnapshotRow
+                              modelSnapshot={e.model_snapshot}
+                              awayTeam={awayTeamName}
+                              homeTeam={homeTeamName}
+                            />
                           </div>
                         )}
                       </>
