@@ -258,8 +258,11 @@ function findMatchingOddsGame(
 // --- Date / year helpers ---
 function getYearFromDate(dateStr: string | null | undefined): string | null {
   if (!dateStr) return null;
-  // assuming "YYYY-MM-DD" shape
-  return dateStr.slice(0, 4);
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) {
+    return dateStr.slice(0, 4);
+  }
+  return String(d.getUTCFullYear());
 }
 
 function formatReadableDate(dateStr: string | null): string | null {
@@ -334,10 +337,11 @@ function getEventStatus(
   e: Event,
   isFinal: boolean,
 ): "final" | "upcoming" | "live" {
+  const status = (e.status ?? "").toString().toLowerCase();
   // Trust the backend's status first
-  if (e.status === "in_progress" || e.status === "live") return "live";
-  if (e.status === "final") return "final";
-  if (e.status === "upcoming") return "upcoming";
+  if (status === "in_progress" || status === "live") return "live";
+  if (status === "final") return "final";
+  if (status === "upcoming") return "upcoming";
 
   // Legacy fallback for old API responses
   if (isFinal) return "final";
@@ -1023,8 +1027,9 @@ export default function GamesPage() {
   const [error, setError] = useState<string | null>(null);
   const [oddsGames, setOddsGames] = useState<ApiGameOdds[]>([]);
   const [oddsLoaded, setOddsLoaded] = useState(false);
+  const [seasonsMeta, setSeasonsMeta] = useState<Record<string, number[]>>({});
 
-  // Season filter ("Season" dropdown) – default will be set to latest once events load
+  // Season filter ("Season" dropdown) – default is "all"; we will explicitly move to latest only if desired
   const [selectedSport, setSelectedSport] = useState<SportFilterId>("all");
   const [yearFilter, setYearFilter] = useState<string>("all");
 
@@ -1035,6 +1040,19 @@ export default function GamesPage() {
   const [dateFilter, setDateFilter] = useState<string | null>(null);
 
   const [showScrollTop, setShowScrollTop] = useState(false);
+
+  // Load seasons metadata (per sport) from backend
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await api.seasonsMeta();
+        setSeasonsMeta(data.seasons ?? {});
+      } catch (err) {
+        console.warn("Failed to load seasons meta", err);
+        setSeasonsMeta({});
+      }
+    })();
+  }, []);
 
   // ✅ "Jump to today" helper – sets the calendar date to today and also moves Season to current year
   const handleJumpToToday = () => {
@@ -1087,10 +1105,36 @@ export default function GamesPage() {
     (async () => {
       try {
         setLoading(true);
+        // log the outbound request params
+        const requestParams = {
+          sport: selectedSport === "all" ? undefined : selectedSport === 1 ? "NBA" : selectedSport === 2 ? "MLB" : selectedSport === 3 ? "NFL" : selectedSport === 4 ? "NHL" : selectedSport === 5 ? "UFC" : undefined,
+          sport_id: selectedSport === "all" ? undefined : (selectedSport as number),
+          date: dateFilter ?? undefined,
+          season: yearFilter === "all" ? undefined : yearFilter,
+          limit: 50000,
+        };
         const [eventsRes, teamsRes] = await Promise.all([
-          api.events(),
+          api.events({
+            limit: requestParams.limit,
+            sport: requestParams.sport,
+            sport_id: requestParams.sport_id,
+            date: requestParams.date,
+            season: requestParams.season,
+          }),
           api.teams(),
         ]);
+        console.log("events fetch", {
+          url: "/events",
+          params: requestParams,
+          first5: (eventsRes.items || []).slice(0, 5).map((e) => ({
+            date: e.date,
+            home: e.home_team ?? (e as any).home_team_name,
+            away: e.away_team ?? (e as any).away_team_name,
+            sport: e.sport_id,
+            season: yearFilter,
+          })),
+          total: (eventsRes.items || []).length,
+        });
         setEvents(eventsRes.items || []);
         setTeams(teamsRes.items || []);
       } catch (err: unknown) {
@@ -1163,24 +1207,32 @@ export default function GamesPage() {
     })();
   }, [selectedSport]);
 
-  // 2) After events load, default Season filter to latest year ("current season")
+  // 2) After seasons metadata or events load, default Season filter to latest year ("current season")
   useEffect(() => {
     if (events.length === 0) return;
     if (yearFilter !== "all") return;
 
-    const years = Array.from(
-      new Set(
-        events
-          .map((e) => getYearFromDate(e.date))
-          .filter((y): y is string => !!y),
-      ),
-    ).sort();
+    // Prefer meta seasons for selected sport (or all)
+    const sportKey = selectedSport === "all" ? null : String(selectedSport);
+    const metaYears =
+      sportKey && seasonsMeta[sportKey] ? seasonsMeta[sportKey].map(String) : [];
+
+    const years =
+      metaYears.length > 0
+        ? metaYears.sort()
+        : Array.from(
+            new Set(
+              events
+                .map((e) => getYearFromDate(e.date))
+                .filter((y): y is string => !!y),
+            ),
+          ).sort();
 
     const latest = years[years.length - 1];
     if (latest) {
       setYearFilter(latest);
     }
-  }, [events, yearFilter]);
+  }, [events, yearFilter, seasonsMeta, selectedSport]);
 
   // Log all unique NFL team labels based on events
   useEffect(() => {
@@ -1285,6 +1337,17 @@ export default function GamesPage() {
 
   // Year options derived from events – for the Season dropdown
   const yearOptions = useMemo(() => {
+    // Prefer backend-provided seasons metadata; fallback to derived from events
+    const sportKey = selectedSport === "all" ? null : String(selectedSport);
+    const metaYears =
+      sportKey && seasonsMeta[sportKey] ? seasonsMeta[sportKey].map(String) : [];
+
+    if (metaYears.length > 0) {
+      const sorted = [...metaYears].sort((a, b) => Number(a) - Number(b));
+      console.log("yearOptions (meta)", { selectedSport, sorted });
+      return sorted;
+    }
+
     const relevantEvents =
       selectedSport === "all"
         ? events
@@ -1295,8 +1358,26 @@ export default function GamesPage() {
       const y = getYearFromDate(e.date);
       if (y) years.add(y);
     }
-    return Array.from(years).sort();
-  }, [events, selectedSport]);
+    const sorted = Array.from(years).sort((a, b) => Number(a) - Number(b));
+    console.log("yearOptions (events fallback)", { selectedSport, sorted });
+    return sorted;
+  }, [events, selectedSport, seasonsMeta]);
+
+  // Ensure the yearFilter stays valid for the selected sport; if invalid, reset to latest or all.
+  useEffect(() => {
+    if (yearFilter !== "all" && !yearOptions.includes(yearFilter)) {
+      console.log("yearFilter not in options, resetting to all", { yearFilter, yearOptions });
+      setYearFilter("all");
+      return;
+    }
+
+    // If selecting a specific sport and currently "all", move to latest available season
+    if (selectedSport !== "all" && yearFilter === "all" && yearOptions.length > 0) {
+      const latest = yearOptions[yearOptions.length - 1];
+      console.log("setting yearFilter to latest for sport", { selectedSport, latest });
+      setYearFilter(latest);
+    }
+  }, [selectedSport, yearFilter, yearOptions]);
 
   // Team options derived from teams – filtered by sport
   const teamOptions = useMemo(() => {
@@ -1324,33 +1405,9 @@ export default function GamesPage() {
   // When the sport filter changes, ensure the season/year filter points to an available year
   // for that sport so NHL (and other leagues) surface immediately.
   useEffect(() => {
-    if (selectedSport === "all") return;
-    if (!events.length) return;
-
-    const sportEvents = events.filter((e) => e.sport_id === selectedSport);
-    if (!sportEvents.length) return;
-
-    const sportYears = Array.from(
-      new Set(
-        sportEvents
-          .map((e) => getYearFromDate(e.date))
-          .filter((y): y is string => !!y),
-      ),
-    ).sort();
-
-    const latestForSport = sportYears[sportYears.length - 1];
-
-    if (yearFilter === "all") {
-      if (latestForSport) {
-        setYearFilter(latestForSport);
-      }
-      return;
-    }
-
-    if (!sportYears.includes(yearFilter) && latestForSport) {
-      setYearFilter(latestForSport);
-    }
-  }, [selectedSport, events, yearFilter]);
+    // When switching sports, default to "all" seasons so we don't get trapped on earliest season.
+    setYearFilter("all");
+  }, [selectedSport]);
 
   // ================================
   // Composed filtering logic (order)
@@ -1362,16 +1419,30 @@ export default function GamesPage() {
   const visibleEvents = useMemo(() => {
     let filtered = events;
 
-    // 1) Season filter – required / primary
-    if (yearFilter !== "all") {
-      filtered = filtered.filter((e) => getYearFromDate(e.date) === yearFilter);
-    }
+    console.log("filtering events", {
+      before: events.length,
+      selectedSport,
+      yearFilter,
+      dateFilter,
+      teamFilter,
+    });
 
-    // 2) Sport filter
+    // sport filter
+    const beforeSport = filtered.length;
+    // 1) Sport filter (already applied server-side but keep for safety)
     if (selectedSport !== "all") {
       filtered = filtered.filter((e) => e.sport_id === selectedSport);
     }
+    console.log("after sport filter", { before: beforeSport, after: filtered.length });
 
+    const beforeSeason = filtered.length;
+    // 2) Season filter (keep in sync with server response)
+    if (yearFilter !== "all") {
+      filtered = filtered.filter((e) => getYearFromDate(e.date) === yearFilter);
+    }
+    console.log("after season filter", { before: beforeSeason, after: filtered.length });
+
+    const beforeTeam = filtered.length;
     // 3) Team filter
     if (teamFilter !== "all") {
       filtered = filtered.filter((e) => {
@@ -1380,11 +1451,22 @@ export default function GamesPage() {
         return homeName === teamFilter || awayName === teamFilter;
       });
     }
+    console.log("after team filter", { before: beforeTeam, after: filtered.length });
 
-    // 4) Optional Date filter – only applied if user selected a date
+    const beforeDate = filtered.length;
+    // 4) Optional Date filter – only applied if user selected a date (already applied server-side)
     if (dateFilter) {
-      filtered = filtered.filter((e) => e.date === dateFilter);
+      filtered = filtered.filter((e) => {
+        const eventDate = (e.date ?? "").slice(0, 10);
+        return eventDate === dateFilter;
+      });
     }
+    console.log("after date filter", { before: beforeDate, after: filtered.length });
+
+    console.log("filtering events result", {
+      after: filtered.length,
+      sample: filtered.slice(0, 3),
+    });
 
     // 5) Remove bogus NFL rows that would render as "TBD @ TBD"
     filtered = filtered.filter((e) => {
@@ -1686,13 +1768,15 @@ export default function GamesPage() {
                 homeScore !== null && awayScore !== null && !Number.isNaN(homeScore) &&
                 !Number.isNaN(awayScore);
 
-              const isFinal = hasScores || e.status === "final";
+              const statusNorm = (e.status ?? "").toString().toLowerCase();
+              const isLive = statusNorm === "in_progress" || statusNorm === "live";
+              const isFinal = statusNorm === "final" || (hasScores && !["scheduled", "pre"].includes(statusNorm));
 
               // Determine homeWin from field or from scores
               const homeWin =
-                e.home_win != null
+                isFinal && e.home_win != null
                   ? Boolean(e.home_win)
-                  : hasScores
+                  : isFinal && hasScores
                   ? homeScore! > awayScore!
                   : null;
 
@@ -1765,7 +1849,7 @@ export default function GamesPage() {
                   : null;
 
               const aggregatedOdds =
-                matchedOddsGame && !isFinal
+                matchedOddsGame && !isFinal && !isLive
                   ? aggregateGameOdds(
                       matchedOddsGame,
                       finalHomeTeamName,
@@ -1806,7 +1890,7 @@ export default function GamesPage() {
                   ? "Live"
                   : "Upcoming";
 
-              const oddsLabel = isFinal
+              const oddsLabel = isFinal || isLive
                 ? null
                 : aggregatedOdds
                 ? "Sportsbook odds"
@@ -1836,9 +1920,12 @@ export default function GamesPage() {
                 return null;
               }
 
+              // Use composite key to avoid duplicates when event_id repeats
+              const cardKey = `${e.event_id}-${e.date}-${e.home_team}-${e.away_team}-${e.sport_id}`;
+
               return (
                 <Link
-                  key={e.event_id}
+                  key={cardKey}
                   href={`/games/${e.event_id}`}
                   prefetch={false}
                   className="group relative flex flex-col overflow-hidden rounded-xl border border-zinc-800/60 bg-gradient-to-br from-zinc-900/40 to-zinc-950/60 shadow-xl shadow-black/40 backdrop-blur-sm transition-all duration-300 hover:border-blue-500/50 hover:shadow-2xl hover:shadow-blue-500/10 active:scale-[0.99]"
@@ -1912,7 +1999,7 @@ export default function GamesPage() {
                         homeWin={homeWin}
                         event={e}
                       />
-                    ) : isFinal && hasScores && homeScore !== null && awayScore !== null ? (
+                    ) : (isFinal || isLive) && hasScores && homeScore !== null && awayScore !== null ? (
                       <FinalScoreBlock
                         homeTeam={finalHomeTeamName}
                         awayTeam={finalAwayTeamName}

@@ -85,6 +85,10 @@ export type OddsForEvent = {
   spreads: OddsRecord[];
 };
 
+export type SeasonsMeta = {
+  seasons: Record<string, number[]>;
+};
+
 // --- prediction log types (admin recent predictions) ----------------
 
 export type PredictionLogItem = {
@@ -147,13 +151,21 @@ export const api = {
   teams: () => getJSON<{ items: Team[] }>("/teams?limit=100"),
 
     // --- events (for games list, admin, etc.) ---
-  events: (opts?: { limit?: number; sport_id?: number; season?: number }) => {
+  events: (opts?: { limit?: number; sport_id?: number; sport?: string; season?: string | number; date?: string }) => {
     const query = buildQueryString({
       // if caller doesn't pass a limit, pull a big slice so we get all seasons
-      limit: opts?.limit ?? 20000,
+      limit: opts?.limit ?? 50000,
       sport_id: opts?.sport_id,
-      // map our front-end `season` option to the backend's `year` query param
-      year: opts?.season,
+      sport: opts?.sport,
+      // send season through directly (string) and also send year when numeric for back-compat
+      season: opts?.season === undefined ? undefined : String(opts.season),
+      year:
+        typeof opts?.season === "number"
+          ? opts.season
+          : typeof opts?.season === "string" && /^\d{4}$/.test(opts.season)
+            ? Number(opts.season)
+            : undefined,
+      date: opts?.date,
     });
 
     return getJSON<{ items: Event[] }>(`/events${query}`);
@@ -208,4 +220,7 @@ export const api = {
     });
     return getJSON<OddsForEvent>(`/odds/event${query}`);
   },
+
+  // --- seasons meta ---
+  seasonsMeta: () => getJSON<SeasonsMeta>("/meta/seasons"),
 };

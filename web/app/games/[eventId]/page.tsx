@@ -91,10 +91,20 @@ export default function GameDetailPage() {
 
   const [generatedAt] = useState(() => new Date().toISOString());
 
-  const isFinal =
+  const statusNorm = (event?.status ?? "").toString().toLowerCase();
+  const scoreComplete =
     event?.home_score != null &&
     event?.away_score != null &&
-    event?.home_win != null;
+    !Number.isNaN(event?.home_score) &&
+    !Number.isNaN(event?.away_score);
+  const isLive = statusNorm === "in_progress" || statusNorm === "live";
+  const isFinal = statusNorm === "final" || (scoreComplete && !["scheduled", "pre"].includes(statusNorm));
+  const derivedHomeWin =
+    isFinal && event?.home_win != null
+      ? Boolean(event.home_win)
+      : isFinal && scoreComplete
+      ? Number(event.home_score) > Number(event.away_score)
+      : null;
 
   // ---------- Load event & teams ----------
 
@@ -218,8 +228,8 @@ export default function GameDetailPage() {
   useEffect(() => {
     if (!event || !homeName || !awayName) return;
 
-    // Only load for upcoming games (not final)
-    if (isFinal) return;
+    // Only load for upcoming games (not final/live)
+    if (isFinal || isLive) return;
 
     (async () => {
       try {
@@ -334,7 +344,7 @@ export default function GameDetailPage() {
     }
 
     const modelHomeWin = prediction.p_home >= prediction.p_away;
-    const correct = modelHomeWin === !!event.home_win;
+    const correct = modelHomeWin === !!derivedHomeWin;
 
     return {
       correct,
@@ -357,7 +367,7 @@ export default function GameDetailPage() {
   const sportLabel = event ? sportLabelFromId(event.sport_id) : "Sport";
   const sportIcon = event ? sportIconFromId(event.sport_id) : "🏟️";
 
-  const statusLabel: string = isFinal ? "Final" : "Scheduled";
+  const statusLabel: string = isLive ? "Live" : isFinal ? "Final" : "Scheduled";
 
   // ------------------------------------------------------------------
   // Render
@@ -449,7 +459,7 @@ export default function GameDetailPage() {
                   <div className="ml-auto flex items-center gap-2">
                     <span className="text-xs text-zinc-500">Winner:</span>
                     <span className="text-sm font-semibold text-emerald-400">
-                      {event.home_win ? homeName : awayName}
+                      {derivedHomeWin ? homeName : awayName}
                     </span>
                   </div>
                 </div>
