@@ -128,3 +128,24 @@ The FastAPI backend loads `nhl_predictions_future.parquet`, joins by
 `nhl_game_id_str = YYYY_MM_DD_HOME_AWAY`, and exposes the AI Win Probability
 bar for upcoming NHL games only. Final games show scores; upcoming games show
 model_snapshot.
+
+## Nightly NBA scores backfill (BallDontLie, 2025 season)
+
+- GitHub Action: `.github/workflows/refresh_nba_scores.yml` runs nightly.
+- Script: `python model/scripts/backfill_nba_scores_2025_bdl.py`
+  - Fetches 2025 BallDontLie games in monthly chunks (per_page=100, paginated).
+  - Always refreshes the most recent 30 days.
+  - Writes `model/data/processed/nba/nba_games_with_scores.parquet`
+  - Caches chunk hashes in `model/data/processed/nba/nba_backfill_state.json` (Action caches this file).
+  - Columns: `date` (UTC-naive), `home_team`, `away_team`, `home_pts`, `away_pts`, `status`, `sport="NBA"`, `season`.
+- Optional API key: set `BALLDONTLIE_API_KEY` (GitHub secret or local env). If unset, the script runs unauthenticated.
+
+Run locally:
+```bash
+BALLDONTLIE_API_KEY=... python model/scripts/backfill_nba_scores_2025_bdl.py
+python - <<'PY'
+import pandas as pd
+df = pd.read_parquet("model/data/processed/nba/nba_games_with_scores.parquet")
+print(len(df), (df["status"]=="FINAL").sum(), df["date"].max())
+PY
+```
