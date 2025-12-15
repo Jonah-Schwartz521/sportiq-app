@@ -1,7 +1,7 @@
 name: Nightly NBA Scores Refresh
 
 on:
-  # Run every night at 3:30 AM Denver time (approximately 10:30 AM UTC)
+  # Run every night at 10:30 AM UTC (3:30 AM America/Denver)
   schedule:
     - cron: '30 10 * * *'
   # Allow manual triggering for testing
@@ -23,6 +23,37 @@ jobs:
           # Need full history to commit back
           fetch-depth: 0
 
+      - name: Cache NBA backfill state
+        uses: actions/cache@v4
+        with:
+          path: model/data/processed/nba/nba_backfill_state.json
+          key: nba-backfill-state-${{ hashFiles('model/scripts/backfill_nba_scores_2025_bdl.py') }}
+          restore-keys: |
+            nba-backfill-state-
+
+      - name: Capture baseline parquet stats (if exists)
+        id: baseline
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          from pathlib import Path
+          path = Path("model/data/processed/nba/nba_games_with_scores.parquet")
+          out = open("$GITHUB_OUTPUT", "a")
+          if not path.exists():
+              print("baseline_seasons=0", file=out)
+              print("baseline_rows=0", file=out)
+              raise SystemExit
+          df = pd.read_parquet(path)
+          seasons = df["season"].nunique(dropna=True)
+          rows = len(df)
+          print(f"baseline_seasons={seasons}", file=out)
+          print(f"baseline_rows={rows}", file=out)
+          print("Baseline rows:", rows)
+          print("Baseline seasons:", seasons)
+          print("Rows by season (top):")
+          print(df["season"].value_counts(dropna=False).head(10))
+          PY
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -32,83 +63,85 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install pandas pyarrow requests
+          pip install -r requirements.txt
 
-      - name: Verify API key is set
+      - name: Warn if API key is missing
         run: |
           if [ -z "${{ secrets.BALLDONTLIE_API_KEY }}" ]; then
-            echo "ERROR: BALLDONTLIE_API_KEY secret is not configured"
-            exit 1
+            echo "⚠️  BALLDONTLIE_API_KEY is not set; proceeding unauthenticated."
+          else
+            echo "✓ BALLDONTLIE_API_KEY configured."
           fi
-          echo "✓ API key secret is configured"
 
-      - name: Run NBA scores refresh
+      - name: Run NBA 2025 backfill
         env:
           BALLDONTLIE_API_KEY: ${{ secrets.BALLDONTLIE_API_KEY }}
         run: |
-          python model/scripts/refresh_nba_scores.py
+          python model/scripts/backfill_nba_scores_2025_bdl.py
 
-      - name: Debug - Pre-commit state
-        id: debug-pre
+      - name: Verify parquet
         run: |
-          echo "======================================"
-          echo "PRE-COMMIT DEBUGGING"
-          echo "======================================"
-          echo ""
-          echo "=== Directory listing ==="
-          ls -lah model/data/processed/nba/ || echo "Directory does not exist"
-          echo ""
-          echo "=== File exists check ==="
-          if [ -f model/data/processed/nba/nba_games_with_scores.parquet ]; then
-            echo "✓ Parquet file exists"
-            FILE_SIZE=$(stat -f%z model/data/processed/nba/nba_games_with_scores.parquet 2>/dev/null || stat -c%s model/data/processed/nba/nba_games_with_scores.parquet)
-            echo "  Size: $FILE_SIZE bytes"
+          python - <<'PY'
+          import pandas as pd
+          from pathlib import Path
+          import datetime as dt
+          path = Path("model/data/processed/nba/nba_games_with_scores.parquet")
+          if not path.exists():
+              raise SystemExit("Parquet missing after backfill.")
+          df = pd.read_parquet(path)
+          final = (df["status"] == "FINAL").sum() if "status" in df.columns else 0
+          now = dt.datetime.utcnow().replace(tzinfo=None)
+          last7 = df[df["date"] >= (now - dt.timedelta(days=7))]
+          final_last7 = (last7["status"] == "FINAL").sum() if "status" in last7.columns else 0
+          scored = df[df["home_pts"].notna() & df["away_pts"].notna()]
+          seasons = df["season"].nunique(dropna=True)
+          rows = len(df)
+          baseline_seasons = int("${{ steps.baseline.outputs.baseline_seasons || '0' }}")
+          baseline_rows = int("${{ steps.baseline.outputs.baseline_rows || '0' }}")
+          if baseline_seasons and seasons < baseline_seasons:
+              raise SystemExit(f"Seasons dropped: before={baseline_seasons} after={seasons}")
+          if baseline_rows and rows < baseline_rows * 0.95:
+              raise SystemExit(f"Row count dropped too much: before={baseline_rows} after={rows}")
+          print("Rows:", len(df))
+          print("FINAL rows:", final)
+          print("Max date:", df["date"].max())
+          print("Max date with scores:", scored["date"].max() if not scored.empty else None)
+          print("Rows by season:")
+          print(df["season"].value_counts(dropna=False).head(20))
+          print("Rows last 7 days:", len(last7))
+          print("FINAL last 7 days:", final_last7)
+          print(df.tail(5)[["date","home_team","away_team","home_pts","away_pts","status"]])
+          PY
+
+      - name: Check for changes
+        id: git-diff
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
           else
-            echo "✗ ERROR: Parquet file missing after refresh!"
-            exit 1
+            echo "changed=true" >> $GITHUB_OUTPUT
           fi
-          echo ""
-          echo "=== Git status before staging ==="
-          git status --porcelain model/data/processed/nba/
-          echo ""
-          echo "=== Git check-ignore ==="
-          git check-ignore -v model/data/processed/nba/nba_games_with_scores.parquet || echo "File is NOT ignored"
-          echo ""
 
-      - name: Force-add parquet file (override gitignore)
-        id: force-add
+      - name: Stage intended files
+        if: steps.git-diff.outputs.changed == 'true'
+        id: stage-intended
         run: |
-          echo "======================================"
-          echo "FORCE-ADDING FILE"
-          echo "======================================"
-          echo ""
-          # Force add the file even if gitignore would block it
-          git add -f model/data/processed/nba/nba_games_with_scores.parquet
-          echo "✓ File force-added to staging area"
-          echo ""
-          echo "=== Git status after force-add ==="
-          git status --porcelain model/data/processed/nba/
-          echo ""
-          echo "=== Git diff --cached (staged changes) ==="
-          git diff --cached --stat model/data/processed/nba/ || echo "No staged changes detected"
-          echo ""
-          # Check if there are actual changes staged
-          if git diff --cached --quiet model/data/processed/nba/nba_games_with_scores.parquet; then
-            echo "⚠️  WARNING: No changes detected in parquet file"
-            echo "FILE_CHANGED=false" >> $GITHUB_OUTPUT
+          git status --short
+          git add model/data/processed/nba/nba_games_with_scores.parquet model/data/processed/nba/nba_backfill_state.json
+          git diff --cached --stat || true
+          if git diff --cached --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
           else
-            echo "✓ Changes detected in parquet file"
-            echo "FILE_CHANGED=true" >> $GITHUB_OUTPUT
+            echo "changed=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Create Pull Request
         id: create-pr
-        # Only create PR if file actually changed
-        if: steps.force-add.outputs.FILE_CHANGED == 'true'
+        if: steps.stage-intended.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
           # Commit settings
-          commit-message: 'chore: update NBA scores (automated refresh)'
+          commit-message: 'chore: update NBA scores (automated backfill)'
           committer: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
           author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
 
@@ -130,10 +163,6 @@ jobs:
 
             This is an automated nightly refresh. Review and merge if the data looks correct.
 
-          # Only commit the parquet file (already staged by force-add)
-          add-paths: |
-            model/data/processed/nba/nba_games_with_scores.parquet
-
           # Labels (optional)
           labels: |
             automated
@@ -150,7 +179,7 @@ jobs:
           echo "  Operation: ${{ steps.create-pr.outputs.pull-request-operation }}"
 
       - name: No changes detected
-        if: steps.force-add.outputs.FILE_CHANGED != 'true'
+        if: steps.git-diff.outputs.changed != 'true'
         run: |
           echo "======================================"
           echo "ℹ️  NO CHANGES DETECTED"
