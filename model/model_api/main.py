@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date as date_type, datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 
@@ -326,6 +327,10 @@ def attach_nhl_game_id(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     def build(row: pd.Series) -> Optional[str]:
+        existing = row.get("nhl_game_id_str")
+        if isinstance(existing, str) and existing.strip():
+            return existing.strip().upper()
+
         dt = pd.to_datetime(row.get("date"), errors="coerce")
         if pd.isna(dt):
             return None
@@ -623,8 +628,8 @@ def dedupe_nfl_games(df: pd.DataFrame) -> pd.DataFrame:
 def dedupe_nhl_games(df: pd.DataFrame) -> pd.DataFrame:
     """
     Deterministic NHL deduplication:
-      - key: YYYY-MM-DD + home_team + away_team (upper/trim)
-      - preference: has scores > has predictions > has odds > most recent row
+      - key: matchup + kickoff bucket (allows +/-1 day within 36h)
+      - preference: FINAL with scores > scores > predictions > odds > most recent row
     """
     if df.empty or "sport" not in df.columns:
         return df
@@ -637,12 +642,26 @@ def dedupe_nhl_games(df: pd.DataFrame) -> pd.DataFrame:
     other_df = df[~nhl_mask].copy()
 
     nhl_df["date"] = pd.to_datetime(nhl_df.get("date"), utc=True, errors="coerce").dt.tz_localize(None)
-    nhl_df["date_str"] = nhl_df["date"].dt.strftime("%Y-%m-%d")
+    nhl_df["date_only"] = nhl_df["date"].dt.date
 
     home_norm = nhl_df.get("home_team", pd.Series([""] * len(nhl_df))).astype(str).str.strip().str.upper()
     away_norm = nhl_df.get("away_team", pd.Series([""] * len(nhl_df))).astype(str).str.strip().str.upper()
 
-    nhl_df["nhl_dedupe_key"] = "NHL|" + nhl_df["date_str"] + "|" + home_norm + "|" + away_norm
+    nhl_df["_matchup"] = "NHL|" + home_norm + "|" + away_norm
+    nhl_df["_bucket"] = nhl_df["date_only"]
+
+    # Align buckets within 36h for same matchup
+    for matchup, grp in nhl_df.groupby("_matchup"):
+        if len(grp) <= 1:
+            continue
+        base_dates = grp["date"]
+        for idx, row in grp.iterrows():
+            diffs = (base_dates - row["date"]).abs().dt.total_seconds() / 3600
+            if (diffs <= 36).any():
+                nearest_idx = diffs.idxmin()
+                nhl_df.at[idx, "_bucket"] = grp.loc[nearest_idx, "date_only"]
+
+    nhl_df["nhl_dedupe_key"] = nhl_df["_matchup"] + "|" + nhl_df["_bucket"].astype(str)
 
     default_series = pd.Series([None] * len(nhl_df), index=nhl_df.index)
     has_scores = nhl_df.get("home_pts", default_series).notna() & nhl_df.get("away_pts", default_series).notna()
@@ -652,8 +671,11 @@ def dedupe_nhl_games(df: pd.DataFrame) -> pd.DataFrame:
         | nhl_df.get("spread_line", default_series).notna()
         | nhl_df.get("market_snapshot", default_series).notna()
     )
+    status_upper = nhl_df.get("status", default_series).astype(str).str.upper()
+    is_final = status_upper == "FINAL"
 
     nhl_df["_quality"] = 0
+    nhl_df.loc[is_final & has_scores, "_quality"] += 20000
     nhl_df.loc[has_scores, "_quality"] += 10000
     nhl_df.loc[has_preds, "_quality"] += 1000
     nhl_df.loc[has_odds, "_quality"] += 100
@@ -667,7 +689,7 @@ def dedupe_nhl_games(df: pd.DataFrame) -> pd.DataFrame:
         logger.info("🏒 NHL dedupe: removed %d duplicate rows", removed)
 
     nhl_df = nhl_df.drop_duplicates(subset=["nhl_dedupe_key"], keep="first")
-    nhl_df = nhl_df.drop(columns=["_quality"], errors="ignore")
+    nhl_df = nhl_df.drop(columns=["_quality", "_bucket", "_matchup"], errors="ignore")
 
     return pd.concat([other_df, nhl_df], ignore_index=True)
 
@@ -705,15 +727,23 @@ def load_games_table() -> pd.DataFrame:
         home_team, away_team, home_pts, away_pts
     """
     global GAMES_DF
-    if GAMES_DF is not None:
+    reload_flag = os.environ.get("RELOAD_GAMES_EVERY_REQUEST", "").strip() == "1"
+    if GAMES_DF is not None and not reload_flag:
         return GAMES_DF
 
     frames: list[pd.DataFrame] = []
     nfl_team_lookup = get_nfl_team_lookup()
 
     # --- Load NBA games (primary source) ---
-    nba_path = PROCESSED_DIR / "games_with_scores_and_future.parquet"
-    logger.info("Loading NBA games table from %s ...", nba_path)
+    nba_primary = PROCESSED_DIR / "nba" / "nba_games_with_scores.parquet"
+    nba_fallback = PROCESSED_DIR / "games_with_scores_and_future.parquet"
+    nba_path = nba_primary if nba_primary.exists() else nba_fallback
+    logger.info(
+        "Loading NBA games table from %s ... (fallback=%s exists=%s)",
+        nba_path,
+        nba_fallback,
+        nba_path.exists(),
+    )
 
     # Try reading with pyarrow engine first, fallback if metadata is corrupted
     try:
@@ -754,6 +784,38 @@ def load_games_table() -> pd.DataFrame:
             "home_score": "home_pts",
             "away_score": "away_pts",
         }
+    )
+
+    # Normalize types and scheduled scores
+    nba_df["date"] = pd.to_datetime(nba_df["date"], errors="coerce")
+    for col in ["home_pts", "away_pts"]:
+        if col in nba_df.columns:
+            nba_df[col] = pd.to_numeric(nba_df[col], errors="coerce")
+
+    status_norm = nba_df.get("status", pd.Series([None] * len(nba_df))).astype(str).str.upper()
+    scheduled_mask = status_norm.isin(["SCHEDULED", "PRE"])
+    # Zero is not a signal of final; clear scores for scheduled/pre rows
+    if "home_pts" in nba_df.columns and "away_pts" in nba_df.columns:
+        nba_df.loc[scheduled_mask, ["home_pts", "away_pts"]] = None
+
+    # If scores exist and status missing/unknown, mark as FINAL; otherwise ensure UPCOMING stays without scores
+    has_scores = nba_df["home_pts"].notna() & nba_df["away_pts"].notna()
+    nba_df.loc[has_scores & ~status_norm.isin(["FINAL", "IN_PROGRESS", "LIVE"]), "status"] = "FINAL"
+    nba_df.loc[scheduled_mask & ~has_scores, "status"] = "SCHEDULED"
+
+    # Snapshot logging for NBA freshness
+    nba_final = (nba_df.get("home_pts").notna()) & (nba_df.get("away_pts").notna()) & (nba_df.get("status", "").astype(str).str.upper() == "FINAL")
+    nba_max_date = nba_df["date"].max()
+    scheduled_with_scores = (
+        nba_df[scheduled_mask & has_scores][["date", "home_team", "away_team", "home_pts", "away_pts"]]
+    )
+    logger.info(
+        "🏀 NBA snapshot: rows=%d final=%d upcoming=%d max_date=%s scheduled_with_scores=%d",
+        len(nba_df),
+        int(nba_final.sum()),
+        int(len(nba_df) - int(nba_final.sum())),
+        nba_max_date,
+        len(scheduled_with_scores),
     )
 
     frames.append(nba_df)
@@ -886,40 +948,109 @@ def load_games_table() -> pd.DataFrame:
         logger.info("NFL future schedule parquet not found at %s; skipping.", nfl_future_path)
 
     # --- NHL games (MoneyPuck data) ---
-    nhl_path = NHL_PROCESSED_DIR / "nhl_games_for_app.parquet"
-    if nhl_path.exists():
-        logger.info("Loading NHL games from %s ...", nhl_path)
-        nhl_df = pd.read_parquet(nhl_path).copy()
+    nhl_hist_path = NHL_PROCESSED_DIR / "nhl_games_for_app.parquet"
+    nhl_future_path = NHL_PROCESSED_DIR / "nhl_future_schedule_for_app.parquet"
+    nhl_frames = []
 
-        nhl_df["sport"] = "NHL"
-        nhl_df = nhl_df.rename(
-            columns={
-                "game_datetime": "date",
-                "home_team_name": "home_team",
-                "away_team_name": "away_team",
-                "home_score": "home_pts",
-                "away_score": "away_pts",
-            }
-        )
+    if nhl_hist_path.exists():
+        logger.info("Loading NHL games from %s ...", nhl_hist_path)
+        nhl_hist = pd.read_parquet(nhl_hist_path).copy()
 
-        # Ensure score columns exist (future games may not have scores yet)
-        if "home_pts" not in nhl_df.columns:
-            nhl_df["home_pts"] = None
-        if "away_pts" not in nhl_df.columns:
-            nhl_df["away_pts"] = None
+        rename_map = {
+            "game_datetime": "date",
+            "home_team_name": "home_team",
+            "away_team_name": "away_team",
+            "home_score": "home_pts",
+            "away_score": "away_pts",
+        }
+        nhl_hist = nhl_hist.rename(columns={k: v for k, v in rename_map.items() if k in nhl_hist.columns})
 
-        nhl_df["date"] = pd.to_datetime(nhl_df["date"], utc=True, errors="coerce").dt.tz_localize(None)
+        if "date" not in nhl_hist.columns:
+            raise RuntimeError(f"NHL parquet missing date column: {nhl_hist_path}")
+        nhl_hist["date"] = pd.to_datetime(nhl_hist["date"], utc=True, errors="coerce").dt.tz_localize(None)
+        if "home_team" not in nhl_hist.columns or "away_team" not in nhl_hist.columns:
+            raise RuntimeError(f"NHL parquet missing home_team/away_team columns: {nhl_hist_path}")
 
-        # If the game is in the future, force scores to NaN so it is treated as UPCOMING
-        future_mask = nhl_df["date"] > datetime.utcnow()
-        if future_mask.any():
-            nhl_df.loc[future_mask, ["home_pts", "away_pts"]] = None
+        # Ensure required columns exist
+        for col in ("home_pts", "away_pts"):
+            if col not in nhl_hist.columns:
+                nhl_hist[col] = None
+        if "status" not in nhl_hist.columns:
+            nhl_hist["status"] = None
+        if "sport" not in nhl_hist.columns:
+            nhl_hist["sport"] = "NHL"
+        if "league" not in nhl_hist.columns:
+            nhl_hist["league"] = "NHL"
+        if "sport_id" not in nhl_hist.columns:
+            nhl_hist["sport_id"] = SPORT_ID_NHL
+
+        status_norm = nhl_hist["status"].astype(str).str.upper()
+        has_scores = nhl_hist["home_pts"].notna() & nhl_hist["away_pts"].notna()
+        nhl_hist.loc[has_scores & ~status_norm.isin(["FINAL", "IN_PROGRESS", "LIVE"]), "status"] = "FINAL"
+        nhl_hist.loc[~has_scores, "status"] = "UPCOMING"
+
+        nhl_frames.append(nhl_hist)
+    else:
+        logger.info("NHL parquet not found at %s; skipping NHL.", nhl_hist_path)
+
+    if nhl_future_path.exists():
+        logger.info("Loading NHL future schedule from %s ...", nhl_future_path)
+        nhl_future = pd.read_parquet(nhl_future_path).copy()
+
+        # Normalize required columns
+        if "date" not in nhl_future.columns:
+            raise RuntimeError(f"NHL future parquet missing date column: {nhl_future_path}")
+        nhl_future["date"] = pd.to_datetime(nhl_future["date"], utc=True, errors="coerce").dt.tz_localize(None)
+        for col in ("home_team", "away_team"):
+            if col not in nhl_future.columns:
+                raise RuntimeError(f"NHL future parquet missing {col} column: {nhl_future_path}")
+
+        nhl_future["home_pts"] = None
+        nhl_future["away_pts"] = None
+        nhl_future["status"] = "UPCOMING"
+        nhl_future["sport"] = nhl_future.get("sport", "NHL")
+        nhl_future["sport_id"] = nhl_future.get("sport_id", SPORT_ID_NHL)
+        nhl_future["league"] = nhl_future.get("league", "NHL")
+
+        nhl_frames.append(nhl_future)
+    else:
+        logger.info("NHL future schedule parquet not found at %s; skipping.", nhl_future_path)
+
+    if nhl_frames:
+        nhl_df = pd.concat(nhl_frames, ignore_index=True)
+        if "event_id" in nhl_df.columns:
+            nhl_df["event_id"] = nhl_df["event_id"].astype(str)
+            nhl_df = nhl_df.drop_duplicates(subset=["event_id"], keep="first")
 
         nhl_df = attach_nhl_game_id(nhl_df)
 
+        min_date = nhl_df["date"].min()
+        max_date = nhl_df["date"].max()
+        season_count = nhl_df["season"].nunique() if "season" in nhl_df.columns else 0
+
+        # NHL debug snapshot for "today" handling
+        denver_tz = ZoneInfo("America/Denver")
+        today_denver = datetime.now(denver_tz).date()
+        today_utc = datetime.utcnow().date()
+        date_denver = pd.to_datetime(nhl_df["date"], utc=True, errors="coerce").dt.tz_convert(denver_tz).dt.date
+        today_denver_count = int((date_denver == today_denver).sum())
+        today_utc_count = int(pd.to_datetime(nhl_df["date"], errors="coerce").dt.date.eq(today_utc).sum())
+        status_unique = (
+            nhl_df.get("status", pd.Series(dtype=str)).astype(str).str.upper().dropna().unique().tolist()
+        )
+
+        logger.info(
+            "Loaded NHL rows: %d (min %s, max %s, seasons %d) | today(Denver)=%d today(UTC)=%d statuses=%s",
+            len(nhl_df),
+            min_date.date() if pd.notna(min_date) else "NA",
+            max_date.date() if pd.notna(max_date) else "NA",
+            season_count,
+            today_denver_count,
+            today_utc_count,
+            status_unique,
+        )
+
         frames.append(nhl_df)
-    else:
-        logger.info("NHL games parquet not found at %s; skipping NHL.", nhl_path)
 
     # --- UFC fights ---
     ufc_path = UFC_PROCESSED_DIR / "ufc_fights_for_app.parquet"
@@ -1382,17 +1513,34 @@ def load_nhl_predictions() -> Optional[pd.DataFrame]:
         if "p_away_win" not in preds.columns and "p_home_win" in preds.columns:
             preds["p_away_win"] = 1 - preds["p_home_win"]
         preds["nhl_game_id_str"] = preds.get("nhl_game_id_str")
+        preds["nhl_game_id_str"] = preds["nhl_game_id_str"].astype(str).str.strip().str.upper()
+
+        if {"date", "home_team", "away_team"}.issubset(preds.columns):
+            preds["event_key"] = (
+                "NHL|"
+                + pd.to_datetime(preds["date"]).dt.strftime("%Y-%m-%d")
+                + "|"
+                + preds["home_team"].astype(str).str.strip()
+                + "|"
+                + preds["away_team"].astype(str).str.strip()
+            )
+
         preds = preds.dropna(subset=["nhl_game_id_str"])
         # De-dupe predictions by id (keep latest)
         before = len(preds)
         preds = preds.sort_values("generated_at" if "generated_at" in preds.columns else preds.index)
-        preds = preds.drop_duplicates(subset=["nhl_game_id_str"], keep="last")
+        dedupe_key = preds["nhl_game_id_str"]
+        if "event_key" in preds.columns:
+            dedupe_key = dedupe_key.fillna(preds["event_key"])
+        preds["__dedupe_key"] = dedupe_key
+        preds = preds.drop_duplicates(subset=["__dedupe_key"], keep="last")
         logger.info(
             "Loaded NHL predictions from %s (rows=%d, dropped_dups=%d)",
             path,
             len(preds),
             before - len(preds),
         )
+        preds = preds.drop(columns=["__dedupe_key"], errors="ignore")
         NHL_PREDICTIONS_DF = preds
         return NHL_PREDICTIONS_DF
     except Exception as exc:
@@ -2349,9 +2497,59 @@ def startup_event():
             how="left",
             suffixes=("", "_nhl_pred"),
         )
+        # Coverage debug
+        nhl_mask_merge = games["sport"].astype(str).str.upper() == "NHL"
+        merged_preds = games.loc[nhl_mask_merge, "nhl_p_home_win"].notna().sum()
+        logger.info("🔗 NHL merge (nhl_game_id_str): matched=%d", int(merged_preds))
+
+        # Fallback merge on event_key to catch key mismatches
+        if "event_key" in games.columns and "event_key" in nhl_preds_renamed.columns:
+            games = games.merge(
+                nhl_preds_renamed[["event_key", "nhl_p_home_win", "nhl_p_away_win", "nhl_source"]],
+                on="event_key",
+                how="left",
+                suffixes=("", "_nhl_pred_evkey"),
+            )
+            fill_mask = games["nhl_p_home_win"].isna() & games["nhl_p_home_win_nhl_pred_evkey"].notna()
+            if fill_mask.any():
+                games.loc[fill_mask, "nhl_p_home_win"] = games.loc[fill_mask, "nhl_p_home_win_nhl_pred_evkey"]
+                games.loc[fill_mask, "nhl_p_away_win"] = games.loc[fill_mask, "nhl_p_away_win_nhl_pred_evkey"]
+                games.loc[fill_mask, "nhl_source"] = games.loc[fill_mask, "nhl_source_nhl_pred_evkey"]
+            games = games.drop(
+                columns=[
+                    "nhl_p_home_win_nhl_pred_evkey",
+                    "nhl_p_away_win_nhl_pred_evkey",
+                    "nhl_source_nhl_pred_evkey",
+                ],
+                errors="ignore",
+            )
+            logger.info(
+                "🔗 NHL merge (event_key fallback): filled=%d",
+                int(fill_mask.sum()),
+            )
+
+        # Fallback merge on event_id for rows without nhl_game_id_str match
+        if "event_id" in games.columns and "event_id" in nhl_preds_renamed.columns:
+            missing_mask = games["nhl_p_home_win"].isna()
+            if missing_mask.any():
+                games_with_missing = games[missing_mask].copy()
+                merged_missing = games_with_missing.merge(
+                    nhl_preds_renamed,
+                    on="event_id",
+                    how="left",
+                    suffixes=("", "_nhl_pred_event"),
+                )
+                for col in ["nhl_p_home_win", "nhl_p_away_win", "nhl_source", "model_home_win_prob", "model_away_win_prob"]:
+                    if col in merged_missing.columns and col in games.columns:
+                        games.loc[missing_mask, col] = merged_missing[col].values
 
         nhl_mask = games["sport"].astype(str).str.upper() == "NHL"
-        upcoming_mask = nhl_mask & games["home_pts"].isna() & games["away_pts"].isna()
+        denver_tz = ZoneInfo("America/Denver")
+        today_local = datetime.now(denver_tz).date()
+        game_local_date = pd.to_datetime(games.get("date"), utc=True, errors="coerce").dt.tz_convert(denver_tz).dt.date
+        future_or_missing = games["home_pts"].isna() | games["away_pts"].isna()
+        future_or_missing = future_or_missing | pd.Series(game_local_date).ge(today_local)
+        upcoming_mask = nhl_mask & future_or_missing
         with_preds = upcoming_mask & games["nhl_p_home_win"].notna()
         logger.info(
             "Joined NHL predictions: upcoming=%d with_preds=%d (%.1f%% coverage)",
@@ -2380,6 +2578,179 @@ def startup_event():
     games = dedupe_nfl_games(games)
     games = dedupe_nhl_games(games)
 
+    # Apply NHL lifecycle flags and clear inappropriate fields
+    nhl_mask = games["sport"].astype(str).str.upper() == "NHL" if "sport" in games.columns else pd.Series([False] * len(games))
+    if nhl_mask.any():
+        sub = games.loc[nhl_mask].copy()
+        for col in ["nhl_p_home_win", "nhl_p_away_win", "nhl_source"]:
+            if col not in sub.columns:
+                sub[col] = None
+
+        # Last-chance prediction fill for NHL (in case earlier joins missed)
+        nhl_preds_fill = load_nhl_predictions()
+        if nhl_preds_fill is not None:
+            preds_fill = nhl_preds_fill.rename(
+                columns={
+                    "p_home_win": "nhl_p_home_win",
+                    "p_away_win": "nhl_p_away_win",
+                    "source": "nhl_source",
+                }
+            )
+            preds_fill["nhl_game_id_str"] = preds_fill["nhl_game_id_str"].astype(str)
+            if "event_key" in preds_fill.columns:
+                preds_fill["event_key"] = preds_fill["event_key"].astype(str)
+            sub["nhl_game_id_str"] = sub.get("nhl_game_id_str").astype(str)
+            missing_mask = sub["nhl_p_home_win"].isna()
+            if missing_mask.any():
+                merged_fill = sub.loc[missing_mask].merge(
+                    preds_fill,
+                    on="nhl_game_id_str",
+                    how="left",
+                    suffixes=("", "_fill"),
+                )
+                fill_cols = ["nhl_p_home_win", "nhl_p_away_win", "nhl_source"]
+                for c in fill_cols:
+                    fill_col = f"{c}_fill"
+                    if fill_col in merged_fill.columns:
+                        sub.loc[missing_mask, c] = merged_fill[fill_col].values
+                # Fallback on event_key if still missing
+                still_missing = sub["nhl_p_home_win"].isna() & sub.get("event_key", pd.Series([None] * len(sub), index=sub.index)).notna()
+                if still_missing.any() and "event_key" in preds_fill.columns:
+                    merged_key = sub.loc[still_missing].merge(
+                        preds_fill[["event_key", "nhl_p_home_win", "nhl_p_away_win", "nhl_source"]],
+                        on="event_key",
+                        how="left",
+                        suffixes=("", "_fillkey"),
+                    )
+                    for c in ["nhl_p_home_win", "nhl_p_away_win", "nhl_source"]:
+                        fill_col = f"{c}_fillkey"
+                        if fill_col in merged_key.columns:
+                            sub.loc[still_missing, c] = merged_key[fill_col].values
+
+        status_norm = sub.get("status", pd.Series([""] * len(sub))).astype(str).str.upper()
+        home_pts = pd.to_numeric(sub.get("home_pts"), errors="coerce")
+        away_pts = pd.to_numeric(sub.get("away_pts"), errors="coerce")
+
+        denver_tz = ZoneInfo("America/Denver")
+        today_local = datetime.now(denver_tz).date()
+        game_local_date = pd.to_datetime(sub.get("date"), utc=True, errors="coerce").dt.tz_convert(denver_tz).dt.date
+        is_future_date = game_local_date > today_local
+        is_today_local = game_local_date == today_local
+
+        has_score = home_pts.notna() & away_pts.notna() & ~is_future_date
+        is_live = status_norm.isin(["IN_PROGRESS", "LIVE"]) & ~is_future_date
+        is_future = is_future_date | status_norm.isin(["SCHEDULED", "PRE", "UPCOMING"]) | (~has_score & ~is_live)
+        is_final = (~is_future) & ((status_norm == "FINAL") | (has_score & ~is_live))
+
+        # Clear scores for future/scheduled games
+        sub.loc[is_future, ["home_pts", "away_pts"]] = None
+
+        # Clear predictions on finals
+        sub.loc[is_final, ["nhl_p_home_win", "nhl_p_away_win", "nhl_source", "model_home_win_prob", "model_away_win_prob"]] = None
+
+        # Expose flags
+        sub["is_final"] = is_final
+        sub["is_future"] = is_future
+        sub["has_score"] = has_score & ~is_future
+        sub["has_prediction"] = sub.get("nhl_p_home_win", pd.Series([None] * len(sub), index=sub.index)).notna()
+        sub["pred_status"] = pd.Series([None] * len(sub), index=sub.index)
+        sub.loc[is_future & ~sub["has_prediction"], "pred_status"] = "missing_model"
+        sub.loc[is_future & sub["has_prediction"], "pred_status"] = "has_prediction"
+
+        # Normalize statuses for future games so downstream filters pick them up
+        sub.loc[is_future, "status"] = sub.loc[is_future, "status"].fillna("SCHEDULED").astype(str).str.upper().replace(
+            {"UPCOMING": "SCHEDULED", "PRE": "SCHEDULED"}
+        )
+        sub.loc[is_final, "status"] = "FINAL"
+
+        # Reattach
+        games.loc[nhl_mask, sub.columns] = sub
+
+        # Ensure NHL event_id uniqueness to avoid duplicate keys in UI
+        if "event_id" in games.columns:
+            dup_ids = games.loc[nhl_mask, "event_id"]
+            dup_mask = dup_ids.duplicated(keep="first")
+            if dup_mask.any():
+                games = games.drop(games.loc[nhl_mask].index[dup_mask])
+
+    # Final NHL prediction safeguard merge (ensures future games have prediction fields)
+    nhl_preds_final = load_nhl_predictions()
+    if nhl_preds_final is not None and "nhl_game_id_str" in games.columns:
+        preds_final = nhl_preds_final.rename(
+            columns={
+                "p_home_win": "nhl_p_home_win",
+                "p_away_win": "nhl_p_away_win",
+                "source": "nhl_source",
+            }
+        ).copy()
+        preds_final["nhl_game_id_str"] = preds_final["nhl_game_id_str"].astype(str)
+        games["nhl_game_id_str"] = games["nhl_game_id_str"].astype(str)
+
+        nhl_need_pred = (
+            games.get("sport", pd.Series(dtype=str)).astype(str).str.upper() == "NHL"
+        ) & games.get("nhl_p_home_win", pd.Series([None] * len(games))).isna()
+
+        if nhl_need_pred.any():
+            games = games.merge(
+                preds_final[["nhl_game_id_str", "nhl_p_home_win", "nhl_p_away_win", "nhl_source"]],
+                on="nhl_game_id_str",
+                how="left",
+                suffixes=("", "_nhl_final"),
+            )
+            fill_mask = nhl_need_pred & games["nhl_p_home_win_nhl_final"].notna()
+            if fill_mask.any():
+                games.loc[fill_mask, "nhl_p_home_win"] = games.loc[fill_mask, "nhl_p_home_win_nhl_final"]
+                games.loc[fill_mask, "nhl_p_away_win"] = games.loc[fill_mask, "nhl_p_away_win_nhl_final"]
+                games.loc[fill_mask, "nhl_source"] = games.loc[fill_mask, "nhl_source_nhl_final"]
+            games = games.drop(
+                columns=["nhl_p_home_win_nhl_final", "nhl_p_away_win_nhl_final", "nhl_source_nhl_final"],
+                errors="ignore",
+            )
+
+        nhl_mask = games.get("sport", pd.Series(dtype=str)).astype(str).str.upper() == "NHL"
+        games.loc[nhl_mask, "has_prediction"] = games.get("nhl_p_home_win", pd.Series([None] * len(games), index=games.index)).notna()
+        if "pred_status" in games.columns:
+            games.loc[nhl_mask & games["has_prediction"].fillna(False), "pred_status"] = "has_prediction"
+        logger.info(
+            "🔗 NHL final safeguard: filled=%d have_preds=%d",
+            int(fill_mask.sum() if 'fill_mask' in locals() else 0),
+            int(games.loc[nhl_mask, "has_prediction"].sum()),
+        )
+
+    # Deterministic NHL prediction map fill (last resort, enforces future coverage)
+    nhl_pred_map = load_nhl_predictions()
+    if nhl_pred_map is not None and "nhl_game_id_str" in games.columns:
+        nhl_pred_map = nhl_pred_map.rename(
+            columns={"p_home_win": "nhl_p_home_win", "p_away_win": "nhl_p_away_win", "source": "nhl_source"}
+        )
+        nhl_pred_map["nhl_game_id_str"] = nhl_pred_map["nhl_game_id_str"].astype(str).str.strip().str.upper()
+        idx = nhl_pred_map.set_index("nhl_game_id_str")
+
+        if "nhl_game_id_str" not in games.columns:
+            games = attach_nhl_game_id(games)
+        games["nhl_game_id_str"] = games["nhl_game_id_str"].astype(str).str.strip().str.upper()
+
+        denver_tz = ZoneInfo("America/Denver")
+        today_local = datetime.now(denver_tz).date()
+        game_local_date = pd.to_datetime(games.get("date"), utc=True, errors="coerce").dt.tz_convert(denver_tz).dt.date
+
+        nhl_mask_global = games.get("sport", pd.Series(dtype=str)).astype(str).str.upper() == "NHL"
+        future_mask = nhl_mask_global & (games.get("home_pts").isna()) & (game_local_date >= today_local)
+
+        key_series = games.loc[future_mask, "nhl_game_id_str"]
+        games.loc[future_mask, "nhl_p_home_win"] = key_series.map(idx.get("nhl_p_home_win"))
+        games.loc[future_mask, "nhl_p_away_win"] = key_series.map(idx.get("nhl_p_away_win"))
+        games.loc[future_mask, "nhl_source"] = key_series.map(idx.get("nhl_source"))
+
+        games.loc[nhl_mask_global, "has_prediction"] = games.loc[nhl_mask_global, "nhl_p_home_win"].notna()
+        if "pred_status" in games.columns:
+            games.loc[nhl_mask_global & games["has_prediction"], "pred_status"] = "has_prediction"
+
+        logger.info(
+            "🔗 NHL map fill (future): applied=%d future_total=%d",
+            int(games.loc[future_mask, "nhl_p_home_win"].notna().sum()),
+            int(future_mask.sum()),
+        )
     # NHL snapshot logging
     if "sport" in games.columns:
         nhl_rows = games[games["sport"].astype(str).str.upper() == "NHL"]
@@ -2402,6 +2773,8 @@ def startup_event():
         future_mask = nfl_rows.get("home_pts", pd.Series([None] * len(nfl_rows))).isna() & nfl_rows.get("away_pts", pd.Series([None] * len(nfl_rows))).isna()
         logger.info("NFL startup snapshot: total=%d future_no_scores=%d", len(nfl_rows), int(future_mask.sum()))
 
+    return GAMES_DF
+
 
 # --- Core routes ---------------------------------------------------
 
@@ -2423,6 +2796,148 @@ def health() -> HealthResponse:
     )
 
 
+@app.get("/health/data")
+def health_data() -> dict:
+    """
+    Debug endpoint to inspect data freshness (parquet mtime, row counts, max dates).
+    """
+    games = load_games_table()
+
+    nba_primary = PROCESSED_DIR / "nba" / "nba_games_with_scores.parquet"
+    nba_fallback = PROCESSED_DIR / "games_with_scores_and_future.parquet"
+    nba_path = nba_primary if nba_primary.exists() else nba_fallback
+    mtime = None
+    try:
+        mtime = nba_path.stat().st_mtime
+    except OSError:
+        mtime = None
+
+    nba_games = games[games.get("sport").astype(str).str.upper() == "NBA"] if "sport" in games.columns else pd.DataFrame()
+    nba_max_date = pd.to_datetime(nba_games.get("date"), errors="coerce").max() if not nba_games.empty else None
+    nba_final = (
+        nba_games.get("home_pts", pd.Series(dtype=float)).notna()
+        & nba_games.get("away_pts", pd.Series(dtype=float)).notna()
+    ).sum()
+
+    nhl_games = games[games.get("sport").astype(str).str.upper() == "NHL"] if "sport" in games.columns else pd.DataFrame()
+    nhl_max_date = pd.to_datetime(nhl_games.get("date"), errors="coerce").max() if not nhl_games.empty else None
+    nhl_min_date = pd.to_datetime(nhl_games.get("date"), errors="coerce").min() if not nhl_games.empty else None
+    nhl_final = (
+        nhl_games.get("home_pts", pd.Series(dtype=float)).notna()
+        & nhl_games.get("away_pts", pd.Series(dtype=float)).notna()
+    ).sum()
+    nhl_seasons = (
+        pd.to_datetime(nhl_games.get("date"), errors="coerce").dt.year.dropna().astype(int).unique().tolist()
+        if not nhl_games.empty
+        else []
+    )
+
+    return {
+        "nba": {
+            "path": str(nba_path),
+            "mtime": mtime,
+            "rows": len(nba_games),
+            "final_rows": int(nba_final),
+            "max_date": nba_max_date,
+        },
+        "nhl": {
+            "rows": len(nhl_games),
+            "final_rows": int(nhl_final),
+            "min_date": nhl_min_date,
+            "max_date": nhl_max_date,
+            "seasons": sorted(nhl_seasons),
+        },
+        "total_rows": len(games),
+    }
+
+@app.get("/debug/nhl")
+def debug_nhl() -> dict:
+    """
+    Return raw NHL stats from the same games dataframe used by /events.
+    """
+    games = load_games_table()
+    files_checked = [
+        str(NHL_PROCESSED_DIR / "nhl_games_for_app.parquet"),
+        str(NHL_PROCESSED_DIR / "nhl_games_with_scores.parquet"),
+        str(NHL_PROCESSED_DIR / "nhl_predictions_future.parquet"),
+    ]
+    file_exists = {p: Path(p).exists() for p in files_checked}
+
+    nhl = games[games.get("sport").astype(str).str.upper() == "NHL"] if "sport" in games.columns else pd.DataFrame()
+    if not nhl.empty and not hasattr(nhl["date"], "dt"):
+        nhl["date"] = pd.to_datetime(nhl["date"])
+
+    seasons = (
+        nhl["date"].dt.year.dropna().astype(int).unique().tolist()
+        if not nhl.empty
+        else []
+    )
+    sample = nhl[["date", "home_team", "away_team", "status"]].head(5).to_dict(orient="records") if not nhl.empty else []
+
+    return {
+        "files_checked": files_checked,
+        "file_exists": file_exists,
+        "loaded_rows": len(nhl),
+        "min_date": nhl["date"].min() if not nhl.empty else None,
+        "max_date": nhl["date"].max() if not nhl.empty else None,
+        "seasons": sorted(seasons),
+        "sport_values": nhl.get("sport").unique().tolist() if not nhl.empty else [],
+        "sample_rows": sample,
+    }
+
+@app.get("/debug/nhl/day")
+def debug_nhl_day(date: str) -> dict:
+    """
+    Return sample rows for a specific NHL date (YYYY-MM-DD) using the same games dataframe.
+    """
+    games = load_games_table()
+    nhl = games[games.get("sport").astype(str).str.upper() == "NHL"] if "sport" in games.columns else pd.DataFrame()
+    if not hasattr(nhl["date"], "dt") and not nhl.empty:
+        nhl["date"] = pd.to_datetime(nhl["date"])
+    target = str(date).strip()
+    if not target:
+        raise HTTPException(status_code=400, detail="date is required")
+    nhl["date_only"] = nhl["date"].astype(str).str.slice(0, 10)
+    subset = nhl[nhl["date_only"] == target]
+    sample = subset[["event_id", "date", "home_team", "away_team", "status"]].head(10).to_dict(orient="records")
+    return {
+        "requested_date": target,
+        "rows_found": int(len(subset)),
+        "sample_rows": sample,
+    }
+
+@app.get("/meta/seasons")
+def meta_seasons() -> dict:
+    """
+    Return available seasons per sport based on the loaded games table.
+    Seasons are derived from date.year (calendar year) for each sport.
+    """
+    games = load_games_table()
+    result = {}
+    sport_map = {
+        1: "NBA",
+        2: "MLB",
+        3: "NFL",
+        4: "NHL",
+        5: "UFC",
+    }
+    if not hasattr(games["date"], "dt"):
+        games = games.copy()
+        games["date"] = pd.to_datetime(games["date"])
+
+    for sid, name in sport_map.items():
+        sport_rows = games[games["sport"] == name] if "sport" in games.columns else pd.DataFrame()
+        years = (
+            sport_rows["date"].dt.year.dropna().astype(int).unique().tolist()
+            if not sport_rows.empty
+            else []
+        )
+        years_sorted = sorted(set(years))
+        result[str(sid)] = years_sorted
+
+    return {"seasons": result}
+
+
 @app.get("/teams", response_model=ListTeamsResponse)
 def list_teams(limit: int = 100) -> ListTeamsResponse:
     """Return teams as simple id/name objects for all sports."""
@@ -2442,7 +2957,10 @@ def list_teams(limit: int = 100) -> ListTeamsResponse:
 def list_events(
     limit: int | None = None,
     year: int | None = None,
+    season: str | None = None,
     sport_id: int | None = None,
+    sport: str | None = None,
+    date: str | None = None,
 ) -> ListEventsResponse:
     """
     Return a list of events derived from the processed games table.
@@ -2460,8 +2978,8 @@ def list_events(
         df = df.copy()
         df["date"] = pd.to_datetime(df["date"])
 
-    # Filter by sport_id if provided
-    if sport_id is not None and "sport" in df.columns:
+    # Filter by sport_id/sport if provided (case-insensitive)
+    if "sport" in df.columns:
         sport_map = {
             1: "NBA",
             2: "MLB",
@@ -2469,12 +2987,43 @@ def list_events(
             4: "NHL",
             5: "UFC",
         }
-        if sport_id in sport_map:
-            df = df[df["sport"] == sport_map[sport_id]]
+        allowed = None
+        if sport_id is not None and sport_id in sport_map:
+            allowed = sport_map[sport_id]
+        if sport:
+            allowed = sport.upper()
+        if allowed:
+            df = df[df["sport"].astype(str).str.upper() == allowed]
+            logger.info("📋 /events sport filter applied: sport=%s rows=%d", allowed, len(df))
 
-    # Filter by year if provided
+    # Filter by year if provided (calendar year)
     if year is not None:
-        df = df[df["date"].dt.year == year]
+        year = int(year)
+        before = len(df)
+        df = df[(df["date"].dt.year == year)]
+        logger.info("📋 /events year filter applied: year=%d before=%d after=%d", year, before, len(df))
+
+    # Filter by season if provided (accept formats like 2008, "2008", or "2008-09")
+    if season:
+        try:
+            season_str = str(season)
+            start_year = int(season_str.split("-")[0])
+            date_year = df["date"].dt.year
+            before = len(df)
+            # include start year and following year to cover split seasons (e.g., NHL/NBA)
+            df = df[(date_year == start_year) | (date_year == start_year + 1)]
+            logger.info("📋 /events season filter applied: season=%s before=%d after=%d", season_str, before, len(df))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("⚠️ /events season filter ignored; could not parse season=%s err=%s", season, exc)
+
+    # Filter by date (day range) if provided
+    if date:
+        target = str(date).strip()
+        if target.lower() == "today":
+            target = datetime.now(ZoneInfo("America/Denver")).date().isoformat()
+        before = len(df)
+        df = df[df["date"].dt.strftime("%Y-%m-%d") == target]
+        logger.info("📋 /events date filter applied: date=%s before=%d after=%d", target, before, len(df))
 
     # Sort newest games first
     df = df.sort_values(["date", "game_id"], ascending=[False, False])
@@ -2502,16 +3051,21 @@ def list_events(
             nfl_df["_priority"] = 0
 
             # CORRECTED PRIORITY ORDER: scores > predictions > odds
-            has_scores = nfl_df.get("home_pts", pd.Series([None] * len(nfl_df))).notna() & nfl_df.get("away_pts", pd.Series([None] * len(nfl_df))).notna()
+            # ensure masks are Series aligned to the nfl_df index to avoid pandas ndim assertion errors
+            has_scores = (
+                nfl_df.get("home_pts", pd.Series(index=nfl_df.index, dtype=float)).notna()
+                & nfl_df.get("away_pts", pd.Series(index=nfl_df.index, dtype=float)).notna()
+            ).reindex(nfl_df.index, fill_value=False)
             nfl_df.loc[has_scores, "_priority"] += 1000
 
-            has_model = nfl_df.get("p_home_win", pd.Series([None] * len(nfl_df))).notna()
+            has_model = nfl_df.get("p_home_win", pd.Series(index=nfl_df.index, dtype=float)).notna()
+            has_model = has_model.reindex(nfl_df.index, fill_value=False)
             nfl_df.loc[has_model, "_priority"] += 500
 
             has_odds = (
-                nfl_df.get("home_moneyline", pd.Series([None] * len(nfl_df))).notna()
-                | nfl_df.get("spread_line", pd.Series([None] * len(nfl_df))).notna()
-            )
+                nfl_df.get("home_moneyline", pd.Series(index=nfl_df.index, dtype=float)).notna()
+                | nfl_df.get("spread_line", pd.Series(index=nfl_df.index, dtype=float)).notna()
+            ).reindex(nfl_df.index, fill_value=False)
             nfl_df.loc[has_odds, "_priority"] += 100
 
             nfl_df = nfl_df.sort_values(["_dedup_key", "_priority"], ascending=[True, False])

@@ -6,7 +6,7 @@ export $(shell sed 's/=.*//' .env)
 API_PORT ?= 8000
 DB_URL := postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)
 
-.PHONY: up down logs db api lint test psql seed migrate
+.PHONY: up down logs db api lint test psql seed migrate nhl
 
 up:
 	docker compose up -d
@@ -48,6 +48,15 @@ test:
 
 train-nba:
 	python models/nba/train_baseline.py
+
+# --- NHL rebuild (MoneyPuck) ---
+nhl:
+	python model/scripts/build_nhl_from_moneypuck.py
+	@test -f model/data/processed/nhl/nhl_games_for_app.parquet
+
+nhl_future:
+	python model/scripts/build_nhl_future_schedule.py
+	@test -f model/data/processed/nhl/nhl_future_schedule_for_app.parquet
 
 # --- NHL model pipeline ---
 nhl-build:
