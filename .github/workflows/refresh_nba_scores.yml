@@ -1,218 +1,69 @@
-name: Nightly NBA Scores Refresh
+# File: model/scripts/backfill_nba_scores_2025_bdl.py
 
-on:
-  # Run every night at 10:30 AM UTC (3:30 AM America/Denver)
-  schedule:
-    - cron: '30 10 * * *'
-  # Allow manual triggering for testing
-  workflow_dispatch:
+import pandas as pd
+import requests
+import os
+from pathlib import Path
 
-jobs:
-  refresh-scores:
-    runs-on: ubuntu-latest
+def main():
+    output_path = Path("model/data/processed/nba/nba_games_with_scores.parquet")
+    existing = None
+    if output_path.exists():
+        existing = pd.read_parquet(output_path)
 
-    # Grant write permissions for creating PRs
-    permissions:
-      contents: write
-      pull-requests: write
+    # --- Normalize existing parquet schema across script versions ---
+    # Older versions of this project used alternate column names for the game datetime.
+    # The workflow + downstream code expects a `date` column.
+    if existing is None:
+        existing = pd.DataFrame()
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          # Need full history to commit back
-          fetch-depth: 0
+    if not existing.empty:
+        if "date" not in existing.columns:
+            # Try common alternatives from earlier iterations / other ingesters
+            for alt in [
+                "game_date",
+                "start_date",
+                "start_time",
+                "startTime",
+                "datetime",
+                "scheduled",
+                "commence_time",
+                "tipoff_time",
+                "time",
+                "utc_start",
+                "start_at",
+            ]:
+                if alt in existing.columns:
+                    existing = existing.rename(columns={alt: "date"})
+                    break
 
-      - name: Cache NBA backfill state
-        uses: actions/cache@v4
-        with:
-          path: model/data/processed/nba/nba_backfill_state.json
-          key: nba-backfill-state-${{ hashFiles('model/scripts/backfill_nba_scores_2025_bdl.py') }}
-          restore-keys: |
-            nba-backfill-state-
+        # Ensure the column exists even if we couldn't find an alternate
+        if "date" not in existing.columns:
+            existing["date"] = pd.NaT
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
+        existing["date"] = pd.to_datetime(existing["date"], errors="coerce")
+    else:
+        # Empty frame: ensure expected column exists so later logic doesn't crash
+        existing["date"] = pd.to_datetime(pd.Series([], dtype="datetime64[ns]"), errors="coerce")
+    # --- End normalization ---
 
-      - name: Debug Python executable (pre-install)
-        run: |
-          which python || true
-          python -V
-          python - <<'PY'
-          import sys
-          print('sys.executable:', sys.executable)
-          print('sys.path[0:5]:', sys.path[0:5])
-          PY
+    # ... rest of main() function continues here ...
 
-      - name: Install dependencies
-        run: |
-          set -euxo pipefail
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          # Hard-require these for the workflow scripts (in case requirements.txt is missing them)
-          python -m pip install --upgrade requests
-          # Hard-require these for the workflow scripts (some branches may not have them pinned)
-          python -m pip install --upgrade pandas pyarrow
-          echo "---- pip show pandas ----"
-          python -m pip show pandas || true
-          echo "---- pip freeze (top 50) ----"
-          python -m pip freeze | head -n 50
-          # Sanity check so we fail here (not later) with a clearer error
-          python - <<'PY'
-          import sys
-          import pandas as pd
-          import pyarrow  # noqa: F401
-          import requests
-          print('Python:', sys.version)
-          print('sys.executable:', sys.executable)
-          print('pandas:', pd.__version__)
-          print('requests:', requests.__version__)
-          PY
+    # Example of other existing["date"] usage moved after normalization:
+    # e.g. computing max date or filtering on date column
+    # max_existing_date = existing["date"].max() if not existing.empty else None
 
-      - name: Capture baseline parquet stats (if exists)
-        id: baseline
-        run: |
-          python - <<'PY'
-          import pandas as pd
-          from pathlib import Path
-          path = Path("model/data/processed/nba/nba_games_with_scores.parquet")
-          out = open("$GITHUB_OUTPUT", "a")
-          if not path.exists():
-              print("baseline_seasons=0", file=out)
-              print("baseline_rows=0", file=out)
-              raise SystemExit
-          df = pd.read_parquet(path)
-          seasons = df["season"].nunique(dropna=True)
-          rows = len(df)
-          print(f"baseline_seasons={seasons}", file=out)
-          print(f"baseline_rows={rows}", file=out)
-          print("Baseline rows:", rows)
-          print("Baseline seasons:", seasons)
-          print("Rows by season (top):")
-          print(df["season"].value_counts(dropna=False).head(10))
-          PY
+    # Fetch new data, process, etc.
 
-      - name: Warn if API key is missing
-        run: |
-          if [ -z "${{ secrets.BALLDONTLIE_API_KEY }}" ]; then
-            echo "⚠️  BALLDONTLIE_API_KEY is not set; proceeding unauthenticated."
-          else
-            echo "✓ BALLDONTLIE_API_KEY configured."
-          fi
+    # When constructing output dataframe, ensure datetime column is named 'date'
+    # For example, if new data frame uses 'game_date' or 'start_time' as datetime column:
+    # new_data = new_data.rename(columns={"game_date": "date"})  # or similar
 
-      - name: Run NBA 2025 backfill
-        env:
-          BALLDONTLIE_API_KEY: ${{ secrets.BALLDONTLIE_API_KEY }}
-        run: |
-          python model/scripts/backfill_nba_scores_2025_bdl.py
+    # Combine existing and new dataframes
+    # combined = pd.concat([existing, new_data], ignore_index=True)
 
-      - name: Verify parquet
-        run: |
-          python - <<'PY'
-          import pandas as pd
-          from pathlib import Path
-          import datetime as dt
-          path = Path("model/data/processed/nba/nba_games_with_scores.parquet")
-          if not path.exists():
-              raise SystemExit("Parquet missing after backfill.")
-          df = pd.read_parquet(path)
-          final = (df["status"] == "FINAL").sum() if "status" in df.columns else 0
-          now = dt.datetime.utcnow().replace(tzinfo=None)
-          last7 = df[df["date"] >= (now - dt.timedelta(days=7))]
-          final_last7 = (last7["status"] == "FINAL").sum() if "status" in last7.columns else 0
-          scored = df[df["home_pts"].notna() & df["away_pts"].notna()]
-          seasons = df["season"].nunique(dropna=True)
-          rows = len(df)
-          baseline_seasons = int("${{ steps.baseline.outputs.baseline_seasons || '0' }}")
-          baseline_rows = int("${{ steps.baseline.outputs.baseline_rows || '0' }}")
-          if baseline_seasons and seasons < baseline_seasons:
-              raise SystemExit(f"Seasons dropped: before={baseline_seasons} after={seasons}")
-          if baseline_rows and rows < baseline_rows * 0.95:
-              raise SystemExit(f"Row count dropped too much: before={baseline_rows} after={rows}")
-          print("Rows:", len(df))
-          print("FINAL rows:", final)
-          print("Max date:", df["date"].max())
-          print("Max date with scores:", scored["date"].max() if not scored.empty else None)
-          print("Rows by season:")
-          print(df["season"].value_counts(dropna=False).head(20))
-          print("Rows last 7 days:", len(last7))
-          print("FINAL last 7 days:", final_last7)
-          print(df.tail(5)[["date","home_team","away_team","home_pts","away_pts","status"]])
-          PY
+    # Write combined dataframe to parquet
+    # combined.to_parquet(output_path, index=False)
 
-      - name: Check for changes
-        id: git-diff
-        run: |
-          if git diff --quiet; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-          else
-            echo "changed=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Stage intended files
-        if: steps.git-diff.outputs.changed == 'true'
-        id: stage-intended
-        run: |
-          git status --short
-          git add model/data/processed/nba/nba_games_with_scores.parquet model/data/processed/nba/nba_backfill_state.json
-          git diff --cached --stat || true
-          if git diff --cached --quiet; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-          else
-            echo "changed=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create Pull Request
-        id: create-pr
-        if: steps.stage-intended.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          # Commit settings
-          commit-message: 'chore: update NBA scores (automated backfill)'
-          committer: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
-          author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
-
-          # Branch settings
-          branch: bot/nba-scores-refresh
-          delete-branch: false
-
-          # PR settings
-          title: 'chore: update NBA scores (automated refresh)'
-          body: |
-            ## Automated NBA Scores Refresh
-
-            This PR updates the NBA scores parquet file with the latest data.
-
-            - **Run time**: ${{ github.event.repository.updated_at }}
-            - **Workflow**: Nightly NBA Scores Refresh
-            - **Trigger**: ${{ github.event_name }}
-            - **File**: `model/data/processed/nba/nba_games_with_scores.parquet`
-
-            This is an automated nightly refresh. Review and merge if the data looks correct.
-
-          # Labels (optional)
-          labels: |
-            automated
-            data-refresh
-
-      - name: PR Created/Updated
-        if: steps.create-pr.outputs.pull-request-number
-        run: |
-          echo "======================================"
-          echo "✓ PULL REQUEST CREATED/UPDATED"
-          echo "======================================"
-          echo "  Number: #${{ steps.create-pr.outputs.pull-request-number }}"
-          echo "  URL: ${{ steps.create-pr.outputs.pull-request-url }}"
-          echo "  Operation: ${{ steps.create-pr.outputs.pull-request-operation }}"
-
-      - name: No changes detected
-        if: steps.git-diff.outputs.changed != 'true'
-        run: |
-          echo "======================================"
-          echo "ℹ️  NO CHANGES DETECTED"
-          echo "======================================"
-          echo "The parquet file content is identical to the previous version."
-          echo "No pull request created or updated."
+if __name__ == "__main__":
+    main()
