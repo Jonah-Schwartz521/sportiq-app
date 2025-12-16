@@ -38,6 +38,50 @@ RECENT_DAYS = 30  # always refresh last 30 days
 BDL_BASE = "https://api.balldontlie.io/v1/games"
 PER_PAGE = 100
 
+DATE_ALIASES = [
+    "date",
+    "game_date",
+    "start_date",
+    "start_time",
+    "startTime",
+    "datetime",
+    "scheduled",
+    "commence_time",
+    "tipoff_time",
+    "time",
+    "utc_start",
+    "start_at",
+]
+
+
+def ensure_date_column(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensure df has a `date` column parsed as datetime. Renames common alternates when present."""
+    if df is None:
+        df = pd.DataFrame()
+    if df.empty:
+        # still guarantee the column exists
+        if "date" not in df.columns:
+            df = df.copy()
+            df["date"] = pd.to_datetime(pd.Series([], dtype="datetime64[ns]"), errors="coerce")
+        else:
+            df = df.copy()
+            df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        return df
+
+    df = df.copy()
+
+    if "date" not in df.columns:
+        for alt in DATE_ALIASES[1:]:  # skip 'date'
+            if alt in df.columns:
+                df = df.rename(columns={alt: "date"})
+                break
+
+    if "date" not in df.columns:
+        df["date"] = pd.NaT
+
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    return df
+
 
 def load_state() -> Dict[str, str]:
     if STATE_PATH.exists():
@@ -214,17 +258,23 @@ def main() -> None:
         chunk_labels.append(label)
 
     combined = pd.concat(all_chunks, ignore_index=True) if all_chunks else pd.DataFrame()
+    combined = ensure_date_column(combined)
+
     # Filter by calendar year window (NBA season spans years; don't rely on season field)
     year_start = datetime(YEAR, 1, 1)
     today = datetime.now()
     year_end = datetime(YEAR, 12, 31, 23, 59, 59)
     target_end = min(year_end, today + timedelta(days=1))
-    combined = combined[(combined["date"] >= year_start) & (combined["date"] <= target_end)]
+
+    # Only filter if the `date` column actually contains values
+    if "date" in combined.columns:
+        combined = combined[(combined["date"] >= year_start) & (combined["date"] <= target_end)]
 
     # Merge with existing to preserve other seasons/years (season != YEAR stays)
     existing = load_existing()
+    existing = ensure_date_column(existing)
+
     if not existing.empty:
-        existing["date"] = pd.to_datetime(existing["date"], errors="coerce")
         existing["season"] = pd.to_numeric(existing.get("season"), errors="coerce")
         print("Existing parquet seasons (before merge):")
         print(existing["season"].value_counts(dropna=False).head(20))
@@ -240,7 +290,7 @@ def main() -> None:
     # Final dedupe and sort
     for df in (others, combined_2025):
         if not df.empty:
-            df["date"] = pd.to_datetime(df["date"], errors="coerce")
+            df = ensure_date_column(df)
             df["season"] = pd.to_numeric(df.get("season"), errors="coerce")
 
     def quality(row):
