@@ -37,10 +37,36 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
+      - name: Debug Python executable (pre-install)
+        run: |
+          which python || true
+          python -V
+          python - <<'PY'
+          import sys
+          print('sys.executable:', sys.executable)
+          print('sys.path[0:5]:', sys.path[0:5])
+          PY
+
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
+          set -euxo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          # Hard-require these for the workflow scripts (some branches may not have them pinned)
+          python -m pip install --upgrade pandas pyarrow
+          echo "---- pip show pandas ----"
+          python -m pip show pandas || true
+          echo "---- pip freeze (top 50) ----"
+          python -m pip freeze | head -n 50
+          # Sanity check so we fail here (not later) with a clearer error
+          python - <<'PY'
+          import sys
+          import pandas as pd
+          import pyarrow  # noqa: F401
+          print('Python:', sys.version)
+          print('sys.executable:', sys.executable)
+          print('pandas:', pd.__version__)
+          PY
 
       - name: Capture baseline parquet stats (if exists)
         id: baseline
