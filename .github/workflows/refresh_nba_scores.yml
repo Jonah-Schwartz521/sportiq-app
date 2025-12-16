@@ -52,6 +52,8 @@ jobs:
           set -euxo pipefail
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
+          # Hard-require these for the workflow scripts (in case requirements.txt is missing them)
+          python -m pip install --upgrade requests
           # Hard-require these for the workflow scripts (some branches may not have them pinned)
           python -m pip install --upgrade pandas pyarrow
           echo "---- pip show pandas ----"
@@ -63,9 +65,11 @@ jobs:
           import sys
           import pandas as pd
           import pyarrow  # noqa: F401
+          import requests
           print('Python:', sys.version)
           print('sys.executable:', sys.executable)
           print('pandas:', pd.__version__)
+          print('requests:', requests.__version__)
           PY
 
       - name: Capture baseline parquet stats (if exists)
