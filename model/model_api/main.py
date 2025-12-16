@@ -2009,6 +2009,7 @@ class EventOut(BaseModel):
     event_id: int
     sport_id: int
     date: str
+    event_key: Optional[str] = None
     home_team_id: Optional[int]
     away_team_id: Optional[int]
     home_team: Optional[str] = None  # Team name/abbrev for display
@@ -2444,6 +2445,12 @@ def startup_event():
                 logger.info("NFL fallback fill applied for %d games via matchup key.", int(fill_mask.sum()))
             games = games.drop(columns=["_match_key", "p_home_win_matchfill", "p_away_win_matchfill", "nfl_source_matchfill"], errors="ignore")
 
+    # Ensure model odds columns exist to avoid KeyError
+    if "model_home_american_odds" not in games.columns:
+        games["model_home_american_odds"] = pd.NA
+    if "model_away_american_odds" not in games.columns:
+        games["model_away_american_odds"] = pd.NA
+
     # Load NBA predictions and join via event_key
     nba_preds = load_nba_predictions()
     if nba_preds is not None and "event_key" in games.columns:
@@ -2457,6 +2464,7 @@ def startup_event():
             "source": "nba_source"
         })
 
+        # NBA predictions already include event_key; join directly
         games = games.merge(
             nba_preds_renamed,
             on="event_key",
@@ -2471,11 +2479,16 @@ def startup_event():
         coverage_pct = 100 * nba_with_preds / nba_games_count if nba_games_count > 0 else 0
 
         logger.info(
-            "Joined NBA predictions: %d/%d NBA games have predictions (%.1f%%)",
-            nba_with_preds,
-            nba_games_count,
-            coverage_pct
-        )
+             "Joined NBA predictions: %d/%d NBA games have predictions (%.1f%%)",
+             nba_with_preds,
+             nba_games_count,
+             coverage_pct
+         )
+
+        # Fill missing model American odds from win probabilities (NBA only)
+
+
+        # No fallback needed for NBA: predictions are keyed by event_key
 
     # Load NHL predictions and join via nhl_game_id_str
     nhl_preds = load_nhl_predictions()
@@ -3246,6 +3259,7 @@ def list_events(
                 event_id=game_id,
                 sport_id=sport_id,
                 date=str(row["date"].date()),
+                event_key=str(row["event_key"]) if pd.notna(row.get("event_key")) else None,
                 home_team_id=TEAM_NAME_TO_ID.get(str(row["home_team"])),
                 away_team_id=TEAM_NAME_TO_ID.get(str(row["away_team"])),
                 home_team=str(row["home_team"]) if pd.notna(row.get("home_team")) else None,
