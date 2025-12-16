@@ -31,6 +31,17 @@ jobs:
           restore-keys: |
             nba-backfill-state-
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
       - name: Capture baseline parquet stats (if exists)
         id: baseline
         run: |
@@ -53,17 +64,6 @@ jobs:
           print("Rows by season (top):")
           print(df["season"].value_counts(dropna=False).head(10))
           PY
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
 
       - name: Warn if API key is missing
         run: |
