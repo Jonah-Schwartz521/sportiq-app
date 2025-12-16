@@ -58,10 +58,13 @@ jobs:
         id: baseline
         run: |
           python - <<'PY'
+          import sys
           import pandas as pd
+          import os
           from pathlib import Path
+          import os
+          out = open(os.environ["GITHUB_OUTPUT"], "a")
           path = Path('model/data/processed/nba/nba_games_with_scores.parquet')
-          out = open('$GITHUB_OUTPUT', 'a')
           if not path.exists():
               print('baseline_seasons=0', file=out)
               print('baseline_rows=0', file=out)
@@ -145,8 +148,9 @@ jobs:
         if: steps.git-diff.outputs.changed == 'true'
         id: stage-intended
         run: |
+          rm -f '$GITHUB_OUTPUT' || true
           git status --short
-          git add model/data/processed/nba/nba_games_with_scores.parquet model/data/processed/nba/nba_backfill_state.json
+          git add -f model/data/processed/nba/nba_games_with_scores.parquet model/data/processed/nba/nba_backfill_state.json
           git diff --cached --stat || true
           if git diff --cached --quiet; then
             echo "changed=false" >> $GITHUB_OUTPUT
